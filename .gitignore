@@ -1,0 +1,24 @@
+# Go binaries
+*.exe
+*.exe~
+gogit
+gogit.exe
+
+# Go test files
+*.test
+*.out
+
+# IDE files (if using VS Code)
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# GoGit test repositories
+*.gogit/
+test-repos/
+
+# Build output
+/bin/
+/dist/
