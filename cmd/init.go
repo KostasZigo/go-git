@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	// "fmt"
 	"fmt"
 
 	"github.com/KostasZigo/gogit/internal/repository"
@@ -14,9 +13,10 @@ var initCmd = &cobra.Command{
 	Long: `The 'init' command sets up a new GoGit repository in the current directory.
 It creates a .gogit directory and necessary configuration files, allowing you to start tracking your project's history.
 If a repository already exists, the command will not overwrite existing data.`,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
-			fmt.Println("usage: gogit init [<directory>]")
+			cmd.Println("usage: gogit init [<directory>]")
 			return nil
 		}
 
@@ -26,10 +26,10 @@ If a repository already exists, the command will not overwrite existing data.`,
 		}
 
 		if err := repository.InitRepository(filepath); err != nil {
-			return fmt.Errorf("failed to initialize repository: %w", err)
+			return fmt.Errorf("failed to initialize repository - %w", err)
 		}
 
-		fmt.Printf("Initialized empty GoGit repository in %s/.gogit/\n", filepath)
+		cmd.Printf("Initialized empty GoGit repository in %s/.gogit/\n", filepath)
 		return nil
 	},
 }
