@@ -1,12 +1,10 @@
 package objects
 
 import (
-	"crypto/sha1"
 	"fmt"
+	"github.com/KostasZigo/gogit/utils"
 	"os"
 )
-
-const headerFormat string = "blob %d\x00"
 
 type Blob struct {
 	content []byte
@@ -14,7 +12,7 @@ type Blob struct {
 }
 
 func NewBlob(content []byte) *Blob {
-	hash := computeBlobHash(content)
+	hash, _ := utils.ComputeHash(content, utils.BlobObjectType)
 	return &Blob{
 		content: content,
 		hash:    hash,
@@ -27,13 +25,6 @@ func NewBlobFromFile(filepath string) (*Blob, error) {
 		return nil, fmt.Errorf("failed to read file %s: %w", filepath, err)
 	}
 	return NewBlob(content), nil
-}
-
-func computeBlobHash(content []byte) string {
-	header := fmt.Sprintf(headerFormat, len(content))
-	data := append([]byte(header), content...)
-	hash := sha1.Sum(data)
-	return fmt.Sprintf("%x", hash)
 }
 
 func (b *Blob) Hash() string {
@@ -49,7 +40,7 @@ func (b *Blob) Size() int {
 }
 
 func (b *Blob) Header() string {
-	return fmt.Sprintf(headerFormat, b.Size())
+	return fmt.Sprintf("blob %d\x00", b.Size())
 }
 
 func (b *Blob) Data() []byte {

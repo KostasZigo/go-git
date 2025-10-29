@@ -24,10 +24,10 @@ func NewObjectStore(repoPath string) *ObjectStore {
 	}
 }
 
-// Store saves a blob to .gogit/objects/<first 2 chars>/<rest>
+// Store saves a GoGit Object to .gogit/objects/<first 2 chars>/<rest>
 // Returns nil if object already exists
-func (store *ObjectStore) Store(blob *Blob) error {
-	hash := blob.Hash()
+func (store *ObjectStore) Store(obj Object) error {
+	hash := obj.Hash()
 
 	// Calculate object path: .gogit/objects/ab/cdef123...
 	objectDir := filepath.Join(store.repoPath, objectsRelativeFilePath, hash[:2])
@@ -50,7 +50,7 @@ func (store *ObjectStore) Store(blob *Blob) error {
 	}
 
 	// Compress object content
-	compressedData, err := store.compressObject(blob)
+	compressedData, err := store.compressObject(obj)
 	if err != nil {
 		return fmt.Errorf("failed to compress object: %w", err)
 	}
@@ -63,8 +63,8 @@ func (store *ObjectStore) Store(blob *Blob) error {
 	return nil
 }
 
-func (store *ObjectStore) compressObject(blob *Blob) ([]byte, error) {
-	data := blob.Data()
+func (store *ObjectStore) compressObject(obj Object) ([]byte, error) {
+	data := obj.Data()
 
 	// Compress with zlib
 	var buffer bytes.Buffer
@@ -83,8 +83,29 @@ func (store *ObjectStore) compressObject(blob *Blob) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// Read reads a blob from storage by hash
-func (store *ObjectStore) Read(hash string) (*Blob, error) {
+// ReadBlob reads a blob from storage by hash
+func (store *ObjectStore) ReadBlob(hash string) (*Blob, error) {
+	data, err := store.readObject(hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseBlobData(data, hash)
+}
+
+// ReadTree reads a tree from storage by hash
+func (store *ObjectStore) ReadTree(hash string) (*Tree, error) {
+	data, err := store.readObject(hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseTreeData(data, hash)
+}
+
+// readObject is a private helper that reads and decompresses any object
+// It returns the raw decompressed data without parsing
+func (store *ObjectStore) readObject(hash string) ([]byte, error) {
 	objectFile := filepath.Join(store.repoPath, objectsRelativeFilePath, hash[:2], hash[2:])
 
 	// Read compressed file
@@ -96,7 +117,7 @@ func (store *ObjectStore) Read(hash string) (*Blob, error) {
 	// Decompress
 	reader, err := zlib.NewReader(bytes.NewReader(compressedData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create new reader for decompressed data: %w", err)
+		return nil, fmt.Errorf("failed to create reader for decompressed data: %w", err)
 	}
 	defer reader.Close()
 
@@ -105,24 +126,120 @@ func (store *ObjectStore) Read(hash string) (*Blob, error) {
 		return nil, fmt.Errorf("failed to read decompressed data: %w", err)
 	}
 
-	data := buffer.Bytes()
+	return buffer.Bytes(), nil
+}
 
-	// Find null byte separator
+// parseBlobData parses decompressed blob data and returns a Blob object
+func parseBlobData(data []byte, expectedHash string) (*Blob, error) {
+	// Verify object type is blob
+	if !bytes.HasPrefix(data, []byte("blob ")) {
+		return nil, fmt.Errorf("object %s is not a blob", expectedHash)
+	}
+
+	// Find null byte separator (end of header)
 	nullByteIndex := bytes.IndexByte(data, 0)
 	if nullByteIndex == -1 {
-		return nil, fmt.Errorf("invalid object format: no null byte found")
+		return nil, fmt.Errorf("invalid blob format: no null byte found")
 	}
 
 	// Extract content (after null byte)
 	content := data[nullByteIndex+1:]
 
+	// Create blob from content
 	blob := NewBlob(content)
 
-	if blob.Hash() != hash {
-		return nil, fmt.Errorf("hash mismatch: expected %s, got %s", hash, blob.Hash())
+	// Verify hash matches
+	if blob.Hash() != expectedHash {
+		return nil, fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, blob.Hash())
 	}
 
 	return blob, nil
+}
+
+// parseTreeData parses decompressed tree data and returns a Tree object
+func parseTreeData(data []byte, expectedHash string) (*Tree, error) {
+	// Verify object type is tree
+	if !bytes.HasPrefix(data, []byte("tree ")) {
+		return nil, fmt.Errorf("object %s is not a tree", expectedHash)
+	}
+
+	// Find null byte separator (end of header)
+	nullByteIndex := bytes.IndexByte(data, 0)
+	if nullByteIndex == -1 {
+		return nil, fmt.Errorf("invalid tree format: no null byte found")
+	}
+
+	// Extract tree content (after null byte)
+	content := data[nullByteIndex+1:]
+
+	// Parse tree entries from binary content
+	entries, err := parseTreeEntries(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse tree entries: %w", err)
+	}
+
+	// Create tree from entries
+	tree, err := NewTree(entries)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tree from entries: %v", err)
+	}
+
+	// Verify hash matches
+	if tree.Hash() != expectedHash {
+		return nil, fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, tree.Hash())
+	}
+
+	return tree, nil
+}
+
+// parseTreeEntries parses binary tree content into a slice of TreeEntry
+// Format: <mode> <name>\0<20-byte binary SHA>
+func parseTreeEntries(content []byte) ([]TreeEntry, error) {
+	var entries []TreeEntry
+	offset := 0
+
+	for offset < len(content) {
+		// 1. Find space separator (between mode and name)
+		spaceIndex := bytes.IndexByte(content[offset:], ' ')
+		if spaceIndex == -1 {
+			// No more entries
+			break
+		}
+
+		// 2. Extract mode (e.g., "100644", "040000")
+		modeStr := string(content[offset : offset+spaceIndex])
+		mode := FileMode(modeStr)
+		offset += spaceIndex + 1
+
+		// 3. Find null byte (end of name)
+		nullIndex := bytes.IndexByte(content[offset:], 0)
+		if nullIndex == -1 {
+			return nil, fmt.Errorf("invalid tree entry: no null byte after name")
+		}
+
+		// 4. Extract name
+		name := string(content[offset : offset+nullIndex])
+		offset += nullIndex + 1
+
+		// 5. Extract 20-byte binary hash
+		if offset+20 > len(content) {
+			return nil, fmt.Errorf("invalid tree entry: incomplete hash for %s", name)
+		}
+		hashBytes := content[offset : offset+20]
+
+		// 6. Convert binary hash to hex string (40 chars)
+		hash := fmt.Sprintf("%x", hashBytes)
+		offset += 20
+
+		// 7. Create entry
+		entry, err := NewTreeEntry(mode, name, hash)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create tree entry: %v", err)
+		}
+		entries = append(entries, *entry)
+	}
+
+	return entries, nil
 }
 
 // Exists checks if an object exists in storage

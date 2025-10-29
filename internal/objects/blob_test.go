@@ -1,19 +1,22 @@
 package objects
 
 import (
-	"crypto/sha1"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/KostasZigo/gogit/utils"
 )
 
 func TestNewBlob(t *testing.T) {
 	content := []byte("Hello, World!\n")
 	blob := NewBlob(content)
 
-	expectedHash := computeBlobHash(content)
+	expectedHash, err := utils.ComputeHash(content, utils.BlobObjectType)
+	if err != nil {
+		t.Fatal("Expected object type to be valid")
+	}
 
 	if blob.Hash() != expectedHash {
 		t.Fatalf("Expected hash %s, got %s", expectedHash, blob.Hash())
@@ -51,7 +54,11 @@ func TestNewBlobFromFile(t *testing.T) {
 	}
 
 	// Verify hash is correct
-	expectedHash := computeExpectedHash(content)
+	expectedHash, err := utils.ComputeHash(content, utils.BlobObjectType)
+	if err != nil {
+		t.Fatal("Expected object type to be valid")
+	}
+
 	if blob.Hash() != expectedHash {
 		t.Errorf("Hash mismatch: expected %s, got %s", expectedHash, blob.Hash())
 	}
@@ -73,7 +80,10 @@ func TestBlob_EmptyContent(t *testing.T) {
 	blob := NewBlob([]byte(""))
 
 	// Verify empty blob hash
-	expectedHash := computeExpectedHash([]byte(""))
+	expectedHash, err := utils.ComputeHash([]byte(""), utils.BlobObjectType)
+	if err != nil {
+		t.Fatal("Expected object type to be valid")
+	}
 
 	if blob.Hash() != expectedHash {
 		t.Fatalf("Expected empty blob hash %s, got %s", expectedHash, blob.Hash())
@@ -102,13 +112,4 @@ func TestBlob_DifferentContentDifferentHash(t *testing.T) {
 	if blob1.Hash() == blob2.Hash() {
 		t.Fatal("Different content should produce different hashes")
 	}
-}
-
-// Helper function to compute expected hash in the same way as the blob
-// This makes the test self-documenting and verifiable
-func computeExpectedHash(content []byte) string {
-	header := fmt.Sprintf("blob %d\x00", len(content))
-	data := append([]byte(header), content...)
-	hash := sha1.Sum(data)
-	return fmt.Sprintf("%x", hash)
 }
