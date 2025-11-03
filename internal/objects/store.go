@@ -9,6 +9,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/KostasZigo/gogit/utils"
 )
 
 var objectsRelativeFilePath string = filepath.Join(".gogit", "objects")
@@ -101,6 +106,16 @@ func (store *ObjectStore) ReadTree(hash string) (*Tree, error) {
 	}
 
 	return parseTreeData(data, hash)
+}
+
+// ReadCommit reads a commit from storage by hash
+func (store *ObjectStore) ReadCommit(hash string) (*Commit, error) {
+	data, err := store.readObject(hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseCommitData(data, hash)
 }
 
 // readObject is a private helper that reads and decompresses any object
@@ -240,6 +255,151 @@ func parseTreeEntries(content []byte) ([]TreeEntry, error) {
 	}
 
 	return entries, nil
+}
+
+func parseCommitData(data []byte, hash string) (*Commit, error) {
+	if !bytes.HasPrefix(data, []byte("commit ")) {
+		return nil, fmt.Errorf("object %s is not a commit", hash)
+	}
+
+	// Find end of header
+	nullByteIndex := bytes.IndexByte(data, 0)
+	if nullByteIndex == -1 {
+		return nil, fmt.Errorf("invalid commit format: no null byte found")
+	}
+
+	content := string(data[nullByteIndex+1:])
+	commit, err := parseCommitContent(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse commit: %w", err)
+	}
+
+	if hash != commit.Hash() {
+		return nil, fmt.Errorf("hash mismatch: expected %s , got %s", hash, commit.Hash())
+	}
+
+	return commit, nil
+}
+
+func parseCommitContent(content string) (*Commit, error) {
+	lines := strings.Split(content, "\n")
+
+	var treeHash, parentHash string
+	var author, committer Author
+	var messageIndex int
+
+	for i, line := range lines {
+		if line == "" { // this is the blank line separating the message
+			messageIndex = i + 1
+			break
+		}
+
+		if strings.HasPrefix(line, "tree ") {
+			treeHash = strings.TrimPrefix(line, "tree ")
+			continue
+		}
+		if strings.HasPrefix(line, "parent ") {
+			parentHash = strings.TrimPrefix(line, "parent ")
+			continue
+		}
+		if strings.HasPrefix(line, "author ") {
+			authorContent := strings.TrimPrefix(line, "author ")
+
+			var err error
+			author, err = parseCommitAuthorLine(authorContent)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse author: %w", err)
+			}
+
+			continue
+		}
+		if strings.HasPrefix(line, "committer ") {
+			committerContent := strings.TrimPrefix(line, "committer ")
+
+			var err error
+			committer, err = parseCommitAuthorLine(committerContent)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse committer: %w", err)
+			}
+
+			continue
+		}
+	}
+
+	// Extract message
+	message := strings.Join(lines[messageIndex:], "\n")
+	message = strings.TrimRight(message, "\n")
+
+	// Validate required fields
+	if treeHash == "" {
+		return nil, fmt.Errorf("commit missing tree hash")
+	}
+	if author.Name == "" {
+		return nil, fmt.Errorf("commit missing author")
+	}
+	if committer.Name == "" {
+		return nil, fmt.Errorf("commit missing committer")
+	}
+
+	//Compute Hash
+	builtContent := buildCommitContent(treeHash, parentHash, message, author)
+	hash, err := utils.ComputeHash(builtContent, utils.CommitObjectType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute commit hash: %w", err)
+	}
+
+	// Create commit
+	return &Commit{
+		hash:       hash,
+		treeHash:   treeHash,
+		parentHash: parentHash,
+		author:     author,
+		committer:  committer,
+		message:    message,
+	}, nil
+}
+
+func parseCommitAuthorLine(content string) (Author, error) {
+	errorResponse := fmt.Errorf("invalid author/committer format")
+
+	emailStartIndex := strings.Index(content, "<")
+	name := strings.TrimSpace(content[:emailStartIndex])
+
+	parts := strings.Fields(content[emailStartIndex:])
+
+	email := strings.TrimRight(strings.TrimLeft(parts[0], "<"), ">")
+
+	unixTime, err := strconv.ParseInt(parts[1], 10, 61)
+	if err != nil {
+		return Author{}, errorResponse
+	}
+
+	timezone := parts[2]
+
+	offsetHours, err := strconv.Atoi(timezone[1:3])
+	if err != nil {
+		return Author{}, errorResponse
+	}
+
+	offsetMinutes, err := strconv.Atoi(timezone[3:5])
+	if err != nil {
+		return Author{}, errorResponse
+	}
+
+	offsetSecods := offsetHours*3600 + offsetMinutes*60
+
+	if timezone[0] == '-' {
+		offsetSecods = -offsetSecods
+	}
+
+	location := time.FixedZone("", offsetSecods)
+	timestamp := time.Unix(unixTime, 0).In(location)
+
+	return Author{
+		name,
+		email,
+		timestamp,
+	}, nil
 }
 
 // Exists checks if an object exists in storage

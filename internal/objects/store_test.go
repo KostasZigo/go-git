@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/KostasZigo/gogit/testutils"
 )
 
 // BLOB STORAGE TESTS
@@ -406,5 +409,214 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 	}
 	if nestedEntry.Mode() != subTreeEntry.Mode() {
 		t.Errorf("Entry mode mismatch: expected %s, got %s", subTreeEntry.Mode(), nestedEntry.Mode())
+	}
+}
+
+// Commit Storage tests
+
+func TestParseAuthorLine(t *testing.T) {
+	authorLine := "John Doe <john@example.com> 1698765432 -0500"
+
+	author, err := parseCommitAuthorLine(authorLine)
+	if err != nil {
+		t.Fatalf("Failed to parse author line: %v", err)
+	}
+
+	if author.Name != "John Doe" {
+		t.Errorf("Expected name 'John Doe', got %q", author.Name)
+	}
+
+	if author.Email != "john@example.com" {
+		t.Errorf("Expected email 'john@example.com', got %q", author.Email)
+	}
+
+	if author.Timestamp.Unix() != 1698765432 {
+		t.Errorf("Expected timestamp 1698765432, got %d", author.Timestamp.Unix())
+	}
+
+	_, timeZoneOffset := author.Timestamp.Zone()
+	timezone := calculateTimezone(timeZoneOffset)
+	if timezone != "-0500" {
+		t.Errorf("Expected timezone -0500, got %s", timezone)
+	}
+}
+
+func TestParseCommitConten(t *testing.T) {
+	commitContent := `tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+parent abc123def456
+author Alexander the Great <alexander@great.com> 1698765432 +0000
+committer Alexander the Great <alexander@great.com> 1698765432 +0000
+
+Initial commit message
+`
+
+	commit, err := parseCommitContent(commitContent)
+	if err != nil {
+		t.Fatal("expected commit to be parsed successfully")
+	}
+
+	if commit.treeHash != "4b825dc642cb6eb9a060e54bf8d69288fbee4904" {
+		t.Errorf("Unexpected tree hash: %s", commit.treeHash)
+	}
+
+	if commit.parentHash != "abc123def456" {
+		t.Errorf("Unexpected parent hash: %s", commit.parentHash)
+	}
+
+	if commit.message != "Initial commit message" {
+		t.Errorf("Unexpected message: %q", commit.message)
+	}
+
+	if commit.author.Name != "Alexander the Great" {
+		t.Errorf("Expected name 'Alexander the Great', got %q", commit.author.Name)
+	}
+
+	if commit.author.Email != "alexander@great.com" {
+		t.Errorf("Expected email 'alexander@great.com', got %q", commit.author.Email)
+	}
+
+	if commit.author.Timestamp.Unix() != 1698765432 {
+		t.Errorf("Expected timestamp 1698765432, got %d", commit.author.Timestamp.Unix())
+	}
+
+	_, timeZoneOffset := commit.author.Timestamp.Zone()
+	timezone := calculateTimezone(timeZoneOffset)
+	if timezone != "+0000" {
+		t.Errorf("Expected timezone +0000, got %s", timezone)
+	}
+
+}
+
+func TestObjectStore_StoreAndreadChildCommitInitialCommit(t *testing.T) {
+	tempDir := t.TempDir()
+
+	goGitDir := filepath.Join(tempDir, ".gogit", "objects")
+	if err := os.MkdirAll(goGitDir, 0755); err != nil {
+		t.Fatalf("Failed to create .gogit/objects: %v", err)
+	}
+
+	store := NewObjectStore(tempDir)
+
+	// Create a commit
+	author := Author{
+		Name:      "Giannis Antetokounbo",
+		Email:     "g.ante43@gmail.com",
+		Timestamp: time.Now().UTC().Truncate(time.Second),
+	}
+
+	childCommit, err := NewInitialCommit(testutils.RandomHash(), testutils.RandomString(50), author)
+	if err != nil {
+		t.Fatalf("Expected initial commit to be created: %v", err)
+	}
+
+	// Store commit
+	if err := store.Store(childCommit); err != nil {
+		t.Fatalf("Failed to store commit: %v", err)
+	}
+
+	// Read commit back
+	readChildCommit, err := store.ReadCommit(childCommit.hash)
+	if err != nil {
+		t.Fatalf("Failed to read commit: %v", err)
+	}
+
+	// Verify
+	if readChildCommit.hash != childCommit.hash {
+		t.Fatalf("Expected hash to be: [%s], got: [%s]", childCommit.hash, readChildCommit.hash)
+	}
+	if !readChildCommit.IsInitialCommit() {
+		t.Fatal("Expected hash commit to be the initial commit")
+	}
+	if readChildCommit.treeHash != childCommit.treeHash {
+		t.Fatalf("Expected tree hash to be: [%s], got: [%s]", childCommit.treeHash, readChildCommit.treeHash)
+	}
+	if readChildCommit.message != childCommit.message {
+		t.Fatalf("Expected message to be: [%s], got: [%s]", childCommit.message, readChildCommit.message)
+	}
+	if readChildCommit.author.String() != childCommit.author.String() {
+		t.Fatalf("Expected author to be: [%s], got: [%s]", childCommit.author.String(), readChildCommit.author.String())
+	}
+	if !readChildCommit.author.Timestamp.Equal(childCommit.author.Timestamp) {
+		t.Errorf("Expected author timestamp to be %s,  but got %s", childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"),
+			readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"))
+	}
+	if readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700") != childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700") {
+		t.Fatalf("Expected author timestamp to be %s,  but got %s", childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"),
+			readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"))
+	}
+}
+
+func TestObjectStore_StoreAndreadChildCommit_WithParent(t *testing.T) {
+
+	tempDir := t.TempDir()
+
+	goGitDir := filepath.Join(tempDir, ".gogit", "objects")
+	if err := os.MkdirAll(goGitDir, 0755); err != nil {
+		t.Fatalf("Failed to create .gogit/objects: %v", err)
+	}
+
+	store := NewObjectStore(tempDir)
+
+	// Create a commit
+	author := Author{
+		Name:      "Giannis Antetokounbo",
+		Email:     "g.ante43@gmail.com",
+		Timestamp: time.Now().UTC().Truncate(time.Second),
+	}
+
+	parentCommit, err := NewInitialCommit(testutils.RandomHash(), testutils.RandomString(50), author)
+	if err != nil {
+		t.Fatalf("Expected initial commit to be created: %v", err)
+	}
+
+	// Store commit
+	if err := store.Store(parentCommit); err != nil {
+		t.Fatalf("Failed to store commit: %v", err)
+	}
+
+	// Create new commit with parent
+	childCommit, err := NewCommit(testutils.RandomHash(), parentCommit.hash, testutils.RandomString(50), author)
+	if err != nil {
+		t.Fatalf("Expected commit with parent to be created: %v", err)
+	}
+
+	// Store commit with parent
+	if err := store.Store(childCommit); err != nil {
+		t.Fatalf("Failed to store commit with parent: %v", err)
+	}
+
+	// Read child back
+	readChildCommit, err := store.ReadCommit(childCommit.Hash())
+	if err != nil {
+		t.Fatalf("Failed to read child commit: %v", err)
+	}
+
+	// Verify
+	if readChildCommit.parentHash != parentCommit.Hash() {
+		t.Errorf("Parent hash mismatch: expected %s, got %s",
+			parentCommit.Hash(), readChildCommit.parentHash)
+	}
+	if readChildCommit.IsInitialCommit() {
+		t.Error("Child commit should not be initial commit")
+	}
+	if readChildCommit.hash != childCommit.hash {
+		t.Fatalf("Expected hash to be: [%s], got: [%s]", childCommit.hash, readChildCommit.hash)
+	}
+	if readChildCommit.treeHash != childCommit.treeHash {
+		t.Fatalf("Expected tree hash to be: [%s], got: [%s]", childCommit.treeHash, readChildCommit.treeHash)
+	}
+	if readChildCommit.message != childCommit.message {
+		t.Fatalf("Expected message to be: [%s], got: [%s]", childCommit.message, readChildCommit.message)
+	}
+	if readChildCommit.author.String() != childCommit.author.String() {
+		t.Fatalf("Expected author to be: [%s], got: [%s]", childCommit.author.String(), readChildCommit.author.String())
+	}
+	if !readChildCommit.author.Timestamp.Equal(childCommit.author.Timestamp) {
+		t.Errorf("Expected author timestamp to be %s,  but got %s", childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"),
+			readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"))
+	}
+	if readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700") != childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700") {
+		t.Fatalf("Expected author timestamp to be %s,  but got %s", childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"),
+			readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"))
 	}
 }

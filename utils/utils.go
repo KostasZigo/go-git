@@ -8,13 +8,14 @@ import (
 type ObjectType string
 
 const (
-	BlobObjectType ObjectType = "blob"
-	TreeObjectType ObjectType = "tree"
+	BlobObjectType   ObjectType = "blob"
+	TreeObjectType   ObjectType = "tree"
+	CommitObjectType ObjectType = "commit"
 )
 
 func (ot ObjectType) IsValid() bool {
 	switch ot {
-	case BlobObjectType, TreeObjectType:
+	case BlobObjectType, TreeObjectType, CommitObjectType:
 		return true
 	default:
 		return false
