@@ -3,53 +3,37 @@ package objects
 import (
 	"bytes"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/KostasZigo/gogit/testutils"
 )
 
 // BLOB STORAGE TESTS
 
+// TestObjectStore_StoreBlob verifies blob storage creates correct file structure.
 func TestObjectStore_StoreBlob(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Initialize .gogit structure
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	objectStore := NewObjectStore(tempDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 	blob := NewBlob([]byte("test content\n"))
 
 	// Store the blob
-	err := objectStore.Store(blob)
+	err := store.Store(blob)
 	if err != nil {
 		t.Fatalf("Failed to store blob: %v", err)
 	}
 
 	// Verify file was created
 	hash := blob.Hash()
-	objectPath := filepath.Join(tempDir, ".gogit", "objects", hash[:2], hash[2:])
-
-	if _, err := os.Stat(objectPath); errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("Object file was not created at %s", objectPath)
-	}
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash[:2], hash[2:])
+	testutils.AssertFileExists(t, objectPath)
 }
 
+// TestObjectStore_Compression verifies zlib compression reduces storage size.
 func TestObjectStore_Compression(t *testing.T) {
-	tempDir := t.TempDir()
-
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	store := NewObjectStore(tempDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 
 	// Use larger content to ensure compression is effective
 	largeContent := bytes.Repeat([]byte("This is repeated content. "), 100)
@@ -62,7 +46,7 @@ func TestObjectStore_Compression(t *testing.T) {
 
 	// Read the raw file to verify compression
 	hash := blob.Hash()
-	objectPath := filepath.Join(tempDir, ".gogit", "objects", hash[:2], hash[2:])
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash[:2], hash[2:])
 	compressedData, err := os.ReadFile(objectPath)
 	if err != nil {
 		t.Fatalf("Failed to read stored object: %v", err)
@@ -94,21 +78,16 @@ func TestObjectStore_Compression(t *testing.T) {
 
 	// Verify hash matches
 	if readBlob.Hash() != blob.Hash() {
-		t.Errorf("Hash mismatch: expected %s, got %s",
+		t.Errorf("Hash mismatch: expected [%s], got [%s]",
 			blob.Hash(), readBlob.Hash())
 	}
 
 }
 
+// TestObjectStore_StoreIdempotent verifies storing same blob twice is safe.
 func TestObjectStore_StoreIdempotent(t *testing.T) {
-	tempDir := t.TempDir()
-
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	store := NewObjectStore(tempDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 	blob := NewBlob([]byte("test\n"))
 
 	// Store twice, second time a debug log should appear
@@ -122,7 +101,7 @@ func TestObjectStore_StoreIdempotent(t *testing.T) {
 
 	// Verify only one file was created (no duplicates)
 	hash := blob.Hash()
-	objectPath := filepath.Join(tempDir, ".gogit", "objects", hash[:2], hash[2:])
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash[:2], hash[2:])
 
 	info, err := os.Stat(objectPath)
 	if err != nil {
@@ -135,15 +114,10 @@ func TestObjectStore_StoreIdempotent(t *testing.T) {
 	}
 }
 
+// TestObjectStore_Exists verifies object existence detection.
 func TestObjectStore_Exists(t *testing.T) {
-	tempDir := t.TempDir()
-
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	store := NewObjectStore(tempDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 	blob := NewBlob([]byte("test\n"))
 
 	// Should not exist initially
@@ -162,15 +136,10 @@ func TestObjectStore_Exists(t *testing.T) {
 	}
 }
 
+// TestObjectStore_ReadNonExistentBlob verifies error for missing objects.
 func TestObjectStore_ReadNonExistentBlob(t *testing.T) {
-	tempDir := t.TempDir()
-
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	store := NewObjectStore(tempDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 
 	// Try to read a non-existent hash
 	fakeHash := "0000000000000000000000000000000000000000"
@@ -187,15 +156,10 @@ func TestObjectStore_ReadNonExistentBlob(t *testing.T) {
 
 // TREE STORAGE TESTS
 
+// TestObjectStore_StoreAndReadTree verifies tree storage with single entry.
 func TestObjectStore_StoreAndReadTree(t *testing.T) {
-	tempDir := t.TempDir()
-
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	store := NewObjectStore(tempDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 
 	// Create a blob
 	blob := NewBlob([]byte("test content"))
@@ -204,22 +168,13 @@ func TestObjectStore_StoreAndReadTree(t *testing.T) {
 	}
 
 	// Create Tree with blob entry
-	treeEntry, _ := NewTreeEntry(ModeRegularFile, "file.txt", blob.Hash())
-	tree, err := NewTree([]TreeEntry{*treeEntry})
-	if err != nil {
-		t.Fatalf("Failed to create new tree: %v", err)
-	}
-	if err := store.Store(tree); err != nil {
-		t.Fatalf("Failed to store tree: %v", err)
-	}
+	treeEntry := createTreeEntry(t, ModeRegularFile, "file.txt", blob.Hash())
+	tree := createAndStoreTree(t, store, []TreeEntry{treeEntry})
 
 	// Verify file was created
 	hash := tree.Hash()
-	objectPath := filepath.Join(tempDir, ".gogit", "objects", hash[:2], hash[2:])
-
-	if _, err := os.Stat(objectPath); errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("Tree file was not created at %s", objectPath)
-	}
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash[:2], hash[2:])
+	testutils.AssertFileExists(t, objectPath)
 
 	// Read tree back
 	retrievedTree, err := store.ReadTree(tree.Hash())
@@ -240,27 +195,13 @@ func TestObjectStore_StoreAndReadTree(t *testing.T) {
 	}
 
 	// Verify entry details
-	retrievedEntry := retrievedTree.Entries()[0]
-	if retrievedEntry.Name() != treeEntry.Name() {
-		t.Errorf("Entry name mismatch: expected %s, got %s", treeEntry.Name(), retrievedEntry.Name())
-	}
-	if retrievedEntry.Hash() != treeEntry.Hash() {
-		t.Errorf("Entry hash mismatch: expected %s, got %s", blob.Hash(), retrievedEntry.Hash())
-	}
-	if retrievedEntry.Mode() != treeEntry.Mode() {
-		t.Errorf("Entry mode mismatch: expected %s, got %s", ModeRegularFile, retrievedEntry.Mode())
-	}
+	assertTreeEntryEqual(t, retrievedTree.Entries()[0], treeEntry)
 }
 
+// TestObjectStore_ReadTree_MultipleEntries verifies tree with multiple files.
 func TestObjectStore_ReadTree_MultipleEntries(t *testing.T) {
-	tempDir := t.TempDir()
-
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	store := NewObjectStore(tempDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 
 	// Create multiple blobs
 	blob1 := NewBlob([]byte("content 1\n"))
@@ -269,21 +210,13 @@ func TestObjectStore_ReadTree_MultipleEntries(t *testing.T) {
 	store.Store(blob2)
 
 	// Create tree with multiple entries
-	treeEntry1, _ := NewTreeEntry(ModeRegularFile, "file1.txt", blob1.Hash())
-	treeEntry2, _ := NewTreeEntry(ModeRegularFile, "file2.txt", blob2.Hash())
 	entries := []TreeEntry{
-		*treeEntry1,
-		*treeEntry2,
+		createTreeEntry(t, ModeRegularFile, "file1.txt", blob1.Hash()),
+		createTreeEntry(t, ModeRegularFile, "file2.txt", blob2.Hash()),
 	}
 
 	// Create and store tree
-	tree, err := NewTree(entries)
-	if err != nil {
-		t.Fatalf("Failed to create new tree: %v", err)
-	}
-	if err := store.Store(tree); err != nil {
-		t.Fatalf("Failed to store tree: %v", err)
-	}
+	tree := createAndStoreTree(t, store, entries)
 
 	// Read tree back
 	retrievedTree, err := store.ReadTree(tree.Hash())
@@ -303,23 +236,18 @@ func TestObjectStore_ReadTree_MultipleEntries(t *testing.T) {
 	}
 
 	// Entries should be sorted
-	if retrievedTree.Entries()[0].Name() != treeEntry1.Name() {
-		t.Errorf("Expected first entry %s, got %s", treeEntry1.Name(), retrievedTree.Entries()[0].Name())
+	if retrievedTree.Entries()[0].Name() != entries[0].Name() {
+		t.Errorf("Expected first entry %s, got %s", entries[0].Name(), retrievedTree.Entries()[0].Name())
 	}
-	if retrievedTree.Entries()[1].Name() != treeEntry2.Name() {
-		t.Errorf("Expected second entry %s, got %s", treeEntry2.Name(), retrievedTree.Entries()[1].Name())
+	if retrievedTree.Entries()[1].Name() != entries[1].Name() {
+		t.Errorf("Expected second entry %s, got %s", entries[1].Name(), retrievedTree.Entries()[1].Name())
 	}
 }
 
+// TestObjectStore_ReadTree_NestedTree verifies nested directory structure storage.
 func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
-	tempDir := t.TempDir()
-
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	store := NewObjectStore(tempDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 
 	// Create a blob
 	blob := NewBlob([]byte("nested content\n"))
@@ -328,30 +256,25 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 	}
 
 	// Create subtree
-	subTreeEntry, _ := NewTreeEntry(ModeRegularFile, "nested.txt", blob.Hash())
+	subTreeEntry := createTreeEntry(t, ModeRegularFile, "nested.txt", blob.Hash())
 	subTreeEntries := []TreeEntry{
-		*subTreeEntry,
+		subTreeEntry,
 	}
-	subTree, _ := NewTree(subTreeEntries)
-	if err := store.Store(subTree); err != nil {
-		t.Fatalf("Failed to store subtree:%x", err)
-	}
+	subTree := createAndStoreTree(t, store, subTreeEntries)
 
 	// Create root tree with directory entry
 	rootBlob := NewBlob([]byte("root content\n"))
 	if err := store.Store(rootBlob); err != nil {
 		t.Fatalf("Failed to strore root blob:%x", err)
 	}
-	rootEntryFile, _ := NewTreeEntry(ModeRegularFile, "root.txt", rootBlob.Hash())
-	rootEntryDir, _ := NewTreeEntry(ModeDirectory, "subdir", subTree.Hash())
+
+	rootEntryFile := createTreeEntry(t, ModeRegularFile, "root.txt", rootBlob.Hash())
+	rootEntryDir := createTreeEntry(t, ModeDirectory, "subdir", subTree.Hash())
 	rootEntries := []TreeEntry{
-		*rootEntryFile,
-		*rootEntryDir,
+		rootEntryFile,
+		rootEntryDir,
 	}
-	rootTree, _ := NewTree(rootEntries)
-	if err := store.Store(rootTree); err != nil {
-		t.Fatalf("Failed to store root tree:%x", err)
-	}
+	rootTree := createAndStoreTree(t, store, rootEntries)
 
 	// Read root tree back
 	retrievedRootTree, err := store.ReadTree(rootTree.Hash())
@@ -367,27 +290,11 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 
 	// Verify file entry details
 	fileEntry := retrievedRootTree.Entries()[0]
-	if fileEntry.Name() != rootEntryFile.Name() {
-		t.Errorf("Entry name mismatch: expected %s, got %s", rootEntryFile.Name(), fileEntry.Name())
-	}
-	if fileEntry.Hash() != rootEntryFile.Hash() {
-		t.Errorf("Entry hash mismatch: expected %s, got %s", rootBlob.Hash(), fileEntry.Hash())
-	}
-	if fileEntry.Mode() != rootEntryFile.Mode() {
-		t.Errorf("Entry mode mismatch: expected %s, got %s", rootEntryFile.Mode(), fileEntry.Mode())
-	}
+	assertTreeEntryEqual(t, fileEntry, rootEntryFile)
 
 	// Verify directory entry
 	dirEntry := retrievedRootTree.Entries()[1]
-	if dirEntry.Name() != rootEntryDir.Name() {
-		t.Fatalf("Expected first entry %s, got %s", rootEntryDir.Name(), dirEntry.Name())
-	}
-	if dirEntry.Mode() != ModeDirectory {
-		t.Fatalf("Expected directory mode, got %s", dirEntry.Mode())
-	}
-	if dirEntry.Hash() != subTree.Hash() {
-		t.Fatalf("Directory hash mismatch: expected %s, got %s", subTree.Hash(), dirEntry.Hash())
-	}
+	assertTreeEntryEqual(t, dirEntry, rootEntryDir)
 
 	// Read subtree
 	retrievedSubTree, err := store.ReadTree(dirEntry.Hash())
@@ -395,25 +302,18 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 		t.Fatalf("Failed to read subtree: %v", err)
 	}
 
-	if len(retrievedSubTree.Entries()) != 1 {
-		t.Fatalf("Expected 1 entry in subtree, got %d", len(retrievedSubTree.Entries()))
+	if len(retrievedSubTree.Entries()) != len(subTreeEntries) {
+		t.Fatalf("Expected %d entry in subtree, got %d", len(subTreeEntries), len(retrievedSubTree.Entries()))
 	}
 
 	// Verify nested File tree entry
 	nestedEntry := retrievedSubTree.Entries()[0]
-	if nestedEntry.Name() != subTreeEntry.Name() {
-		t.Errorf("Entry name mismatch: expected %s, got %s", subTreeEntry.Name(), nestedEntry.Name())
-	}
-	if nestedEntry.Hash() != subTreeEntry.Hash() {
-		t.Errorf("Entry hash mismatch: expected %s, got %s", blob.Hash(), nestedEntry.Hash())
-	}
-	if nestedEntry.Mode() != subTreeEntry.Mode() {
-		t.Errorf("Entry mode mismatch: expected %s, got %s", subTreeEntry.Mode(), nestedEntry.Mode())
-	}
+	assertTreeEntryEqual(t, nestedEntry, subTreeEntry)
 }
 
-// Commit Storage tests
+// COMMIT STORAGE TESTS
 
+// TestParseAuthorLine verifies author metadata parsing from commit format.
 func TestParseAuthorLine(t *testing.T) {
 	authorLine := "John Doe <john@example.com> 1698765432 -0500"
 
@@ -441,7 +341,8 @@ func TestParseAuthorLine(t *testing.T) {
 	}
 }
 
-func TestParseCommitConten(t *testing.T) {
+// TestParseCommitContent verifies commit object parsing from Git format.
+func TestParseCommitContent(t *testing.T) {
 	commitContent := `tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904
 parent abc123def456
 author Alexander the Great <alexander@great.com> 1698765432 +0000
@@ -487,103 +388,31 @@ Initial commit message
 
 }
 
-func TestObjectStore_StoreAndreadChildCommitInitialCommit(t *testing.T) {
-	tempDir := t.TempDir()
+// TestObjectStore_StoreAndReadInitialCommit verifies initial commit storage and retrieval.
+func TestObjectStore_StoreAndReadInitialCommit(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 
-	goGitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(goGitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
+	commit := createAndStoreInitialCommit(t, store)
 
-	store := NewObjectStore(tempDir)
-
-	// Create a commit
-	author := Author{
-		Name:      "Giannis Antetokounbo",
-		Email:     "g.ante43@gmail.com",
-		Timestamp: time.Now().UTC().Truncate(time.Second),
-	}
-
-	childCommit, err := NewInitialCommit(testutils.RandomHash(), testutils.RandomString(50), author)
-	if err != nil {
-		t.Fatalf("Expected initial commit to be created: %v", err)
-	}
-
-	// Store commit
-	if err := store.Store(childCommit); err != nil {
-		t.Fatalf("Failed to store commit: %v", err)
-	}
-
-	// Read commit back
-	readChildCommit, err := store.ReadCommit(childCommit.hash)
+	readCommit, err := store.ReadCommit(commit.hash)
 	if err != nil {
 		t.Fatalf("Failed to read commit: %v", err)
 	}
 
-	// Verify
-	if readChildCommit.hash != childCommit.hash {
-		t.Fatalf("Expected hash to be: [%s], got: [%s]", childCommit.hash, readChildCommit.hash)
-	}
-	if !readChildCommit.IsInitialCommit() {
+	assertCommitEqual(t, readCommit, commit)
+	if !readCommit.IsInitialCommit() {
 		t.Fatal("Expected hash commit to be the initial commit")
-	}
-	if readChildCommit.treeHash != childCommit.treeHash {
-		t.Fatalf("Expected tree hash to be: [%s], got: [%s]", childCommit.treeHash, readChildCommit.treeHash)
-	}
-	if readChildCommit.message != childCommit.message {
-		t.Fatalf("Expected message to be: [%s], got: [%s]", childCommit.message, readChildCommit.message)
-	}
-	if readChildCommit.author.String() != childCommit.author.String() {
-		t.Fatalf("Expected author to be: [%s], got: [%s]", childCommit.author.String(), readChildCommit.author.String())
-	}
-	if !readChildCommit.author.Timestamp.Equal(childCommit.author.Timestamp) {
-		t.Errorf("Expected author timestamp to be %s,  but got %s", childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"),
-			readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"))
-	}
-	if readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700") != childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700") {
-		t.Fatalf("Expected author timestamp to be %s,  but got %s", childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"),
-			readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"))
 	}
 }
 
+// TestObjectStore_StoreAndReadCommit_WithParent verifies commit with parent storage.
 func TestObjectStore_StoreAndreadChildCommit_WithParent(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
 
-	tempDir := t.TempDir()
-
-	goGitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(goGitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
-	}
-
-	store := NewObjectStore(tempDir)
-
-	// Create a commit
-	author := Author{
-		Name:      "Giannis Antetokounbo",
-		Email:     "g.ante43@gmail.com",
-		Timestamp: time.Now().UTC().Truncate(time.Second),
-	}
-
-	parentCommit, err := NewInitialCommit(testutils.RandomHash(), testutils.RandomString(50), author)
-	if err != nil {
-		t.Fatalf("Expected initial commit to be created: %v", err)
-	}
-
-	// Store commit
-	if err := store.Store(parentCommit); err != nil {
-		t.Fatalf("Failed to store commit: %v", err)
-	}
-
-	// Create new commit with parent
-	childCommit, err := NewCommit(testutils.RandomHash(), parentCommit.hash, testutils.RandomString(50), author)
-	if err != nil {
-		t.Fatalf("Expected commit with parent to be created: %v", err)
-	}
-
-	// Store commit with parent
-	if err := store.Store(childCommit); err != nil {
-		t.Fatalf("Failed to store commit with parent: %v", err)
-	}
+	parentCommit := createAndStoreInitialCommit(t, store)
+	childCommit := createAndStoreCommit(t, parentCommit.Hash(), store)
 
 	// Read child back
 	readChildCommit, err := store.ReadCommit(childCommit.Hash())
@@ -599,24 +428,5 @@ func TestObjectStore_StoreAndreadChildCommit_WithParent(t *testing.T) {
 	if readChildCommit.IsInitialCommit() {
 		t.Error("Child commit should not be initial commit")
 	}
-	if readChildCommit.hash != childCommit.hash {
-		t.Fatalf("Expected hash to be: [%s], got: [%s]", childCommit.hash, readChildCommit.hash)
-	}
-	if readChildCommit.treeHash != childCommit.treeHash {
-		t.Fatalf("Expected tree hash to be: [%s], got: [%s]", childCommit.treeHash, readChildCommit.treeHash)
-	}
-	if readChildCommit.message != childCommit.message {
-		t.Fatalf("Expected message to be: [%s], got: [%s]", childCommit.message, readChildCommit.message)
-	}
-	if readChildCommit.author.String() != childCommit.author.String() {
-		t.Fatalf("Expected author to be: [%s], got: [%s]", childCommit.author.String(), readChildCommit.author.String())
-	}
-	if !readChildCommit.author.Timestamp.Equal(childCommit.author.Timestamp) {
-		t.Errorf("Expected author timestamp to be %s,  but got %s", childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"),
-			readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"))
-	}
-	if readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700") != childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700") {
-		t.Fatalf("Expected author timestamp to be %s,  but got %s", childCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"),
-			readChildCommit.author.Timestamp.Format("2006-01-02 15:04:05 -0700"))
-	}
+	assertCommitEqual(t, readChildCommit, childCommit)
 }

@@ -1,69 +1,37 @@
 package objects
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/testutils"
 )
 
+// TestNewBlob verifies blob creation from raw content.
 func TestNewBlob(t *testing.T) {
 	content := []byte("Hello, World!\n")
 	blob := NewBlob(content)
 
-	expectedHash, err := utils.ComputeHash(content, utils.BlobObjectType)
-	if err != nil {
-		t.Fatal("Expected object type to be valid")
-	}
-
-	if blob.Hash() != expectedHash {
-		t.Fatalf("Expected hash %s, got %s", expectedHash, blob.Hash())
-	}
-
-	if blob.Size() != len(content) {
-		t.Fatalf("Expected size 14, got %d", blob.Size())
-	}
-
-	if string(blob.Content()) != string(content) {
-		t.Errorf("Content mismatch")
-	}
+	assertBlobHash(t, blob, content)
+	assertBlobContent(t, blob, content)
 }
 
+// TestNewBlobFromFile verifies blob creation from filesystem file.
 func TestNewBlobFromFile(t *testing.T) {
-	tempDir := t.TempDir()
-	testFile := filepath.Join(tempDir, "test.txt")
-
+	repoPath := testutils.SetupTestRepo(t)
 	content := []byte("test content\n")
-	if err := os.WriteFile(testFile, content, 0644); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
+	testFile := testutils.CreateTestFile(t, repoPath, "test.txt", content)
 
 	blob, err := NewBlobFromFile(testFile)
 	if err != nil {
 		t.Fatalf("Failed to create blob from file: %v", err)
 	}
 
-	if string(blob.Content()) != string(content) {
-		t.Errorf("Content mismatch: expected %q, got %q", content, blob.Content())
-	}
-
-	if blob.Size() != len(content) {
-		t.Errorf("Size mismatch: expected %d, got %d", len(content), blob.Size())
-	}
-
-	// Verify hash is correct
-	expectedHash, err := utils.ComputeHash(content, utils.BlobObjectType)
-	if err != nil {
-		t.Fatal("Expected object type to be valid")
-	}
-
-	if blob.Hash() != expectedHash {
-		t.Errorf("Hash mismatch: expected %s, got %s", expectedHash, blob.Hash())
-	}
+	assertBlobHash(t, blob, content)
+	assertBlobContent(t, blob, content)
 }
 
+// TestNewBlobFromFile_NonExistent verifies error handling for missing files.
 func TestNewBlobFromFile_NonExistent(t *testing.T) {
 	_, err := NewBlobFromFile("/nonexistent/file.txt")
 
@@ -76,24 +44,18 @@ func TestNewBlobFromFile_NonExistent(t *testing.T) {
 	}
 }
 
+// TestBlob_EmptyContent verifies blob behavior with zero-length content.
+// GoGit supports empty blobs; hash must be deterministic.
 func TestBlob_EmptyContent(t *testing.T) {
-	blob := NewBlob([]byte(""))
+	emptyContent := []byte("")
+	blob := NewBlob(emptyContent)
 
-	// Verify empty blob hash
-	expectedHash, err := utils.ComputeHash([]byte(""), utils.BlobObjectType)
-	if err != nil {
-		t.Fatal("Expected object type to be valid")
-	}
-
-	if blob.Hash() != expectedHash {
-		t.Fatalf("Expected empty blob hash %s, got %s", expectedHash, blob.Hash())
-	}
-
-	if blob.Size() != 0 {
-		t.Fatalf("Expected size 0 for empty blob, got %d", blob.Size())
-	}
+	assertBlobHash(t, blob, emptyContent)
+	assertBlobContent(t, blob, emptyContent)
 }
 
+// TestBlob_HashConsistency verifies content-addressable storage property.
+// Identical content must produce identical hashes (idempotent).
 func TestBlob_HashConsistency(t *testing.T) {
 	content := []byte("test content")
 
@@ -105,6 +67,8 @@ func TestBlob_HashConsistency(t *testing.T) {
 	}
 }
 
+// TestBlob_DifferentContentDifferentHash verifies hash collision resistance.
+// Different content must produce different hashes.
 func TestBlob_DifferentContentDifferentHash(t *testing.T) {
 	blob1 := NewBlob([]byte("content A"))
 	blob2 := NewBlob([]byte("content B"))

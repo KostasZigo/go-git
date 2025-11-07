@@ -7,13 +7,10 @@ import (
 	"time"
 )
 
+// TestNewCommit_InitialCommit verifies initial commit creation without parent.
 func TestNewCommit_InitialCommit(t *testing.T) {
 	treeHash := "randomTreeHash"
-	author := Author{
-		Name:      "Alexander the Great",
-		Email:     "alaexander@great.com",
-		Timestamp: time.Now().UTC().Truncate(time.Second),
-	}
+	author := createTestAuthor("Alexander the Great", "alaexander@great.com")
 	message := "Init commit"
 
 	commit, err := NewInitialCommit(treeHash, message, author)
@@ -30,26 +27,16 @@ func TestNewCommit_InitialCommit(t *testing.T) {
 	if commit.treeHash != treeHash {
 		t.Fatalf("Expected tree hash to be %s,  but got %s", treeHash, commit.treeHash)
 	}
-	if commit.message != message {
-		t.Fatalf("Expected message to be %s,  but got %s", message, commit.message)
-	}
-	if commit.author.String() != author.String() {
-		t.Fatalf("Expected author to be %s,  but got %s", author.String(), commit.author.String())
-	}
-	if !commit.author.Timestamp.Equal(author.Timestamp) {
-		t.Fatalf("Expected author timestamp to be %s,  but got %s", author.Timestamp.String(), commit.author.Timestamp.String())
-	}
+
+	assertCommitFields(t, commit, treeHash, "", message, author)
 }
 
+// TestNewCommit verifies commit creation with parent reference.
 func TestNewCommit(t *testing.T) {
 	treeHash := "aTreeHash"
 	parentHash := "aParentHash"
 	message := "Second Commit"
-	author := Author{
-		Name:      "Ioannis Kappodistrias",
-		Email:     "john.kapo@gmail.com",
-		Timestamp: time.Now().UTC().Truncate(time.Second),
-	}
+	author := createTestAuthor("Ioannis Kappodistrias", "john.kapo@gmail.com")
 
 	commit, err := NewCommit(treeHash, parentHash, message, author)
 	if err != nil {
@@ -63,22 +50,13 @@ func TestNewCommit(t *testing.T) {
 		t.Fatal("Expected it to be non-initial commit (has parent)")
 	}
 	if commit.treeHash != treeHash {
-		t.Fatalf("Expected tree hash to be %s,  but got %s", treeHash, commit.treeHash)
+		t.Fatalf("Expected tree hash to be [%s],  but got [%s]", treeHash, commit.treeHash)
 	}
-	if commit.parentHash != parentHash {
-		t.Fatalf("Expected parent hash to be %s,  but got %s", parentHash, commit.parentHash)
-	}
-	if commit.message != message {
-		t.Fatalf("Expected message to be %s,  but got %s", message, commit.message)
-	}
-	if commit.author.String() != author.String() {
-		t.Fatalf("Expected author to be %s,  but got %s", author.String(), commit.author.String())
-	}
-	if !commit.author.Timestamp.Equal(author.Timestamp) {
-		t.Fatalf("Expected author timestamp to be %s,  but got %s", author.Timestamp.String(), commit.author.Timestamp.String())
-	}
+
+	assertCommitFields(t, commit, treeHash, parentHash, message, author)
 }
 
+// TestCommit_ContentFormat verifies commit content matches Git format.
 func TestCommit_ContentFormat(t *testing.T) {
 	treeHash := "tree123"
 	parentHash := "parent456"
@@ -92,7 +70,7 @@ func TestCommit_ContentFormat(t *testing.T) {
 
 	commit, err := NewCommit(treeHash, parentHash, message, author)
 	if err != nil {
-		t.Fatal("Expected for commit to be created")
+		t.Fatalf("Failed to create commit: %v", err)
 	}
 	content := string(commit.Content())
 
@@ -102,8 +80,8 @@ func TestCommit_ContentFormat(t *testing.T) {
 	expectedLines := []string{
 		"tree " + treeHash,
 		"parent " + parentHash,
-		"author Test User <" + author.Email + "> " + fmt.Sprint(author.Timestamp.Unix()) + " " + timezone,
-		"committer Test User <" + author.Email + "> " + fmt.Sprint(author.Timestamp.Unix()) + " " + timezone,
+		fmt.Sprintf("author %s <%s> %d %s", author.Name, author.Email, author.Timestamp.Unix(), timezone),
+		fmt.Sprintf("committer %s <%s> %d %s", author.Name, author.Email, author.Timestamp.Unix(), timezone),
 		"\n",
 		message,
 	}
@@ -115,18 +93,15 @@ func TestCommit_ContentFormat(t *testing.T) {
 	}
 }
 
+// TestCommit_MessageWithMultipleLines verifies multi-line commit messages are preserved.
 func TestCommit_MessageWithMultipleLines(t *testing.T) {
 	treeHash := "tree123"
-	author := Author{
-		Name:      "Test User",
-		Email:     "test@example.com",
-		Timestamp: time.Now().UTC().Truncate(time.Second),
-	}
-	message := "Fist line\n\n" + "Second paragraph\n" + "Thrid line"
+	author := createTestAuthor("Test User", "test@example.com")
+	message := "Fist line\n\n" + "Second paragraph\n" + "Third line"
 
 	commit, err := NewInitialCommit(treeHash, message, author)
 	if err != nil {
-		t.Fatal("Expected for initial commit to be created")
+		t.Fatalf("Failed to create initial commit: %v", err)
 	}
 
 	if commit.message != message {
