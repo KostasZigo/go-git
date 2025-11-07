@@ -22,3 +22,6 @@ test-repos/
 # Build output
 /bin/
 /dist/
+
+# instructions
+.github/instructions/

@@ -6,39 +6,32 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/KostasZigo/gogit/testutils"
 	"github.com/agiledragon/gomonkey/v2"
 )
 
+// TestInitRepository verifies successful repository initialization.
 func TestInitRepository(t *testing.T) {
-	// Create temporary directory for testing
-	tempDirectory := t.TempDir()
+	repoPath := testutils.SetupTestRepo(t)
 
-	err := InitRepository(tempDirectory)
-	if err != nil {
+	if err := InitRepository(repoPath); err != nil {
 		t.Fatalf("InitRepository failed: %v", err)
 	}
 
-	gogitDirectory := filepath.Join(tempDirectory, ".gogit")
-
-	// Check .gogit directory exists
-	if _, err := os.Stat(gogitDirectory); os.IsNotExist(err) {
-		t.Errorf(".gogit directory was not created: %v", err)
-	}
+	gogitDirectory := filepath.Join(repoPath, ".gogit")
+	testutils.AssertDirExists(t, gogitDirectory)
 
 	// Check required subdirectories exist
 	expectedDirectories := []string{"objects", "refs", "refs/heads", "refs/tags"}
 	for _, dir := range expectedDirectories {
-		dirPath := filepath.Join(gogitDirectory, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-			t.Errorf("Required directory %s was not created: %v", dir, err)
-		}
+		testutils.AssertDirExists(t, filepath.Join(gogitDirectory, dir))
 	}
 
 	// Check HEAD file exists and has correct content
 	headPath := filepath.Join(gogitDirectory, "HEAD")
 	content, err := os.ReadFile(headPath)
 	if err != nil {
-		t.Errorf("HEAD file was not created: %v", err)
+		t.Errorf("Failed to read HEAD file: %v", err)
 	} else {
 		expected := "ref: refs/heads/main\n"
 		if string(content) != expected {
@@ -48,24 +41,24 @@ func TestInitRepository(t *testing.T) {
 
 }
 
+// TestInitRepository_AlreadyExists verifies error when repository exists.
 func TestInitRepository_AlreadyExists(t *testing.T) {
-	tempDirectory := t.TempDir()
+	repoPath := testutils.SetupTestRepo(t)
 
 	// Initialize once
-	err := InitRepository(tempDirectory)
-	if err != nil {
+	if err := InitRepository(repoPath); err != nil {
 		t.Fatalf("First initialization failed: %v", err)
 	}
 
 	// Try to initialize again - should fail
-	err = InitRepository(tempDirectory)
-	if err == nil {
+	if err := InitRepository(repoPath); err == nil {
 		t.Error("Expected error when repository already exists, but got nil")
 	}
 }
 
+// TestInitRepository_MkdirAllFailure verifies cleanup on directory creation failure.
 func TestInitRepository_MkdirAllFailure(t *testing.T) {
-	tempDir := t.TempDir()
+	repoPath := testutils.SetupTestRepo(t)
 
 	// Mock os.MkdirAll to fail after first call
 	mockError := errors.New("mocked mkdir failure")
@@ -80,7 +73,7 @@ func TestInitRepository_MkdirAllFailure(t *testing.T) {
 	})
 	defer patches.Reset()
 
-	err := InitRepository(tempDir)
+	err := InitRepository(repoPath)
 	if err == nil {
 		t.Error("Expected error when os.MkdirAll fails, but got nil")
 	}
@@ -90,8 +83,6 @@ func TestInitRepository_MkdirAllFailure(t *testing.T) {
 	}
 
 	// Verify cleanup was called
-	gogitDirectory := filepath.Join(tempDir, ".gogit")
-	if _, err := os.Stat(gogitDirectory); err == nil {
-		t.Error("Expected .gogit directory to be cleaned up after failure")
-	}
+	gogitDirectory := filepath.Join(repoPath, ".gogit")
+	testutils.AssertFileNotExists(t, gogitDirectory)
 }
