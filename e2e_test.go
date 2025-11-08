@@ -8,62 +8,83 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/KostasZigo/gogit/testutils"
 	"github.com/KostasZigo/gogit/utils"
 )
 
+// sharedBinaryPath stores compiled gogit binary path built once in TestMain.
+// All E2E tests execute this binary to verify end-to-end behavior.
+// Binary persists for test suite duration, cleaned up after all tests complete
+var sharedBinaryPath string
+
+// TestMain executes before all tests to build gogit binary once.
+// Binary stored in temporary directory, removed after test suite completes.
+//
+// Execution flow:
+//  1. Create temporary directory for binary storage
+//  2. Build gogit binary with platform-specific extension
+//  3. Store binary path in package-level sharedBinaryPath variable
+//  4. Execute all Test* functions via m.Run()
+//  5. Clean up temporary directory and binary
+//  6. Exit with test suite status code
+func TestMain(m *testing.M) {
+	tempDir, err := os.MkdirTemp("", "gogit-e2e-*")
+	if err != nil {
+		panic("Failed to create temp directory: " + err.Error())
+	}
+	defer os.RemoveAll(tempDir)
+
+	binaryName := "gogit"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+	sharedBinaryPath = filepath.Join(tempDir, binaryName)
+
+	buildCmd := exec.Command("go", "build", "-o", sharedBinaryPath, ".")
+	if err := buildCmd.Run(); err != nil {
+		panic("Failed to build binary: " + err.Error())
+	}
+
+	os.Exit(m.Run())
+}
+
+// TestE2E_InitCommand verifies repository initialization creates correct structure.
 func TestE2E_InitCommand(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// 1. Build the binary
-	tempDir := t.TempDir()
-	binaryPath := filepath.Join(tempDir, "gogit.exe")
+	// Create test repo directory
+	repoPath := setupTestRepo(t)
 
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	buildCmd.Dir = "."
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("Failed to build binary: %v", err)
-	}
-
-	// 2. Create test directory
-	testRepoDir := filepath.Join(tempDir, "test-repo")
-	if err := os.MkdirAll(testRepoDir, 0755); err != nil {
-		t.Fatalf("Failed to create test repo dir: %v", err)
-	}
-
-	// 3. Test the binary like a real user
-	cmd := exec.Command(binaryPath, "init")
-	cmd.Dir = testRepoDir
+	// Test the binary like a real user
+	cmd := exec.Command(sharedBinaryPath, "init")
+	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
 		t.Fatalf("Binary execution failed: %v\nOutput: %s", err, output)
 	}
 
-	// 4. Verify output
+	// Verify output
 	outputStr := string(output)
 	expectedMsg := "Initialized empty GoGit repository in ./.gogit/\n"
 	if !strings.Contains(outputStr, expectedMsg) {
 		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, outputStr)
 	}
 
-	// 5. Verify filesystem changes
-	gogitDir := filepath.Join(testRepoDir, ".gogit")
-	if _, err := os.Stat(gogitDir); os.IsNotExist(err) {
-		t.Error("Binary didn't create .gogit directory")
-	}
+	// Verify filesystem changes
+	gogitDir := filepath.Join(repoPath, ".gogit")
+	testutils.AssertDirExists(t, gogitDir)
 
 	// Check required subdirectories exist
 	expectedDirectories := []string{"objects", "refs", "refs/heads", "refs/tags"}
 	for _, dir := range expectedDirectories {
-		dirPath := filepath.Join(gogitDir, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-			t.Errorf("Required directory %s was not created: %v", dir, err)
-		}
+		testutils.AssertDirExists(t, filepath.Join(gogitDir, dir))
 	}
 
 	// Verify HEAD file exists and has correct content
@@ -78,9 +99,9 @@ func TestE2E_InitCommand(t *testing.T) {
 		}
 	}
 
-	// 6. Test error case - init again
-	cmd = exec.Command(binaryPath, "init")
-	cmd.Dir = testRepoDir
+	// Test error case - init again
+	cmd = exec.Command(sharedBinaryPath, "init")
+	cmd.Dir = repoPath
 	output, err = cmd.CombinedOutput()
 
 	if err == nil {
@@ -93,37 +114,30 @@ func TestE2E_InitCommand(t *testing.T) {
 	}
 }
 
+// TestE2E_HelpCommand verifies help output contains expected sections.
 func TestE2E_HelpCommand(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// Build binary
-	tempDir := t.TempDir()
-	binaryPath := filepath.Join(tempDir, "gogit.exe")
-
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("Failed to build binary: %v", err)
-	}
-
 	// Test help
-	cmd := exec.Command(binaryPath, "--help")
+	cmd := exec.Command(sharedBinaryPath, "--help")
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
 		t.Fatalf("Help command failed: %v", err)
 	}
 
-	outputStr := string(output)
 	expectedTexts := []string{
 		"GoGit is a simplified Git Implementation",
 		"Available Commands:",
 		"init",
+		"hash-object",
 		"Flags:",
 		"-h, --help",
 	}
 
+	outputStr := string(output)
 	for _, text := range expectedTexts {
 		if !strings.Contains(outputStr, text) {
 			t.Errorf("Help output missing %q, got: %s", text, outputStr)
@@ -131,22 +145,14 @@ func TestE2E_HelpCommand(t *testing.T) {
 	}
 }
 
+// TestE2E_InvalidCommand verifies error for unknown commands.
 func TestE2E_InvalidCommand(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// Build binary
-	tempDir := t.TempDir()
-	binaryPath := filepath.Join(tempDir, "gogit.exe")
-
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("Failed to build binary: %v", err)
-	}
-
 	// Test invalid command
-	cmd := exec.Command(binaryPath, "nonexistent")
+	cmd := exec.Command(sharedBinaryPath, "nonexistent")
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
@@ -159,37 +165,24 @@ func TestE2E_InvalidCommand(t *testing.T) {
 	}
 }
 
+// TestE2E_HashObjectCommand_NoStorage verifies hash computation without storage.
 func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// Build binary
-	tempDir := t.TempDir()
-	binaryPath := filepath.Join(tempDir, "gogit.exe")
-
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("Failed to build binary: %v", err)
-	}
-
-	// Create test repo with .gogit
-	testRepoDir := filepath.Join(tempDir, "test-repo")
-	if err := os.MkdirAll(filepath.Join(testRepoDir, ".gogit", "objects"), 0755); err != nil {
-		t.Fatalf("Failed to create test repo: %v", err)
-	}
+	// Build binary and run `gogit init`
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
 
 	// Create test file
 	testFileName := "test.txt"
-	testFile := filepath.Join(testRepoDir, testFileName)
 	testFileContent := []byte("hello world\n")
-	if err := os.WriteFile(testFile, testFileContent, 0755); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
 	// Run hash-object without -w
-	cmd := exec.Command(binaryPath, "hash-object", testFileName)
-	cmd.Dir = testRepoDir
+	cmd := exec.Command(sharedBinaryPath, "hash-object", testFileName)
+	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
@@ -197,8 +190,11 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	}
 
 	// Verify hash is printed (40 hex chars + newline)
-	expectedHash, _ := utils.ComputeHash(testFileContent, utils.BlobObjectType)
 	outputHash := strings.TrimSpace(string(output))
+	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	if err != nil {
+		t.Fatalf("Failed to compute hash: %v", err)
+	}
 
 	if len(outputHash) != 40 {
 		t.Errorf("Expected 40-char hash, got: %s", outputHash)
@@ -209,67 +205,51 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	}
 
 	// Verify object was NOT created (no -w flag)
-	objectPath := filepath.Join(testRepoDir, outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", outputHash[:2], outputHash[2:])
 	if _, err := os.Stat(objectPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Object should not be created without -w flag")
 	}
 }
 
+// TestE2E_HashObjectCommand_WithStorage verifies hash computation with storage.
 func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// Build binary
-	tempDir := t.TempDir()
-	binaryPath := filepath.Join(tempDir, "gogit.exe")
-
-	// Execute build commnand
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("Failed to build binary: %v", err)
-	}
-
-	// Run gogit init <file-path> to initialize repository
-	testRepoPath := filepath.Join(tempDir, "testRepo")
-	initCmd := exec.Command(binaryPath, "init", testRepoPath)
-	initCmd.Dir = tempDir
-	if err := initCmd.Run(); err != nil {
-		t.Fatalf("Failed to initialize repository with gogit init command: %v", err)
-	}
+	// Build binary and run `gogit init` command
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
 
 	testFileName := "pokemon.txt"
 	testFileContent := []byte("Charmander evolved into Charmeleon !")
-	testFilePath := filepath.Join(testRepoPath, testFileName)
-	if err := os.WriteFile(testFilePath, testFileContent, 0755); err != nil {
-		t.Fatalf("Failed to write test file in test repo: %v", err)
-	}
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
 	// Run gogit hash-object file with write directive (-w)
-	hashObjectCmd := exec.Command(binaryPath, "hash-object", testFileName, "-w")
-	hashObjectCmd.Dir = testRepoPath
-
+	hashObjectCmd := exec.Command(sharedBinaryPath, "hash-object", testFileName, "-w")
+	hashObjectCmd.Dir = repoPath
 	output, err := hashObjectCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("gogit hash-object command failed: %v", err)
 	}
 
 	// Verify hash was printed
-	expectedHash, _ := utils.ComputeHash(testFileContent, utils.BlobObjectType)
 	printedHash := strings.TrimSpace(string(output))
+	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	if err != nil {
+		t.Fatalf("Failed to compute hash: %v", err)
+	}
 
 	if printedHash != expectedHash {
 		t.Fatalf("Expected printed has to be [%s] but got [%s]", expectedHash, printedHash)
 	}
 
 	// Verify object file was created at correct path
-	expectedFile := filepath.Join(testRepoPath, ".gogit", "objects", expectedHash[:2], expectedHash[2:])
-	if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
-		t.Errorf("Required file %s was not created: %v", expectedFile, err)
-	}
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", expectedHash[:2], expectedHash[2:])
+	testutils.AssertFileExists(t, objectPath)
 
 	// Verify object file is not empty (compressed data)
-	info, err := os.Stat(expectedFile)
+	info, err := os.Stat(objectPath)
 	if err != nil {
 		t.Fatalf("Failed to stat object file: %v", err)
 	}
@@ -278,59 +258,18 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 	}
 
 	//Verify File content
-	readContent, err := os.ReadFile(expectedFile)
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
-
-	// Decompress
-	reader, err := zlib.NewReader(bytes.NewReader(readContent))
-	if err != nil {
-		t.Fatalf("failed to create reader for decompressed data: %v", err)
-	}
-	defer reader.Close()
-
-	var buffer bytes.Buffer
-	if _, err := buffer.ReadFrom(reader); err != nil {
-		t.Fatalf("failed to read decompressed data: %v", err)
-	}
-
-	// Verify object type is blob
-	data := buffer.Bytes()
-	if !bytes.HasPrefix(data, []byte("blob ")) {
-		t.Fatalf("object %s is not a blob", expectedHash)
-	}
-
-	// Find null byte separator (end of header)
-	nullByteIndex := bytes.IndexByte(data, 0)
-	if nullByteIndex == -1 {
-		t.Fatalf("invalid blob format: no null byte found")
-	}
-
-	// Extract content (after null byte)
-	content := data[nullByteIndex+1:]
-
-	if string(content) != string(testFileContent) {
-		t.Fatalf("Expected file content to ve [%s] but got [%s]", testFileContent, content)
-	}
+	decompressedContent := decompressBlobObject(t, objectPath)
+	assertBlobContent(t, decompressedContent, testFileContent)
 }
 
+// TestE2E_HashObjectCommand_InvalidArgs verifies error for missing arguments.
 func TestE2E_HashObjectCommand_InvalidArgs(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// Build binary
-	tempDir := t.TempDir()
-	binaryPath := filepath.Join(tempDir, "gogit.exe")
-
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("Failed to build binary: %v", err)
-	}
-
 	// Test with no arguments
-	cmd := exec.Command(binaryPath, "hash-object")
+	cmd := exec.Command(sharedBinaryPath, "hash-object")
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
@@ -341,5 +280,72 @@ func TestE2E_HashObjectCommand_InvalidArgs(t *testing.T) {
 	expectedMsg := "hash-object command requires exactly 1 argument (filepath), received 0"
 	if !strings.Contains(outputStr, expectedMsg) {
 		t.Errorf("Expected error to contain %q, got: %s", expectedMsg, outputStr)
+	}
+}
+
+// Helper Methods
+
+// setupTestRepo creates test directory.
+func setupTestRepo(t *testing.T) (repoPath string) {
+	t.Helper()
+
+	repoPath = filepath.Join(t.TempDir(), "test-repo")
+	if err := os.MkdirAll(repoPath, 0755); err != nil {
+		t.Fatalf("Failed to create test repo dir: %v", err)
+	}
+
+	return repoPath
+}
+
+// initializeRepository runs gogit init in test directory.
+func initializeRepository(t *testing.T, repoPath string) {
+	t.Helper()
+
+	cmd := exec.Command(sharedBinaryPath, "init")
+	cmd.Dir = repoPath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to initialize repository: %v", err)
+	}
+}
+
+// decompressBlobObject reads and decompresses blob object file.
+func decompressBlobObject(t *testing.T, objectPath string) []byte {
+	t.Helper()
+
+	compressedData, err := os.ReadFile(objectPath)
+	if err != nil {
+		t.Fatalf("Failed to read object file: %v", err)
+	}
+
+	reader, err := zlib.NewReader(bytes.NewReader(compressedData))
+	if err != nil {
+		t.Fatalf("Failed to create zlib reader: %v", err)
+	}
+	defer reader.Close()
+
+	var buffer bytes.Buffer
+	if _, err := buffer.ReadFrom(reader); err != nil {
+		t.Fatalf("Failed to read decompressed data: %v", err)
+	}
+
+	return buffer.Bytes()
+}
+
+// assertBlobContent verifies blob object format and content.
+func assertBlobContent(t *testing.T, decompressedData, expectedContent []byte) {
+	t.Helper()
+
+	if !bytes.HasPrefix(decompressedData, []byte("blob ")) {
+		t.Fatal("Object is not a blob")
+	}
+
+	nullByteIndex := bytes.IndexByte(decompressedData, 0)
+	if nullByteIndex == -1 {
+		t.Fatal("Invalid blob format: no null byte found")
+	}
+
+	content := decompressedData[nullByteIndex+1:]
+	if !bytes.Equal(content, expectedContent) {
+		t.Errorf("Content mismatch: expected %q, got %q", expectedContent, content)
 	}
 }
