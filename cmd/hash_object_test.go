@@ -11,103 +11,76 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/testutils"
 	"github.com/KostasZigo/gogit/utils"
 	"github.com/agiledragon/gomonkey/v2"
-	"github.com/spf13/cobra"
 )
 
+// TestHashObjectCommand_Success_NoStorage verifies hash computation without storage.
 func TestHashObjectCommand_Success_NoStorage(t *testing.T) {
-	// Create temp repo
-	tempDir := t.TempDir()
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit: %v", err)
-	}
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
 
 	// Change to repo directory
-	oldDir, _ := os.Getwd()
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
+	changeToRepoDir(t, repoPath)
 
 	// Create test file
 	testFileName := "test.txt"
 	testFileContent := []byte("hello world\nHave a nice day")
-	if err := os.WriteFile(testFileName, testFileContent, 0755); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	// Capture output
-	var stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	stdout := captureStdout(testRootCmd)
 
 	// Execute hash-object command without -w flag
 	testRootCmd.SetArgs([]string{"hash-object", testFileName})
-	err := testRootCmd.Execute()
 
 	// Verify command succeeded
-	if err != nil {
+	if err := testRootCmd.Execute(); err != nil {
 		t.Fatalf("hash-object command failed: %v", err)
 	}
 
 	// Verify hash output
-	expectedHash, _ := utils.ComputeHash(testFileContent, utils.BlobObjectType)
 	outputHash := strings.TrimSpace(stdout.String())
+	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	if err != nil {
+		t.Fatalf("Failed to compute hash: %v", err)
+	}
 
 	if expectedHash != outputHash {
 		t.Fatalf("Expected hash %s, got %s", expectedHash, outputHash)
 	}
 
 	// Verify object was NOT created (no -w flag)
-	objectPath := filepath.Join(gogitDir, outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, outputHash[:2], outputHash[2:])
 	if _, err := os.Stat(objectPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Object should not be created without -w flag")
 	}
 }
 
+// TestHashObjectCommand_Success_WithStorage verifies hash computation with storage.
 func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
-	// Create temp repo
-	tempDir := t.TempDir()
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit: %v", err)
-	}
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
 
-	// Create test file
 	testFileName := "test.txt"
-	testFile := filepath.Join(tempDir, testFileName)
 	testFileContent := []byte("hello world\nHave a nice day")
-	if err := os.WriteFile(testFile, testFileContent, 0755); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	// Change to repo directory
-	oldDir, _ := os.Getwd()
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
+	changeToRepoDir(t, repoPath)
 
-	// Capture output
-	var stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	stdout := captureStdout(testRootCmd)
 
 	// Execute hash-object command with -w flag
 	testRootCmd.SetArgs([]string{"hash-object", testFileName, "-w"})
-	err := testRootCmd.Execute()
-
-	// Verify command succeeded
-	if err != nil {
+	if err := testRootCmd.Execute(); err != nil {
 		t.Fatalf("hash-object command failed: %v", err)
 	}
 
 	// Verify hash output
-	expectedHash, _ := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	if err != nil {
+		t.Fatalf("Failed to compute hash: %v", err)
+	}
 	outputHash := strings.TrimSpace(stdout.String())
 
 	if expectedHash != outputHash {
@@ -115,13 +88,11 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	}
 
 	// Verify object was created
-	objectPath := filepath.Join(gogitDir, outputHash[:2], outputHash[2:])
-	if _, err := os.Stat(objectPath); errors.Is(err, fs.ErrNotExist) {
-		t.Error("Object should have been created with -w flag")
-	}
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", outputHash[:2], outputHash[2:])
+	testutils.AssertFileExists(t, objectPath)
 
 	// Verify object can be read back
-	store := objects.NewObjectStore(tempDir)
+	store := objects.NewObjectStore(repoPath)
 	blob, err := store.ReadBlob(expectedHash)
 	if err != nil {
 		t.Errorf("Failed to read stored blob: %v", err)
@@ -135,34 +106,19 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	}
 }
 
+// TestHashObject_FileNotFound verifies error for non-existent file.
 func TestHashObject_FileNotFound(t *testing.T) {
-	// Create temp repo
-	tempDir := t.TempDir()
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit: %v", err)
-	}
-
-	// Change to repo directory
-	oldDir, _ := os.Getwd()
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	changeToRepoDir(t, repoPath)
 
 	dummyFileName := "dummy.txt"
 
-	// Capture output
-	var stderr bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetErr(&stderr)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	captureStderr(rootCmd)
 
 	// Execute hash-object command with -w flag
 	testRootCmd.SetArgs([]string{"hash-object", dummyFileName})
 	err := testRootCmd.Execute()
-
-	// Verify command failed
 	if err == nil {
 		t.Fatalf("hash-object command SHOULD fail")
 	}
@@ -174,12 +130,11 @@ func TestHashObject_FileNotFound(t *testing.T) {
 	}
 }
 
+// TestHashObjectCommand_NoArguments verifies error when no arguments provided.
 func TestHashObjectCommand_NoArguments(t *testing.T) {
-	var stderr, stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetErr(&stderr)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	captureStderr(rootCmd)
+	captureStdout(rootCmd)
 
 	// Execute hash-object command without any arguments
 	testRootCmd.SetArgs([]string{"hash-object"})
@@ -196,12 +151,11 @@ func TestHashObjectCommand_NoArguments(t *testing.T) {
 	}
 }
 
+// TestHashObjectCommand_TooManyArguments verifies error when too many arguments provided.
 func TestHashObjectCommand_TooManyArguments(t *testing.T) {
-	var stderr, stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetErr(&stderr)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	captureStderr(rootCmd)
+	captureStdout(rootCmd)
 
 	// Execute hash-object command with too many arguments
 	testRootCmd.SetArgs([]string{"hash-object", "a.txt", "b.txt"})
@@ -218,27 +172,18 @@ func TestHashObjectCommand_TooManyArguments(t *testing.T) {
 	}
 }
 
+// TestHashObjectCommand_FileNotInRepository verifies error when file outside repository.
 func TestHashObjectCommand_FileNotInRepository(t *testing.T) {
-	tempDir := t.TempDir()
+	repoPath := t.TempDir()
+	changeToRepoDir(t, repoPath)
 
 	testFileName := "test.txt"
 	testFileContent := []byte("Pikachu I choose you !")
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	oldDir, _ := os.Getwd()
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatal("Failed to change directory")
-	}
-	defer os.Chdir(oldDir)
-
-	if err := os.WriteFile(testFileName, testFileContent, 0755); err != nil {
-		t.Fatal("Failed to write file")
-	}
-
-	var stderr, stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetErr(&stderr)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	captureStderr(rootCmd)
+	captureStdout(rootCmd)
 
 	// Execute hash-object command with write directive
 	// File not in repo error only appears if we are storing the blob
@@ -255,26 +200,15 @@ func TestHashObjectCommand_FileNotInRepository(t *testing.T) {
 	}
 }
 
+// TestHashObjectCommand_StoreFailure verifies error handling when storage fails.
 func TestHashObjectCommand_StoreFailure(t *testing.T) {
-	tempDir := t.TempDir()
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatal("Failed to create .gogit directory")
-	}
-
-	// Change repo directory
-	oldDir, _ := os.Getwd()
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatal("Failed to change directory")
-	}
-	defer os.Chdir(oldDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	changeToRepoDir(t, repoPath)
 
 	// Create file
 	testFileName := "test.txt"
 	testFileContent := []byte("Charmander user Ember !")
-	if err := os.WriteFile(testFileName, testFileContent, 0755); err != nil {
-		t.Fatal("Failed to create test file")
-	}
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
 	// Mock ObjectStore.Store failure
 	mockError := errors.New("failed to store blob to .gogit/objects")
@@ -284,11 +218,9 @@ func TestHashObjectCommand_StoreFailure(t *testing.T) {
 		})
 	defer patches.Reset()
 
-	var stderr, stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetErr(&stderr)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	captureStderr(rootCmd)
+	captureStdout(rootCmd)
 
 	// Execute hash-object command with write directive
 	// Store is only executed when we are storing the blob
@@ -305,28 +237,17 @@ func TestHashObjectCommand_StoreFailure(t *testing.T) {
 	}
 }
 
+// TestHashObjectCommand_NewBlobFromFileFailure verifies error handling when blob creation fails.
 func TestHashObjectCommand_NewBlobFromFileFailure(t *testing.T) {
-	tempDir := t.TempDir()
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatal("Failed to create .gogit directory")
-	}
-
-	// Change repo directory
-	oldDir, _ := os.Getwd()
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatal("Failed to change directory")
-	}
-	defer os.Chdir(oldDir)
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	changeToRepoDir(t, repoPath)
 
 	// Create file
 	testFileName := "test.txt"
 	testFileContent := []byte("Charmander user Ember !")
-	if err := os.WriteFile(testFileName, testFileContent, 0755); err != nil {
-		t.Fatal("Failed to create test file")
-	}
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	// Mock EKGJEWORPIHG[]ERKHEJWTPHITWOKHJEPKHJRTHK[ESTHMEPSHKPEJHPKPREHNSKEPGRHKMCF;aGNEPGNJAWKN;AE'GKF] failure
+	// Mock failure
 	mockError := errors.New("failed to create new blob from file")
 	patches := gomonkey.ApplyFunc(objects.NewBlobFromFile,
 		func(_ string) (*objects.Blob, error) {
@@ -334,11 +255,9 @@ func TestHashObjectCommand_NewBlobFromFileFailure(t *testing.T) {
 		})
 	defer patches.Reset()
 
-	var stderr, stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetErr(&stderr)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	captureStderr(rootCmd)
+	captureStdout(rootCmd)
 
 	// Execute hash-object command with write directive
 	// Store is only executed when we are storing the blob
@@ -353,57 +272,35 @@ func TestHashObjectCommand_NewBlobFromFileFailure(t *testing.T) {
 	}
 }
 
+// TestHashObjectCommand_MultipleFiles_SameContent verifies content-addressable storage.
 func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
-	// Create temp repo
-	tempDir := t.TempDir()
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit: %v", err)
-	}
-
-	// Change to repo directory
-	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change directory: %v", err)
-	}
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	changeToRepoDir(t, repoPath)
 
 	// Create two files with identical content
 	content := []byte("identical content\n")
 	file1_name := "file1.txt"
 	file2_name := "file2.txt"
 
-	if err := os.WriteFile(file1_name, content, 0644); err != nil {
-		t.Fatalf("Failed to create file1: %v", err)
-	}
-	if err := os.WriteFile(file2_name, content, 0644); err != nil {
-		t.Fatalf("Failed to create file2: %v", err)
-	}
+	testutils.CreateTestFile(t, repoPath, file1_name, content)
+	testutils.CreateTestFile(t, repoPath, file2_name, content)
 
-	// Hash file1
-	var stdout1 bytes.Buffer
-	testRootCmd1 := &cobra.Command{Use: "gogit"}
-	testRootCmd1.AddCommand(hashObjectCmd)
-	testRootCmd1.SetOut(&stdout1)
+	// Hash file 1
+	testRootCmd1 := createTestRootCmd(hashObjectCmd)
+	stdout1 := captureStdout(testRootCmd1)
 	testRootCmd1.SetArgs([]string{"hash-object", "-w", file1_name})
-
 	if err := testRootCmd1.Execute(); err != nil {
 		t.Fatalf("Failed to hash file1: %v", err)
 	}
-
 	hash1 := strings.TrimSpace(stdout1.String())
 
 	// Hash file2
-	var stdout2 bytes.Buffer
-	testRootCmd2 := &cobra.Command{Use: "gogit"}
-	testRootCmd2.AddCommand(hashObjectCmd)
-	testRootCmd2.SetOut(&stdout2)
+	testRootCmd2 := createTestRootCmd(hashObjectCmd)
+	stdout2 := captureStdout(testRootCmd2)
 	testRootCmd2.SetArgs([]string{"hash-object", "-w", file2_name})
-
 	if err := testRootCmd2.Execute(); err != nil {
 		t.Fatalf("Failed to hash file2: %v", err)
 	}
-
 	hash2 := strings.TrimSpace(stdout2.String())
 
 	// Verify both files produce the same hash
@@ -412,95 +309,65 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	}
 
 	// Verify only one object was created (content-addressable)
-	objectPath := filepath.Join(gogitDir, hash1[:2], hash1[2:])
-	if _, err := os.Stat(objectPath); os.IsNotExist(err) {
-		t.Error("Object should exist for both files")
-	}
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash1[:2], hash1[2:])
+	testutils.AssertFileExists(t, objectPath)
 }
 
+// TestHashObjectCommand_EmptyFile verifies hash computation for empty file.
 func TestHashObjectCommand_EmptyFile(t *testing.T) {
-	// Create temp repo
-	tempDir := t.TempDir()
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit: %v", err)
-	}
-
-	// Change to repo directory
-	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change directory: %v", err)
-	}
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	changeToRepoDir(t, repoPath)
 
 	// Create empty file
 	emptyFile := "empty.txt"
-	if err := os.WriteFile(emptyFile, []byte{}, 0755); err != nil {
-		t.Fatalf("Failed to create empty file: %v", err)
-	}
+	testutils.CreateTestFile(t, repoPath, emptyFile, []byte{})
 
-	var stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	stdout := captureStdout(testRootCmd)
 
 	// Execute hash-object
 	testRootCmd.SetArgs([]string{"hash-object", "-w", emptyFile})
-	err := testRootCmd.Execute()
-
-	// Should succeed
-	if err != nil {
+	if err := testRootCmd.Execute(); err != nil {
 		t.Fatalf("hash-object should succeed for empty file: %v", err)
 	}
 
-	// Verify hash for empty file
-	expectedHash, _ := utils.ComputeHash([]byte{}, utils.BlobObjectType)
+	// Verify hash for empty
 	outputHash := strings.TrimSpace(stdout.String())
+	expectedHash, err := utils.ComputeHash([]byte{}, utils.BlobObjectType)
+	if err != nil {
+		t.Fatalf("Failed to compute hash: %v", err)
+	}
 
 	if outputHash != expectedHash {
 		t.Errorf("Expected empty file hash %s, got %s", expectedHash, outputHash)
 	}
 }
 
+// TestHashObjectCommand_LargeFile verifies hash computation for large file.
 func TestHashObjectCommand_LargeFile(t *testing.T) {
-	// Create temp repo
-	tempDir := t.TempDir()
-	gogitDir := filepath.Join(tempDir, ".gogit", "objects")
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit: %v", err)
-	}
-
-	// Change to repo directory
-	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change directory: %v", err)
-	}
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	changeToRepoDir(t, repoPath)
 
 	// Create large file (1MB)
 	largeFileName := "large.bin"
 	largeContent := bytes.Repeat([]byte("A"), 1024*1024) // 1MB of 'A's
-	if err := os.WriteFile(largeFileName, largeContent, 0755); err != nil {
-		t.Fatalf("Failed to create large file: %v", err)
-	}
+	testutils.CreateTestFile(t, repoPath, largeFileName, largeContent)
 
-	var stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(hashObjectCmd)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(hashObjectCmd)
+	stdout := captureStdout(testRootCmd)
 
 	// Execute hash-object with -w
 	testRootCmd.SetArgs([]string{"hash-object", "-w", largeFileName})
-	err := testRootCmd.Execute()
-
-	// Should succeed
-	if err != nil {
+	if err := testRootCmd.Execute(); err != nil {
 		t.Fatalf("hash-object should succeed for large file: %v", err)
 	}
 
 	// Verify hash was printed
-	expectedHash, _ := utils.ComputeHash(largeContent, utils.BlobObjectType)
 	outputHash := strings.TrimSpace(stdout.String())
+	expectedHash, err := utils.ComputeHash(largeContent, utils.BlobObjectType)
+	if err != nil {
+		t.Fatalf("Failed to compute hash: %v", err)
+	}
 
 	if len(outputHash) != 40 {
 		t.Errorf("Expected 40-char hash, got: %s", outputHash)
@@ -511,8 +378,6 @@ func TestHashObjectCommand_LargeFile(t *testing.T) {
 	}
 
 	// Verify object was stored
-	objectPath := filepath.Join(gogitDir, outputHash[:2], outputHash[2:])
-	if _, err := os.Stat(objectPath); os.IsNotExist(err) {
-		t.Error("Large file object should be stored")
-	}
+	objectPath := filepath.Join(repoPath, ".gogit", "objects", outputHash[:2], outputHash[2:])
+	testutils.AssertFileExists(t, objectPath)
 }

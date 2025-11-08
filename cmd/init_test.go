@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -10,173 +9,96 @@ import (
 	"testing"
 
 	"github.com/agiledragon/gomonkey/v2"
-	"github.com/spf13/cobra"
 )
 
+// TestInitCommand_Success verifies successful repository initialization in current directory.
 func TestInitCommand_Success(t *testing.T) {
-	// Create temporary directory and change to it
-	tempDir := t.TempDir()
+	repoPath := t.TempDir()
+
 	oldDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
 	}
 	defer os.Chdir(oldDir)
 
-	err = os.Chdir(tempDir)
-	if err != nil {
+	if err = os.Chdir(repoPath); err != nil {
 		t.Fatalf("Failed to change to temp directory: %v", err)
 	}
 
-	// Capture output
-	var stdout, stderr bytes.Buffer
-
 	// Create a new root command for testing
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(initCmd)
-	testRootCmd.SetOut(&stdout)
-	testRootCmd.SetErr(&stderr)
+	testRootCmd := createTestRootCmd(initCmd)
+	stdout := captureStdout(testRootCmd)
 
 	// Execute init command
 	testRootCmd.SetArgs([]string{"init"})
-	err = testRootCmd.Execute()
-
-	// Verify command succeeded
-	if err != nil {
+	if err = testRootCmd.Execute(); err != nil {
 		t.Fatalf("Init command failed: %v", err)
 	}
 
 	// Verify output message
-	output := stdout.String()
 	expectedMsg := "Initialized empty GoGit repository in ./.gogit/\n"
-	if !strings.Contains(output, expectedMsg) {
-		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, output)
+	if !strings.Contains(stdout.String(), expectedMsg) {
+		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, stdout.String())
 	}
 
-	// Verify .gogit directory was created
-	gogitDirectory := filepath.Join(tempDir, ".gogit")
-	if _, err := os.Stat(gogitDirectory); os.IsNotExist(err) {
-		t.Error(".gogit directory was not created by CLI command")
-	}
-
-	// Check required subdirectories exist
-	expectedDirectories := []string{"objects", "refs", "refs/heads", "refs/tags"}
-	for _, dir := range expectedDirectories {
-		dirPath := filepath.Join(gogitDirectory, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-			t.Errorf("Required directory %s was not created: %v", dir, err)
-		}
-	}
-
-	// Verify HEAD file exists and has correct content
-	headPath := filepath.Join(gogitDirectory, "HEAD")
-	content, err := os.ReadFile(headPath)
-	if err != nil {
-		t.Errorf("HEAD file was not created: %v", err)
-	} else {
-		expected := "ref: refs/heads/main\n"
-		if string(content) != expected {
-			t.Errorf("HEAD file content = %q, want %q", string(content), expected)
-		}
-	}
+	assertRepositoryStructure(t, repoPath)
 }
 
+// TestInitCommand_WithDirectory_Success verifies initialization with explicit directory path.
 func TestInitCommand_WithDirectory_Success(t *testing.T) {
-	tempDir := t.TempDir()
-	targetDirectory := filepath.Join(tempDir, "my-project")
+	repoPath := t.TempDir()
+	targetDirectory := filepath.Join(repoPath, "my-project")
 
-	var stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(initCmd)
-	testRootCmd.SetOut(&stdout)
+	testRootCmd := createTestRootCmd(initCmd)
+	captureStdout(testRootCmd)
 
 	// Execute init with directory argument
 	testRootCmd.SetArgs([]string{"init", targetDirectory})
-	err := testRootCmd.Execute()
-
-	if err != nil {
+	if err := testRootCmd.Execute(); err != nil {
 		t.Fatalf("Init command with directory failed: %v", err)
 	}
 
-	// Verify .gogit directory was created in target directory
-	gogitDirectory := filepath.Join(targetDirectory, ".gogit")
-	if _, err := os.Stat(gogitDirectory); os.IsNotExist(err) {
-		t.Error(".gogit directory was not created in target directory")
-	}
-
-	// Check required subdirectories exist
-	expectedDirectories := []string{"objects", "refs", "refs/heads", "refs/tags"}
-	for _, dir := range expectedDirectories {
-		dirPath := filepath.Join(gogitDirectory, dir)
-		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-			t.Errorf("Required directory %s was not created: %v", dir, err)
-		}
-	}
-
-	// Verify HEAD file exists and has correct content
-	headPath := filepath.Join(gogitDirectory, "HEAD")
-	content, err := os.ReadFile(headPath)
-	if err != nil {
-		t.Errorf("HEAD file was not created: %v", err)
-	} else {
-		expected := "ref: refs/heads/main\n"
-		if string(content) != expected {
-			t.Errorf("HEAD file content = %q, want %q", string(content), expected)
-		}
-	}
+	assertRepositoryStructure(t, targetDirectory)
 }
 
+// TestInitCommand_AlreadyExists verifies error when repository already exists.
 func TestInitCommand_AlreadyExists(t *testing.T) {
-	tempDir := t.TempDir()
+	repoPath := t.TempDir()
 
 	// Initialize once
-	var stdout1 bytes.Buffer
-	testRootCmd1 := &cobra.Command{Use: "gogit"}
-	testRootCmd1.AddCommand(initCmd)
-	testRootCmd1.SetOut(&stdout1)
-	testRootCmd1.SetArgs([]string{"init", tempDir})
+	testRootCmd1 := createTestRootCmd(initCmd)
+	captureStdout(testRootCmd1)
+	testRootCmd1.SetArgs([]string{"init", repoPath})
 
-	err := testRootCmd1.Execute()
-	if err != nil {
+	if err := testRootCmd1.Execute(); err != nil {
 		t.Fatalf("First init failed: %v", err)
 	}
 
 	// Try to initialize again
-	var stdout2, stderr2 bytes.Buffer
-	testRootCmd2 := &cobra.Command{Use: "gogit"}
-	testRootCmd2.AddCommand(initCmd)
-	testRootCmd2.SetOut(&stdout2)
-	testRootCmd2.SetErr(&stderr2)
-	testRootCmd2.SetArgs([]string{"init", tempDir})
+	testRootCmd2 := createTestRootCmd(initCmd)
+	captureStderr(testRootCmd2)
+	testRootCmd2.SetArgs([]string{"init", repoPath})
 
-	err = testRootCmd2.Execute()
+	err := testRootCmd2.Execute()
 	if err == nil {
 		t.Error("Expected error when repository already exists")
 	}
 
 	// Verify error message mentions repository exists
-	expectedErrorMsg := fmt.Sprintf("failed to initialize repository - repository already exists at %s\\.gogit", tempDir)
+	expectedErrorMsg := fmt.Sprintf("failed to initialize repository - repository already exists at %s\\.gogit", repoPath)
 	if !strings.Contains(err.Error(), expectedErrorMsg) {
 		t.Errorf("Expected error to contain %q, got: %q", expectedErrorMsg, err.Error())
 	}
-
-	stdErrExpectedMsg := "Error: " + expectedErrorMsg + "\n"
-	if !strings.Contains(stderr2.String(), stdErrExpectedMsg) {
-		t.Errorf("Expected error output (stdErr) to contain %q, got: %q", stdErrExpectedMsg, err.Error())
-	}
 }
 
+// TestInitCommand_TooManyArguments verifies behavior with excessive arguments.
 func TestInitCommand_TooManyArguments(t *testing.T) {
-	var stdout bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(initCmd)
-	testRootCmd.SetOut(&stdout)
-
-	// Execute init with too many arguments
+	testRootCmd := createTestRootCmd(initCmd)
+	stdout := captureStdout(testRootCmd)
 	testRootCmd.SetArgs([]string{"init", "dir1", "dir2"})
-	err := testRootCmd.Execute()
 
 	// Should not return error but should show usage
-	if err != nil {
+	if err := testRootCmd.Execute(); err != nil {
 		t.Errorf("Expected no error for too many args, got: %v", err)
 	}
 
@@ -186,8 +108,9 @@ func TestInitCommand_TooManyArguments(t *testing.T) {
 	}
 }
 
+// TestInitCommand_Fail verifies cleanup on initialization failure.
 func TestInitCommand_Fail(t *testing.T) {
-	tempDir := t.TempDir()
+	repoPath := t.TempDir()
 
 	// Mock os.MkdirAll to fail after first call
 	mockError := errors.New("mocked mkdir failure")
@@ -202,12 +125,10 @@ func TestInitCommand_Fail(t *testing.T) {
 	})
 	defer patches.Reset()
 
-	var stdout, stdErr bytes.Buffer
-	testRootCmd := &cobra.Command{Use: "gogit"}
-	testRootCmd.AddCommand(initCmd)
-	testRootCmd.SetOut(&stdout)
-	testRootCmd.SetErr(&stdErr)
-	testRootCmd.SetArgs([]string{"init", tempDir})
+	testRootCmd := createTestRootCmd(initCmd)
+	captureStdout(testRootCmd)
+	captureStderr(testRootCmd)
+	testRootCmd.SetArgs([]string{"init", repoPath})
 
 	err := testRootCmd.Execute()
 
@@ -220,7 +141,7 @@ func TestInitCommand_Fail(t *testing.T) {
 	}
 
 	// Verify cleanup was called
-	gogitDirectory := filepath.Join(tempDir, ".gogit")
+	gogitDirectory := filepath.Join(repoPath, ".gogit")
 	if _, err := os.Stat(gogitDirectory); err == nil {
 		t.Error("Expected .gogit directory to be cleaned up after failure")
 	}

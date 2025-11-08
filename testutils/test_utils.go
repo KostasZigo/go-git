@@ -22,19 +22,12 @@ func RandomHash() string {
 	return RandomString(20)
 }
 
-// SetupTestRepo creates a temporary directory for testing.
-// The directory is automatically cleaned up when the test completes.
-func SetupTestRepo(t *testing.T) string {
-	t.Helper()
-	return t.TempDir()
-}
-
 // SetupTestRepoWithGogitDir creates a temporary directory with .gogit/objects structure.
 // This is useful for tests that need the repository structure but not full initialization.
 func SetupTestRepoWithGogitDir(t *testing.T) string {
 	t.Helper()
 
-	repoPath := SetupTestRepo(t)
+	repoPath := t.TempDir()
 	gogitDir := filepath.Join(repoPath, ".gogit", "objects")
 
 	if err := os.MkdirAll(gogitDir, 0755); err != nil {
@@ -49,7 +42,7 @@ func SetupTestRepoWithGogitDir(t *testing.T) string {
 func SetupTestRepoWithInit(t *testing.T) string {
 	t.Helper()
 
-	repoPath := SetupTestRepo(t)
+	repoPath := t.TempDir()
 	gogitDir := filepath.Join(repoPath, ".gogit")
 
 	// Create directory structure

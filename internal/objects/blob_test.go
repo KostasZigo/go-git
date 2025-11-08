@@ -18,7 +18,7 @@ func TestNewBlob(t *testing.T) {
 
 // TestNewBlobFromFile verifies blob creation from filesystem file.
 func TestNewBlobFromFile(t *testing.T) {
-	repoPath := testutils.SetupTestRepo(t)
+	repoPath := t.TempDir()
 	content := []byte("test content\n")
 	testFile := testutils.CreateTestFile(t, repoPath, "test.txt", content)
 

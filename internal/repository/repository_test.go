@@ -12,7 +12,7 @@ import (
 
 // TestInitRepository verifies successful repository initialization.
 func TestInitRepository(t *testing.T) {
-	repoPath := testutils.SetupTestRepo(t)
+	repoPath := t.TempDir()
 
 	if err := InitRepository(repoPath); err != nil {
 		t.Fatalf("InitRepository failed: %v", err)
@@ -43,7 +43,7 @@ func TestInitRepository(t *testing.T) {
 
 // TestInitRepository_AlreadyExists verifies error when repository exists.
 func TestInitRepository_AlreadyExists(t *testing.T) {
-	repoPath := testutils.SetupTestRepo(t)
+	repoPath := t.TempDir()
 
 	// Initialize once
 	if err := InitRepository(repoPath); err != nil {
@@ -58,8 +58,7 @@ func TestInitRepository_AlreadyExists(t *testing.T) {
 
 // TestInitRepository_MkdirAllFailure verifies cleanup on directory creation failure.
 func TestInitRepository_MkdirAllFailure(t *testing.T) {
-	repoPath := testutils.SetupTestRepo(t)
-
+	repoPath := t.TempDir()
 	// Mock os.MkdirAll to fail after first call
 	mockError := errors.New("mocked mkdir failure")
 	callCount := 0
