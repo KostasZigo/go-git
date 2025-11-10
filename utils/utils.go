@@ -24,7 +24,7 @@ func (ot ObjectType) IsValid() bool {
 	}
 }
 
-// computeHash calculates SHA-1 hash for Object content
+// ComputeHash calculates SHA-1 hash for Object content
 func ComputeHash(content []byte, objectType ObjectType) (string, error) {
 	if !objectType.IsValid() {
 		return "", fmt.Errorf("invalid object type: %s - hash not computed", objectType)
@@ -35,6 +35,15 @@ func ComputeHash(content []byte, objectType ObjectType) (string, error) {
 	data := append([]byte(header), content...)
 	hash := sha1.Sum(data)
 	return fmt.Sprintf("%x", hash), nil
+}
+
+// MustComputeHash is a non-validating version of Compute Hash
+func MustComputeHash(content []byte, objectType ObjectType) string {
+	hash, err := ComputeHash(content, objectType)
+	if err != nil {
+		panic(err)
+	}
+	return hash
 }
 
 // BuildDirPath constructs os-agnostic display direcotry path with trailing separator preserving all components.

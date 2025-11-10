@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/KostasZigo/gogit/internal/constants"
 )
 
 // TestNewCommit_InitialCommit verifies initial commit creation without parent.
@@ -75,13 +77,12 @@ func TestCommit_ContentFormat(t *testing.T) {
 	content := string(commit.Content())
 
 	// Verify content contains required lines
-	_, timeZoneOffset := author.Timestamp.Zone()
-	timezone := calculateTimezone(timeZoneOffset)
+	timezone := calculateTimezone(author.Timestamp)
 	expectedLines := []string{
-		"tree " + treeHash,
-		"parent " + parentHash,
-		fmt.Sprintf("author %s <%s> %d %s", author.Name, author.Email, author.Timestamp.Unix(), timezone),
-		fmt.Sprintf("committer %s <%s> %d %s", author.Name, author.Email, author.Timestamp.Unix(), timezone),
+		constants.TreePrefix + treeHash,
+		constants.CommitParentPrefix + parentHash,
+		fmt.Sprintf("%s%s %d %s", constants.CommitAuthorPrefix, author.String(), author.Timestamp.Unix(), timezone),
+		fmt.Sprintf("%s%s %d %s", constants.CommitCommitterPrefix, author.String(), author.Timestamp.Unix(), timezone),
 		"\n",
 		message,
 	}

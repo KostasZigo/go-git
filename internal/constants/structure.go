@@ -59,3 +59,36 @@ const (
 	// HashDirPrefixLength is subdirectory prefix length under objects/ (2 characters).
 	HashDirPrefixLength = 2
 )
+
+// Git object type prefixes used in object headers and commit metadata.
+const (
+	// BlobPrefix identifies blob objects in headers ("blob <size>\0").
+	BlobPrefix = "blob "
+
+	// TreePrefix identifies tree objects in headers ("tree <size>\0").
+	TreePrefix = "tree "
+
+	// CommitPrefix identifies commit objects in headers ("commit <size>\0").
+	CommitPrefix = "commit "
+
+	// CommitParentPrefix marks parent commit lines in commit objects.
+	CommitParentPrefix = "parent "
+
+	// CommitAuthorPrefix marks author metadata in commit objects.
+	CommitAuthorPrefix = "author "
+
+	// CommitCommitterPrefix marks committer metadata in commit objects.
+	CommitCommitterPrefix = "committer "
+)
+
+// Object format constants.
+const (
+	// NullByte separates header from content in Git objects.
+	NullByte = '\x00'
+)
+
+// Time conversion constants for timezone formatting.
+const (
+	SecondsPerHour   = 3600
+	SecondsPerMinute = 60
+)

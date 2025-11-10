@@ -334,8 +334,7 @@ func TestParseAuthorLine(t *testing.T) {
 		t.Errorf("Expected timestamp 1698765432, got %d", author.Timestamp.Unix())
 	}
 
-	_, timeZoneOffset := author.Timestamp.Zone()
-	timezone := calculateTimezone(timeZoneOffset)
+	timezone := calculateTimezone(author.Timestamp)
 	if timezone != "-0500" {
 		t.Errorf("Expected timezone -0500, got %s", timezone)
 	}
@@ -380,8 +379,7 @@ Initial commit message
 		t.Errorf("Expected timestamp 1698765432, got %d", commit.author.Timestamp.Unix())
 	}
 
-	_, timeZoneOffset := commit.author.Timestamp.Zone()
-	timezone := calculateTimezone(timeZoneOffset)
+	timezone := calculateTimezone(commit.author.Timestamp)
 	if timezone != "+0000" {
 		t.Errorf("Expected timezone +0000, got %s", timezone)
 	}

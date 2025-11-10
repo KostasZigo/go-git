@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/utils"
 )
 
@@ -15,13 +16,14 @@ type Author struct {
 	Timestamp time.Time
 }
 
+// String formats author as "Name <email>".
 func (a Author) String() string {
 	return fmt.Sprintf("%s <%s>",
 		a.Name,
 		a.Email)
 }
 
-// Represents a snapshot of the repository
+// Commit represents a snapshot of the repository
 type Commit struct {
 	hash       string
 	treeHash   string
@@ -31,47 +33,56 @@ type Commit struct {
 	message    string
 }
 
+// NewCommit creates commit with parent reference.
 func NewCommit(treeHash, parentHash, message string, author Author) (*Commit, error) {
-
 	content := buildCommitContent(treeHash, parentHash, message, author)
 	hash, err := utils.ComputeHash(content, utils.CommitObjectType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute hash for commit: %v", err)
 	}
 
-	committer := author
-
 	return &Commit{
 		hash:       hash,
 		treeHash:   treeHash,
 		parentHash: parentHash,
 		author:     author,
-		committer:  committer,
+		committer:  author,
 		message:    message,
 	}, nil
 }
 
+// NewInitialCommit creates root commit without parent.
 func NewInitialCommit(treeHash, message string, author Author) (*Commit, error) {
 	return NewCommit(treeHash, "", message, author)
 }
 
+// buildCommitContent constructs Git commit object format
 func buildCommitContent(treeHash, parentHash, message string, author Author) []byte {
 	var buf bytes.Buffer
 
-	// Tree reference
-	fmt.Fprintf(&buf, "tree %s\n", treeHash)
+	// Tree reference - tree hash\n
+	fmt.Fprintf(&buf, "%s%s\n", constants.TreePrefix, treeHash)
 
-	// Parent reference --rwta
+	// Parent reference - parent hash\n
 	if parentHash != "" {
-		fmt.Fprintf(&buf, "parent %s\n", parentHash)
+		fmt.Fprintf(&buf, "%s%s\n", constants.CommitParentPrefix, parentHash)
 	}
 
-	// Author and commiter
-	_, timeZoneOffeset := author.Timestamp.Zone()
-	timezone := calculateTimezone(timeZoneOffeset)
-	fmt.Fprintf(&buf, "author %s <%s> %d %s\n", author.Name, author.Email, author.Timestamp.Unix(), timezone)
+	// Author and commiter - author name <email> time timezone\n
+	timezone := calculateTimezone(author.Timestamp)
+	fmt.Fprintf(&buf, "%s%s %d %s\n",
+		constants.CommitAuthorPrefix,
+		author.String(),
+		author.Timestamp.Unix(),
+		timezone,
+	)
 
-	fmt.Fprintf(&buf, "committer %s <%s> %d %s\n", author.Name, author.Email, author.Timestamp.Unix(), timezone)
+	fmt.Fprintf(&buf, "%s%s %d %s\n",
+		constants.CommitCommitterPrefix,
+		author.String(),
+		author.Timestamp.Unix(),
+		timezone,
+	)
 
 	// Blank line before message
 	buf.WriteByte('\n')
@@ -87,10 +98,13 @@ func buildCommitContent(treeHash, parentHash, message string, author Author) []b
 	return buf.Bytes()
 }
 
-func calculateTimezone(offset int) string {
+// calculateTimezone converts time.Time to Git timezone format (±HHMM).
+func calculateTimezone(t time.Time) string {
+	_, timeZoneOffset := t.Zone()
+
 	// offset is in seconds, convert to ±HHMM format
-	hours := offset / 3600
-	minutes := (offset % 3600) / 60
+	hours := timeZoneOffset / constants.SecondsPerHour
+	minutes := (timeZoneOffset % constants.SecondsPerHour) / constants.SecondsPerMinute
 
 	if minutes < 0 {
 		minutes = -minutes
@@ -112,18 +126,14 @@ func (c *Commit) Size() int {
 }
 
 func (c *Commit) Header() string {
-	return fmt.Sprintf("commit %d\x00", c.Size())
+	return fmt.Sprintf("%s%d%c", constants.CommitPrefix, c.Size(), constants.NullByte)
 }
 
+// Data returns complete Git object data including header.
 func (c *Commit) Data() []byte {
 	return append([]byte(c.Header()), c.Content()...)
 }
 
 func (c *Commit) IsInitialCommit() bool {
 	return c.parentHash == ""
-}
-
-func (c *Commit) String() string {
-	return fmt.Sprintf("Commit{hash: %s, tree: %s, parent: %s, author: %s, message: %q}",
-		c.hash, c.treeHash, c.parentHash, c.author.String(), c.message)
 }

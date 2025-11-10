@@ -1,9 +1,10 @@
 package objects
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/testutils"
 )
 
 // TREE ENTRY TESTS
@@ -11,7 +12,7 @@ import (
 // TestNewTreeEntry verifies tree entry creation with valid mode, name, and hash.
 func TestNewTreeEntry(t *testing.T) {
 	entryName := "test.txt"
-	hash := "abc123"
+	hash := testutils.RandomHash()
 	entry, err := NewTreeEntry(ModeRegularFile, entryName, hash)
 
 	if err != nil {
@@ -33,8 +34,8 @@ func TestNewTreeEntry(t *testing.T) {
 
 // TestTreeEntry_IsDirectory verifies directory vs file mode detection.
 func TestTreeEntry_IsDirectory(t *testing.T) {
-	dirEntry := createTreeEntry(t, ModeDirectory, "src", "abc123")
-	fileEntry := createTreeEntry(t, ModeRegularFile, "main.go", "def456")
+	dirEntry := createTreeEntry(t, ModeDirectory, "src", testutils.RandomHash())
+	fileEntry := createTreeEntry(t, ModeRegularFile, "main.go", testutils.RandomHash())
 
 	if !dirEntry.IsDirectory() {
 		t.Fatal("Expected directory entry to be identified as directory")
@@ -49,19 +50,14 @@ func TestTreeEntry_IsDirectory(t *testing.T) {
 
 // TestNewTree_EmptyTree verifies empty tree creation and hash computation.
 func TestNewTree_EmptyTree(t *testing.T) {
-	tree, err := NewTree([]TreeEntry{})
-	if err != nil {
-		t.Fatalf("Failed to create empty tree: %v", err)
+	_, err := NewTree([]TreeEntry{})
+	if err == nil {
+		t.Fatalf("Expected to fail when creating empty tree: %v", err)
 	}
 
-	// Hash for empty tree
-	expectedHash, err := utils.ComputeHash([]byte(""), utils.TreeObjectType)
-	if err != nil {
-		t.Fatalf("Hash computation failed: %v", err)
-	}
-
-	if tree.Hash() != expectedHash {
-		t.Errorf("Expected empty tree hash [%s], got [%s]", expectedHash, tree.Hash())
+	expectedErrorMessage := "tree must contain at least one entry"
+	if !strings.Contains(err.Error(), expectedErrorMessage) {
+		t.Fatalf("Expected error message [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -103,9 +99,9 @@ func TestNewTree_MultipleEntries(t *testing.T) {
 func TestNewTree_SortsEntries(t *testing.T) {
 	// Add entries in wrong order
 	entries := []TreeEntry{
-		createTreeEntry(t, ModeRegularFile, "z.txt", "hash1"),
-		createTreeEntry(t, ModeRegularFile, "a.txt", "hash2"),
-		createTreeEntry(t, ModeRegularFile, "m.txt", "hash3"),
+		createTreeEntry(t, ModeRegularFile, "z.txt", testutils.RandomHash()),
+		createTreeEntry(t, ModeRegularFile, "a.txt", testutils.RandomHash()),
+		createTreeEntry(t, ModeRegularFile, "m.txt", testutils.RandomHash()),
 	}
 
 	tree := createTree(t, entries)

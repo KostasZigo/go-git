@@ -2,8 +2,10 @@ package objects
 
 import (
 	"fmt"
-	"github.com/KostasZigo/gogit/utils"
 	"os"
+
+	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/utils"
 )
 
 type Blob struct {
@@ -12,7 +14,7 @@ type Blob struct {
 }
 
 func NewBlob(content []byte) *Blob {
-	hash, _ := utils.ComputeHash(content, utils.BlobObjectType)
+	hash := utils.MustComputeHash(content, utils.BlobObjectType)
 	return &Blob{
 		content: content,
 		hash:    hash,
@@ -39,16 +41,12 @@ func (b *Blob) Size() int {
 	return len(b.content)
 }
 
+// Header returns Git object header.
 func (b *Blob) Header() string {
-	return fmt.Sprintf("blob %d\x00", b.Size())
+	return fmt.Sprintf("%s%d%c", constants.BlobPrefix, b.Size(), constants.NullByte)
 }
 
+// Data returns complete Git object data including header.
 func (b *Blob) Data() []byte {
-	header := b.Header()
-	data := append([]byte(header), b.Content()...)
-	return data
-}
-
-func (b *Blob) String() string {
-	return fmt.Sprintf("Blob{hash: %s, size: %d bytes}", b.hash, b.Size())
+	return append([]byte(b.Header()), b.Content()...)
 }

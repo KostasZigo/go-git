@@ -7,9 +7,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/utils"
 )
 
+// FileMode represents Unix file permissions and type in Git objects.
 type FileMode string
 
 const (
@@ -20,6 +22,7 @@ const (
 	ModeSubmodule   FileMode = "160000" // Git submodule
 )
 
+// IsValid verifies file mode matches Git specification.
 func (m FileMode) IsValid() bool {
 	switch m {
 	case ModeRegularFile, ModeExecutable, ModeSymlink, ModeDirectory, ModeSubmodule:
@@ -40,6 +43,13 @@ func NewTreeEntry(mode FileMode, name string, hash string) (*TreeEntry, error) {
 	if !mode.IsValid() {
 		return nil, fmt.Errorf("invalid file mode: %s", mode)
 	}
+	if name == "" {
+		return nil, fmt.Errorf("entry name cannot be empty")
+	}
+	if len(hash) != constants.HashStringLength {
+		return nil, fmt.Errorf("invalid hash length: expected %d, got %d", constants.HashStringLength, len(hash))
+	}
+
 	return &TreeEntry{
 		mode: mode,
 		name: name,
@@ -67,7 +77,7 @@ func (treeEntry *TreeEntry) IsExecutable() bool {
 	return treeEntry.mode == ModeExecutable
 }
 
-// Tree represents a Git tree object (directory)
+// Tree represents a Git tree object (directory snapshot)
 type Tree struct {
 	entries []TreeEntry
 	hash    string
@@ -75,6 +85,10 @@ type Tree struct {
 
 // NewTree creates a tree object from the list of Tree Entries
 func NewTree(treeEntries []TreeEntry) (*Tree, error) {
+	if len(treeEntries) == 0 {
+		return nil, fmt.Errorf("tree must contain at least one entry")
+	}
+
 	// GoGit requires entries to be sorted by name in ascending order
 	entries := make([]TreeEntry, len(treeEntries))
 	copy(entries, treeEntries)
@@ -84,7 +98,7 @@ func NewTree(treeEntries []TreeEntry) (*Tree, error) {
 	treeContent := buildTreeContent(entries)
 	hash, err := utils.ComputeHash(treeContent, utils.TreeObjectType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute hash for tree: %v", err)
+		return nil, fmt.Errorf("failed to compute tree hash: %w", err)
 	}
 
 	return &Tree{
@@ -98,18 +112,17 @@ func NewTree(treeEntries []TreeEntry) (*Tree, error) {
 // - Directory names are treated as if they have a trailing "/" for comparison
 // - This ensures correct ordering when directories and files have similar names
 func compareTreeEntries(a, b TreeEntry) int {
-	nameA := getSortableName(a)
-	nameB := getSortableName(b)
-	return strings.Compare(nameA, nameB)
-}
+	nameA := a.name
+	nameB := b.name
 
-// getSortableName returns the name used for sorting.
-// For directories, appends "/" to follow Git's sorting convention.
-func getSortableName(entry TreeEntry) string {
-	if entry.IsDirectory() {
-		return entry.Name() + "/"
+	if a.IsDirectory() {
+		nameA += "/"
 	}
-	return entry.Name()
+	if b.IsDirectory() {
+		nameB += "/"
+	}
+
+	return strings.Compare(nameA, nameB)
 }
 
 // buildTreeContent creates the raw tree content in GoGit format
@@ -127,47 +140,41 @@ func buildTreeContent(entries []TreeEntry) []byte {
 		buf.WriteByte(0)
 
 		// Convert hex hash to binary hash
-		hashBytes, _ := hex.DecodeString(entry.Hash())
+		hashBytes, err := hex.DecodeString(entry.Hash())
+		if err != nil {
+			panic(fmt.Errorf("failed to convert hash: %w", err))
+		}
+
 		buf.Write(hashBytes)
 	}
 
 	return buf.Bytes()
 }
 
-// Hash returns the SHA-1 hash of the tree
 func (t *Tree) Hash() string {
 	return t.hash
 }
 
-// Entries returns all tree entries
 func (t *Tree) Entries() []TreeEntry {
 	return t.entries
 }
 
-// Size returns the size of the tree content
 func (t *Tree) Size() int {
 	return len(buildTreeContent(t.entries))
 }
 
-// Content returns the raw tree content
 func (t *Tree) Content() []byte {
 	return buildTreeContent(t.entries)
 }
 
 // Header returns the Git object header
 func (t *Tree) Header() string {
-	return fmt.Sprintf("tree %d\x00", t.Size())
+	return fmt.Sprintf("%s%d%c", constants.TreePrefix, t.Size(), constants.NullByte)
 }
 
+// Data returns complete Git object data including header.
 func (t *Tree) Data() []byte {
-	header := t.Header()
-	data := append([]byte(header), t.Content()...)
-	return data
-}
-
-// String returns a human-readable representation
-func (t *Tree) String() string {
-	return fmt.Sprintf("Tree{hash: %s, entries: %d}", t.hash, len(t.entries))
+	return append([]byte(t.Header()), t.Content()...)
 }
 
 // FindEntry finds an entry by name
