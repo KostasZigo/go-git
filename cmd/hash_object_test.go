@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/testutils"
 	"github.com/KostasZigo/gogit/utils"
@@ -88,7 +89,7 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	}
 
 	// Verify object was created
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:2], outputHash[2:])
 	testutils.AssertFileExists(t, objectPath)
 
 	// Verify object can be read back
@@ -194,7 +195,7 @@ func TestHashObjectCommand_FileNotInRepository(t *testing.T) {
 		t.Fatal("Expected error when file is not inside a repository")
 	}
 
-	expectedErrorMessage := ".gogit directory not found in this directory (or any parent up to mount point)"
+	expectedErrorMessage := fmt.Sprintf("%s directory not found", constants.Gogit)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
 		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
@@ -309,7 +310,7 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	}
 
 	// Verify only one object was created (content-addressable)
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash1[:2], hash1[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, hash1[:2], hash1[2:])
 	testutils.AssertFileExists(t, objectPath)
 }
 
@@ -378,6 +379,6 @@ func TestHashObjectCommand_LargeFile(t *testing.T) {
 	}
 
 	// Verify object was stored
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:2], outputHash[2:])
 	testutils.AssertFileExists(t, objectPath)
 }

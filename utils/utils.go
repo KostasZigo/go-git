@@ -3,6 +3,8 @@ package utils
 import (
 	"crypto/sha1"
 	"fmt"
+	"path/filepath"
+	"strings"
 )
 
 type ObjectType string
@@ -33,4 +35,10 @@ func ComputeHash(content []byte, objectType ObjectType) (string, error) {
 	data := append([]byte(header), content...)
 	hash := sha1.Sum(data)
 	return fmt.Sprintf("%x", hash), nil
+}
+
+// BuildDirPath constructs os-agnostic display direcotry path with trailing separator preserving all components.
+// Unlike filepath.Join, does not normalize "." or remove redundant separators.
+func BuildDirPath(dirs ...string) string {
+	return strings.Join(dirs, string(filepath.Separator)) + string(filepath.Separator)
 }

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/KostasZigo/gogit/internal/constants"
 )
 
 // RandomString generates a random hex string of n bytes
@@ -19,7 +21,7 @@ func RandomString(n int) string {
 
 // RandomHash generates a random 40-character SHA-1 hash
 func RandomHash() string {
-	return RandomString(20)
+	return RandomString(constants.HashByteLength)
 }
 
 // SetupTestRepoWithGogitDir creates a temporary directory with .gogit/objects structure.
@@ -28,10 +30,10 @@ func SetupTestRepoWithGogitDir(t *testing.T) string {
 	t.Helper()
 
 	repoPath := t.TempDir()
-	gogitDir := filepath.Join(repoPath, ".gogit", "objects")
+	gogitDir := filepath.Join(repoPath, constants.Gogit, constants.Objects)
 
-	if err := os.MkdirAll(gogitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .gogit/objects: %v", err)
+	if err := os.MkdirAll(gogitDir, constants.DirPerms); err != nil {
+		t.Fatalf("Failed to create %s/%s: %v", constants.Gogit, constants.Objects, err)
 	}
 
 	return repoPath
@@ -43,26 +45,26 @@ func SetupTestRepoWithInit(t *testing.T) string {
 	t.Helper()
 
 	repoPath := t.TempDir()
-	gogitDir := filepath.Join(repoPath, ".gogit")
+	gogitDir := filepath.Join(repoPath, constants.Gogit)
 
 	// Create directory structure
 	dirs := []string{
-		filepath.Join(gogitDir, "objects"),
-		filepath.Join(gogitDir, "refs", "heads"),
-		filepath.Join(gogitDir, "refs", "tags"),
+		filepath.Join(gogitDir, constants.Objects),
+		filepath.Join(gogitDir, constants.Refs, constants.Heads),
+		filepath.Join(gogitDir, constants.Refs, constants.Tags),
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, constants.DirPerms); err != nil {
 			t.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
 	}
 
 	// Create HEAD file
-	headPath := filepath.Join(gogitDir, "HEAD")
-	headContent := []byte("ref: refs/heads/main\n")
-	if err := os.WriteFile(headPath, headContent, 0644); err != nil {
-		t.Fatalf("Failed to create HEAD file: %v", err)
+	headPath := filepath.Join(gogitDir, constants.Head)
+	headContent := []byte(constants.DefaultRefPrefix + constants.DefaultBranch + "\n")
+	if err := os.WriteFile(headPath, headContent, constants.FilePerms); err != nil {
+		t.Fatalf("Failed to create %s file: %v", constants.Head, err)
 	}
 
 	return repoPath
@@ -74,7 +76,7 @@ func CreateTestFile(t *testing.T, dir, filename string, content []byte) string {
 	t.Helper()
 
 	filePath := filepath.Join(dir, filename)
-	if err := os.WriteFile(filePath, content, 0644); err != nil {
+	if err := os.WriteFile(filePath, content, constants.FilePerms); err != nil {
 		t.Fatalf("Failed to create test file %s: %v", filename, err)
 	}
 

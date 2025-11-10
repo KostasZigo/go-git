@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/spf13/cobra"
 )
@@ -21,8 +22,8 @@ Examples:
 
   # Compute hash and store in .gogit/objects
   gogit hash-object -w myfile.txt`,
-	SilenceUsage: true,         // disable usage print in case of error
-	Args:         exactArgs(1), //Max 1 file argument
+	SilenceUsage: true,
+	Args:         exactArgs(1),
 	RunE:         runHashObject,
 }
 
@@ -32,11 +33,10 @@ func init() {
 	rootCmd.AddCommand(hashObjectCmd)
 
 	// Add flag using Cobra's flag system
-	hashObjectCmd.Flags().BoolVarP(&writeFlag, "write", "w", false,
-		"Write the object into the objects folder")
+	hashObjectCmd.Flags().BoolVarP(&writeFlag, "write", "w", false, "Write the object into the objects folder")
 }
 
-// exactArgsErrorMessage is a custom method to validate the command's arguments
+// exactArgs validates command receives exactly n positional arguments.
 // enables usage printing in case of error
 func exactArgs(n int) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
@@ -48,11 +48,10 @@ func exactArgs(n int) cobra.PositionalArgs {
 	}
 }
 
+// runHashObject computes hash and optionally stores blob object.
 func runHashObject(cmd *cobra.Command, args []string) error {
-
-	// Create blob from file's contents
-	filePath := args[0]
-	blob, err := objects.NewBlobFromFile(filePath)
+	// Create blob from file's contents]
+	blob, err := objects.NewBlobFromFile(args[0])
 	if err != nil {
 		return err
 	}
@@ -61,32 +60,21 @@ func runHashObject(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(cmd.OutOrStdout(), blob.Hash())
 
 	if writeFlag {
-		if err := storeBlob(blob); err != nil {
+		repoPath, err := findRepoRoot()
+		if err != nil {
 			return err
+		}
+
+		store := objects.NewObjectStore(repoPath)
+		if err := store.Store(blob); err != nil {
+			return fmt.Errorf("failed to store object: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// storeBlob stores the blob in the objects folder
-func storeBlob(blob *objects.Blob) error {
-	// Find repository root
-	repoPath, err := findRepoRoot()
-	if err != nil {
-		return err
-	}
-
-	// Create object store and save blob
-	store := objects.NewObjectStore(repoPath)
-	if err := store.Store(blob); err != nil {
-		return fmt.Errorf("failed to store object: %w", err)
-	}
-
-	return nil
-}
-
-// findRepoRoot finds the .gogit directory by walking up from current directory
+// findRepoRoot locates .gogit directory by walking up directory tree.
 func findRepoRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -94,7 +82,7 @@ func findRepoRoot() (string, error) {
 	}
 
 	for {
-		gogitPath := filepath.Join(dir, ".gogit")
+		gogitPath := filepath.Join(dir, constants.Gogit)
 		if info, err := os.Stat(gogitPath); err == nil && info.IsDir() {
 			return dir, nil
 		}
@@ -103,7 +91,7 @@ func findRepoRoot() (string, error) {
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			// Reached root without finding .gogit
-			return "", fmt.Errorf(".gogit directory not found in this directory (or any parent up to mount point)")
+			return "", fmt.Errorf("%s directory not found", constants.Gogit)
 		}
 		dir = parent
 	}

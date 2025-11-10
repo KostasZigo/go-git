@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/testutils"
 	"github.com/spf13/cobra"
 )
@@ -17,43 +18,50 @@ func createTestRootCmd(cmd *cobra.Command) *cobra.Command {
 	return testRootCmd
 }
 
-// captureStdout returns command stdout output as string.
+// captureStdout returns command stdout output as buffer.
 func captureStdout(cmd *cobra.Command) *bytes.Buffer {
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 	return &stdout
 }
 
-// captureStderr returns command stderr output as string.
+// captureStderr returns command stderr output as buffer.
 func captureStderr(cmd *cobra.Command) *bytes.Buffer {
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	return &stderr
 }
 
-// assertRepositoryStructure verifies .gogit directory structure and HEAD file.
+// assertRepositoryStructure validates complete .gogit directory structure.
+// Verifies objects/, refs/heads/, refs/tags/ exist and HEAD contains correct branch reference.
+// Fatal error if any validation fails.
 func assertRepositoryStructure(t *testing.T, repoPath string) {
 	t.Helper()
 
-	gogitDir := filepath.Join(repoPath, ".gogit")
+	gogitDir := filepath.Join(repoPath, constants.Gogit)
 	testutils.AssertDirExists(t, gogitDir)
 
-	expectedDirs := []string{"objects", "refs", "refs/heads", "refs/tags"}
+	expectedDirs := []string{
+		constants.Objects,
+		constants.Refs,
+		filepath.Join(constants.Refs, constants.Heads),
+		filepath.Join(constants.Refs, constants.Tags),
+	}
 	for _, dir := range expectedDirs {
 		testutils.AssertDirExists(t, filepath.Join(gogitDir, dir))
 	}
 
-	headPath := filepath.Join(gogitDir, "HEAD")
+	headPath := filepath.Join(gogitDir, constants.Head)
 	testutils.AssertFileExists(t, headPath)
 
 	content, err := os.ReadFile(headPath)
 	if err != nil {
-		t.Fatalf("Failed to read HEAD file: %v", err)
+		t.Fatalf("Failed to read %s file: %v", constants.Head, err)
 	}
 
-	expectedContent := "ref: refs/heads/main\n"
+	expectedContent := constants.DefaultRefPrefix + constants.DefaultBranch + "\n"
 	if string(content) != expectedContent {
-		t.Errorf("HEAD content = %q, want %q", content, expectedContent)
+		t.Errorf("%s content = %q, want %q", constants.Head, content, expectedContent)
 	}
 }
 

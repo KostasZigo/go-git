@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/utils"
 	"github.com/agiledragon/gomonkey/v2"
 )
 
@@ -36,7 +38,7 @@ func TestInitCommand_Success(t *testing.T) {
 	}
 
 	// Verify output message
-	expectedMsg := "Initialized empty GoGit repository in ./.gogit/\n"
+	expectedMsg := fmt.Sprintf("Initialized empty GoGit repository in %s\n", utils.BuildDirPath(".", constants.Gogit))
 	if !strings.Contains(stdout.String(), expectedMsg) {
 		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, stdout.String())
 	}
@@ -94,17 +96,25 @@ func TestInitCommand_AlreadyExists(t *testing.T) {
 // TestInitCommand_TooManyArguments verifies behavior with excessive arguments.
 func TestInitCommand_TooManyArguments(t *testing.T) {
 	testRootCmd := createTestRootCmd(initCmd)
+	stderr := captureStderr(testRootCmd)
 	stdout := captureStdout(testRootCmd)
 	testRootCmd.SetArgs([]string{"init", "dir1", "dir2"})
 
-	// Should not return error but should show usage
-	if err := testRootCmd.Execute(); err != nil {
-		t.Errorf("Expected no error for too many args, got: %v", err)
+	// Should return error
+	if err := testRootCmd.Execute(); err == nil {
+		t.Errorf("Expected error for too many args")
+	}
+
+	err := stderr.String()
+	expectedErrorMessage := "init command accepts at most 1 arg(s), received 2"
+	if !strings.Contains(err, expectedErrorMessage) {
+		t.Errorf("Expected error message [%s] , got: [%s]", expectedErrorMessage, err)
 	}
 
 	output := stdout.String()
-	if !strings.Contains(output, "usage: gogit init [<directory>]") {
-		t.Errorf("Expected usage message [usage: gogit init [<directory>]] , got: %s", output)
+	expectedUsageMessage := "Usage:\n  gogit init [directory] "
+	if !strings.Contains(output, expectedUsageMessage) {
+		t.Errorf("Expected usage message to contain [%s] , got: [%s]", expectedUsageMessage, output)
 	}
 }
 

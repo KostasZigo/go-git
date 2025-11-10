@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/testutils"
 	"github.com/KostasZigo/gogit/utils"
 )
@@ -72,7 +74,7 @@ func TestE2E_InitCommand(t *testing.T) {
 
 	// Verify output
 	outputStr := string(output)
-	expectedMsg := "Initialized empty GoGit repository in ./.gogit/\n"
+	expectedMsg := fmt.Sprintf("Initialized empty GoGit repository in %s\n", utils.BuildDirPath(".", constants.Gogit))
 	if !strings.Contains(outputStr, expectedMsg) {
 		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, outputStr)
 	}
