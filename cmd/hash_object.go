@@ -42,7 +42,7 @@ func exactArgs(n int) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if len(args) != n {
 			cmd.SilenceUsage = false
-			return fmt.Errorf("hash-object command requires exactly %d argument (filepath), received %d", n, len(args))
+			return fmt.Errorf("%s command requires exactly %d argument (filepath), received %d", constants.HashObjectCmdName, n, len(args))
 		}
 		return nil
 	}

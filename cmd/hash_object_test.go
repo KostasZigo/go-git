@@ -33,11 +33,11 @@ func TestHashObjectCommand_Success_NoStorage(t *testing.T) {
 	stdout := captureStdout(testRootCmd)
 
 	// Execute hash-object command without -w flag
-	testRootCmd.SetArgs([]string{"hash-object", testFileName})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, testFileName})
 
 	// Verify command succeeded
 	if err := testRootCmd.Execute(); err != nil {
-		t.Fatalf("hash-object command failed: %v", err)
+		t.Fatalf("%s command failed: %v", constants.HashObjectCmdName, err)
 	}
 
 	// Verify hash output
@@ -72,9 +72,9 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	stdout := captureStdout(testRootCmd)
 
 	// Execute hash-object command with -w flag
-	testRootCmd.SetArgs([]string{"hash-object", testFileName, "-w"})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, testFileName, "-w"})
 	if err := testRootCmd.Execute(); err != nil {
-		t.Fatalf("hash-object command failed: %v", err)
+		t.Fatalf("%s command failed: %v", constants.HashObjectCmdName, err)
 	}
 
 	// Verify hash output
@@ -115,13 +115,13 @@ func TestHashObject_FileNotFound(t *testing.T) {
 	dummyFileName := "dummy.txt"
 
 	testRootCmd := createTestRootCmd(hashObjectCmd)
-	captureStderr(rootCmd)
+	captureStderr(testRootCmd)
 
 	// Execute hash-object command with -w flag
-	testRootCmd.SetArgs([]string{"hash-object", dummyFileName})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, dummyFileName})
 	err := testRootCmd.Execute()
 	if err == nil {
-		t.Fatalf("hash-object command SHOULD fail")
+		t.Fatalf("%s command SHOULD fail", constants.HashObjectCmdName)
 	}
 
 	// Verify error message mentions the file
@@ -134,11 +134,11 @@ func TestHashObject_FileNotFound(t *testing.T) {
 // TestHashObjectCommand_NoArguments verifies error when no arguments provided.
 func TestHashObjectCommand_NoArguments(t *testing.T) {
 	testRootCmd := createTestRootCmd(hashObjectCmd)
-	captureStderr(rootCmd)
-	captureStdout(rootCmd)
+	captureStderr(testRootCmd)
+	captureStdout(testRootCmd)
 
 	// Execute hash-object command without any arguments
-	testRootCmd.SetArgs([]string{"hash-object"})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName})
 	err := testRootCmd.Execute()
 
 	if err == nil {
@@ -146,7 +146,7 @@ func TestHashObjectCommand_NoArguments(t *testing.T) {
 	}
 
 	// Verify error message matches argument validation error
-	expectedErrorMessage := "hash-object command requires exactly 1 argument (filepath), received 0"
+	expectedErrorMessage := fmt.Sprintf("%s command requires exactly 1 argument (filepath), received 0", constants.HashObjectCmdName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
 		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
@@ -155,11 +155,11 @@ func TestHashObjectCommand_NoArguments(t *testing.T) {
 // TestHashObjectCommand_TooManyArguments verifies error when too many arguments provided.
 func TestHashObjectCommand_TooManyArguments(t *testing.T) {
 	testRootCmd := createTestRootCmd(hashObjectCmd)
-	captureStderr(rootCmd)
-	captureStdout(rootCmd)
+	captureStderr(testRootCmd)
+	captureStdout(testRootCmd)
 
 	// Execute hash-object command with too many arguments
-	testRootCmd.SetArgs([]string{"hash-object", "a.txt", "b.txt"})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, "a.txt", "b.txt"})
 	err := testRootCmd.Execute()
 
 	if err == nil {
@@ -167,7 +167,7 @@ func TestHashObjectCommand_TooManyArguments(t *testing.T) {
 	}
 
 	// Verify error message matches argument validation error
-	expectedErrorMessage := "hash-object command requires exactly 1 argument (filepath), received 2"
+	expectedErrorMessage := fmt.Sprintf("%s command requires exactly 1 argument (filepath), received 2", constants.HashObjectCmdName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
 		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
@@ -183,12 +183,12 @@ func TestHashObjectCommand_FileNotInRepository(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
 	testRootCmd := createTestRootCmd(hashObjectCmd)
-	captureStderr(rootCmd)
-	captureStdout(rootCmd)
+	captureStderr(testRootCmd)
+	captureStdout(testRootCmd)
 
 	// Execute hash-object command with write directive
 	// File not in repo error only appears if we are storing the blob
-	testRootCmd.SetArgs([]string{"hash-object", testFileName, "-w"})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, testFileName, "-w"})
 	err := testRootCmd.Execute()
 
 	if err == nil {
@@ -220,16 +220,16 @@ func TestHashObjectCommand_StoreFailure(t *testing.T) {
 	defer patches.Reset()
 
 	testRootCmd := createTestRootCmd(hashObjectCmd)
-	captureStderr(rootCmd)
-	captureStdout(rootCmd)
+	captureStderr(testRootCmd)
+	captureStdout(testRootCmd)
 
 	// Execute hash-object command with write directive
 	// Store is only executed when we are storing the blob
-	testRootCmd.SetArgs([]string{"hash-object", testFileName, "-w"})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, testFileName, "-w"})
 	err := testRootCmd.Execute()
 
 	if err == nil {
-		t.Fatal("Expected hash-object command to fail according to mocking")
+		t.Fatalf("Expected %s command to fail according to mocking", constants.HashObjectCmdName)
 	}
 
 	expectedErrorMessage := "failed to store object: " + mockError.Error()
@@ -257,16 +257,16 @@ func TestHashObjectCommand_NewBlobFromFileFailure(t *testing.T) {
 	defer patches.Reset()
 
 	testRootCmd := createTestRootCmd(hashObjectCmd)
-	captureStderr(rootCmd)
-	captureStdout(rootCmd)
+	captureStderr(testRootCmd)
+	captureStdout(testRootCmd)
 
 	// Execute hash-object command with write directive
 	// Store is only executed when we are storing the blob
-	testRootCmd.SetArgs([]string{"hash-object", testFileName, "-w"})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, testFileName, "-w"})
 	err := testRootCmd.Execute()
 
 	if err == nil {
-		t.Fatal("Expected hash-object command to fail according to mocking")
+		t.Fatalf("Expected %s command to fail according to mocking", constants.HashObjectCmdName)
 	}
 	if !strings.Contains(err.Error(), mockError.Error()) {
 		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", mockError.Error(), err.Error())
@@ -289,7 +289,7 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	// Hash file 1
 	testRootCmd1 := createTestRootCmd(hashObjectCmd)
 	stdout1 := captureStdout(testRootCmd1)
-	testRootCmd1.SetArgs([]string{"hash-object", "-w", file1_name})
+	testRootCmd1.SetArgs([]string{constants.HashObjectCmdName, "-w", file1_name})
 	if err := testRootCmd1.Execute(); err != nil {
 		t.Fatalf("Failed to hash file1: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	// Hash file2
 	testRootCmd2 := createTestRootCmd(hashObjectCmd)
 	stdout2 := captureStdout(testRootCmd2)
-	testRootCmd2.SetArgs([]string{"hash-object", "-w", file2_name})
+	testRootCmd2.SetArgs([]string{constants.HashObjectCmdName, "-w", file2_name})
 	if err := testRootCmd2.Execute(); err != nil {
 		t.Fatalf("Failed to hash file2: %v", err)
 	}
@@ -327,9 +327,9 @@ func TestHashObjectCommand_EmptyFile(t *testing.T) {
 	stdout := captureStdout(testRootCmd)
 
 	// Execute hash-object
-	testRootCmd.SetArgs([]string{"hash-object", "-w", emptyFile})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, "-w", emptyFile})
 	if err := testRootCmd.Execute(); err != nil {
-		t.Fatalf("hash-object should succeed for empty file: %v", err)
+		t.Fatalf("%s should succeed for empty file: %v", constants.HashObjectCmdName, err)
 	}
 
 	// Verify hash for empty
@@ -358,9 +358,9 @@ func TestHashObjectCommand_LargeFile(t *testing.T) {
 	stdout := captureStdout(testRootCmd)
 
 	// Execute hash-object with -w
-	testRootCmd.SetArgs([]string{"hash-object", "-w", largeFileName})
+	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, "-w", largeFileName})
 	if err := testRootCmd.Execute(); err != nil {
-		t.Fatalf("hash-object should succeed for large file: %v", err)
+		t.Fatalf("%s should succeed for large file: %v", constants.HashObjectCmdName, err)
 	}
 
 	// Verify hash was printed

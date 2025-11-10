@@ -64,7 +64,7 @@ func TestE2E_InitCommand(t *testing.T) {
 	repoPath := setupTestRepo(t)
 
 	// Test the binary like a real user
-	cmd := exec.Command(sharedBinaryPath, "init")
+	cmd := exec.Command(sharedBinaryPath, constants.InitCmdName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 
@@ -102,12 +102,12 @@ func TestE2E_InitCommand(t *testing.T) {
 	}
 
 	// Test error case - init again
-	cmd = exec.Command(sharedBinaryPath, "init")
+	cmd = exec.Command(sharedBinaryPath, constants.InitCmdName)
 	cmd.Dir = repoPath
 	output, err = cmd.CombinedOutput()
 
 	if err == nil {
-		t.Error("Expected error when running init twice")
+		t.Errorf("Expected error when running %s twice", constants.InitCmdName)
 	}
 
 	expectedErrorMsg := "Error: failed to initialize repository - repository already exists at .gogit\n"
@@ -133,8 +133,8 @@ func TestE2E_HelpCommand(t *testing.T) {
 	expectedTexts := []string{
 		"GoGit is a simplified Git Implementation",
 		"Available Commands:",
-		"init",
-		"hash-object",
+		constants.InitCmdName,
+		constants.HashObjectCmdName,
 		"Flags:",
 		"-h, --help",
 	}
@@ -183,7 +183,7 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
 	// Run hash-object without -w
-	cmd := exec.Command(sharedBinaryPath, "hash-object", testFileName)
+	cmd := exec.Command(sharedBinaryPath, constants.HashObjectCmdName, testFileName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 
@@ -228,11 +228,11 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
 	// Run gogit hash-object file with write directive (-w)
-	hashObjectCmd := exec.Command(sharedBinaryPath, "hash-object", testFileName, "-w")
+	hashObjectCmd := exec.Command(sharedBinaryPath, constants.HashObjectCmdName, testFileName, "-w")
 	hashObjectCmd.Dir = repoPath
 	output, err := hashObjectCmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("gogit hash-object command failed: %v", err)
+		t.Fatalf("gogit %s command failed: %v", constants.HashObjectCmdName, err)
 	}
 
 	// Verify hash was printed
@@ -271,7 +271,7 @@ func TestE2E_HashObjectCommand_InvalidArgs(t *testing.T) {
 	}
 
 	// Test with no arguments
-	cmd := exec.Command(sharedBinaryPath, "hash-object")
+	cmd := exec.Command(sharedBinaryPath, constants.HashObjectCmdName)
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
@@ -279,7 +279,7 @@ func TestE2E_HashObjectCommand_InvalidArgs(t *testing.T) {
 	}
 
 	outputStr := string(output)
-	expectedMsg := "hash-object command requires exactly 1 argument (filepath), received 0"
+	expectedMsg := fmt.Sprintf("%s command requires exactly 1 argument (filepath), received 0", constants.HashObjectCmdName)
 	if !strings.Contains(outputStr, expectedMsg) {
 		t.Errorf("Expected error to contain %q, got: %s", expectedMsg, outputStr)
 	}
@@ -303,7 +303,7 @@ func setupTestRepo(t *testing.T) (repoPath string) {
 func initializeRepository(t *testing.T, repoPath string) {
 	t.Helper()
 
-	cmd := exec.Command(sharedBinaryPath, "init")
+	cmd := exec.Command(sharedBinaryPath, constants.InitCmdName)
 	cmd.Dir = repoPath
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to initialize repository: %v", err)

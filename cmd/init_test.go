@@ -32,7 +32,7 @@ func TestInitCommand_Success(t *testing.T) {
 	stdout := captureStdout(testRootCmd)
 
 	// Execute init command
-	testRootCmd.SetArgs([]string{"init"})
+	testRootCmd.SetArgs([]string{constants.InitCmdName})
 	if err = testRootCmd.Execute(); err != nil {
 		t.Fatalf("Init command failed: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestInitCommand_WithDirectory_Success(t *testing.T) {
 	captureStdout(testRootCmd)
 
 	// Execute init with directory argument
-	testRootCmd.SetArgs([]string{"init", targetDirectory})
+	testRootCmd.SetArgs([]string{constants.InitCmdName, targetDirectory})
 	if err := testRootCmd.Execute(); err != nil {
 		t.Fatalf("Init command with directory failed: %v", err)
 	}
@@ -70,16 +70,16 @@ func TestInitCommand_AlreadyExists(t *testing.T) {
 	// Initialize once
 	testRootCmd1 := createTestRootCmd(initCmd)
 	captureStdout(testRootCmd1)
-	testRootCmd1.SetArgs([]string{"init", repoPath})
+	testRootCmd1.SetArgs([]string{constants.InitCmdName, repoPath})
 
 	if err := testRootCmd1.Execute(); err != nil {
-		t.Fatalf("First init failed: %v", err)
+		t.Fatalf("First %s failed: %v", constants.InitCmdName, err)
 	}
 
 	// Try to initialize again
 	testRootCmd2 := createTestRootCmd(initCmd)
 	captureStderr(testRootCmd2)
-	testRootCmd2.SetArgs([]string{"init", repoPath})
+	testRootCmd2.SetArgs([]string{constants.InitCmdName, repoPath})
 
 	err := testRootCmd2.Execute()
 	if err == nil {
@@ -98,7 +98,7 @@ func TestInitCommand_TooManyArguments(t *testing.T) {
 	testRootCmd := createTestRootCmd(initCmd)
 	stderr := captureStderr(testRootCmd)
 	stdout := captureStdout(testRootCmd)
-	testRootCmd.SetArgs([]string{"init", "dir1", "dir2"})
+	testRootCmd.SetArgs([]string{constants.InitCmdName, "dir1", "dir2"})
 
 	// Should return error
 	if err := testRootCmd.Execute(); err == nil {
@@ -106,13 +106,13 @@ func TestInitCommand_TooManyArguments(t *testing.T) {
 	}
 
 	err := stderr.String()
-	expectedErrorMessage := "init command accepts at most 1 arg(s), received 2"
+	expectedErrorMessage := fmt.Sprintf("%s command accepts at most 1 arg(s), received 2", constants.InitCmdName)
 	if !strings.Contains(err, expectedErrorMessage) {
 		t.Errorf("Expected error message [%s] , got: [%s]", expectedErrorMessage, err)
 	}
 
 	output := stdout.String()
-	expectedUsageMessage := "Usage:\n  gogit init [directory] "
+	expectedUsageMessage := fmt.Sprintf("Usage:\n  gogit %s [directory] ", constants.InitCmdName)
 	if !strings.Contains(output, expectedUsageMessage) {
 		t.Errorf("Expected usage message to contain [%s] , got: [%s]", expectedUsageMessage, output)
 	}
@@ -138,7 +138,7 @@ func TestInitCommand_Fail(t *testing.T) {
 	testRootCmd := createTestRootCmd(initCmd)
 	captureStdout(testRootCmd)
 	captureStderr(testRootCmd)
-	testRootCmd.SetArgs([]string{"init", repoPath})
+	testRootCmd.SetArgs([]string{constants.InitCmdName, repoPath})
 
 	err := testRootCmd.Execute()
 

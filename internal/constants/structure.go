@@ -2,6 +2,13 @@ package constants
 
 import "os"
 
+// Command name constants used in tests and error messages.
+// Cobra Use fields remain inline for CLI discoverability.
+const (
+	InitCmdName       = "init"
+	HashObjectCmdName = "hash-object"
+)
+
 // Repository directory and file names define the gogit metadata structure.
 const (
 	// Gogit is the repository metadata directory.

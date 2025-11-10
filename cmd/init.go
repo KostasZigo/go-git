@@ -30,7 +30,7 @@ func maximumArgs(n int) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if len(args) > n {
 			cmd.SilenceUsage = false
-			return fmt.Errorf("init command accepts at most %d arg(s), received %d", n, len(args))
+			return fmt.Errorf("%s command accepts at most %d arg(s), received %d", constants.InitCmdName, n, len(args))
 		}
 		return nil
 	}
