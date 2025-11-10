@@ -80,26 +80,9 @@ func TestE2E_InitCommand(t *testing.T) {
 	}
 
 	// Verify filesystem changes
-	gogitDir := filepath.Join(repoPath, ".gogit")
+	gogitDir := filepath.Join(repoPath, constants.Gogit)
 	testutils.AssertDirExists(t, gogitDir)
-
-	// Check required subdirectories exist
-	expectedDirectories := []string{"objects", "refs", "refs/heads", "refs/tags"}
-	for _, dir := range expectedDirectories {
-		testutils.AssertDirExists(t, filepath.Join(gogitDir, dir))
-	}
-
-	// Verify HEAD file exists and has correct content
-	headPath := filepath.Join(gogitDir, "HEAD")
-	content, err := os.ReadFile(headPath)
-	if err != nil {
-		t.Errorf("HEAD file was not created: %v", err)
-	} else {
-		expected := "ref: refs/heads/main\n"
-		if string(content) != expected {
-			t.Errorf("HEAD file content = %q, want %q", string(content), expected)
-		}
-	}
+	testutils.AssertRepositoryStructure(t, repoPath)
 
 	// Test error case - init again
 	cmd = exec.Command(sharedBinaryPath, constants.InitCmdName)
@@ -207,7 +190,7 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	}
 
 	// Verify object was NOT created (no -w flag)
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:2], outputHash[2:])
 	if _, err := os.Stat(objectPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Object should not be created without -w flag")
 	}
@@ -247,7 +230,7 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 	}
 
 	// Verify object file was created at correct path
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", expectedHash[:2], expectedHash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, expectedHash[:2], expectedHash[2:])
 	testutils.AssertFileExists(t, objectPath)
 
 	// Verify object file is not empty (compressed data)

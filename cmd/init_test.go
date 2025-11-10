@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/testutils"
 	"github.com/KostasZigo/gogit/utils"
 	"github.com/agiledragon/gomonkey/v2"
 )
@@ -43,7 +44,7 @@ func TestInitCommand_Success(t *testing.T) {
 		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, stdout.String())
 	}
 
-	assertRepositoryStructure(t, repoPath)
+	testutils.AssertRepositoryStructure(t, repoPath)
 }
 
 // TestInitCommand_WithDirectory_Success verifies initialization with explicit directory path.
@@ -60,7 +61,7 @@ func TestInitCommand_WithDirectory_Success(t *testing.T) {
 		t.Fatalf("Init command with directory failed: %v", err)
 	}
 
-	assertRepositoryStructure(t, targetDirectory)
+	testutils.AssertRepositoryStructure(t, targetDirectory)
 }
 
 // TestInitCommand_AlreadyExists verifies error when repository already exists.

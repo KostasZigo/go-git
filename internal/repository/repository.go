@@ -7,17 +7,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/KostasZigo/gogit/internal/constants"
 )
 
-const (
-	dirPerms  = 0755
-	filePerms = 0644
-)
-
+// InitRepository creates .gogit directory structure with objects/, refs/, and HEAD file.
+// Returns error if repository already exists or directory creation fails.
 func InitRepository(path string) error {
-	// Resolves and adds OS specific separator
-	gogitDir := filepath.Join(path, ".gogit")
-
+	gogitDir := filepath.Join(path, constants.Gogit)
 	if err := checkRepositoryDoesNotExist(gogitDir); err != nil {
 		return err
 	}
@@ -26,43 +23,27 @@ func InitRepository(path string) error {
 	// Default value: false
 	var initSuccess bool
 
-	// Defer a func to clean up any directories/files in the case that
-	// repository initialization failed (not all directories/files were created successfully).
-	// If all resources got created successfully initSuccess is true, and the clean-up
-	//  is not executed
+	// Clean up any directories/files in the case that repository initialization failed
+	// If all resources got created successfully clean-up is not executed
 	defer func() {
 		if !initSuccess {
 			cleanupRepository(gogitDir)
 		}
 	}()
 
-	directories := []string{
-		gogitDir,
-		filepath.Join(gogitDir, "objects"),
-		filepath.Join(gogitDir, "refs"),
-		filepath.Join(gogitDir, "refs", "heads"),
-		filepath.Join(gogitDir, "refs", "tags"),
+	if err := createDirectoryStructure(gogitDir); err != nil {
+		return err
 	}
 
-	// Create all gogit directories
-	for _, directory := range directories {
-		if err := os.MkdirAll(directory, dirPerms); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", directory, err)
-		}
-	}
-
-	// Create HEAD file pointing to main branch
-	headFile := filepath.Join(gogitDir, "HEAD")
-	headContent := "ref: refs/heads/main\n"
-
-	if err := os.WriteFile(headFile, []byte(headContent), filePerms); err != nil {
-		return fmt.Errorf("failed to create HEAD file: %w", err)
+	if err := createHeadFile(gogitDir); err != nil {
+		return err
 	}
 
 	initSuccess = true
 	return nil
 }
 
+// checkRepositoryDoesNotExist verifies .gogit directory doesn't already exist.
 func checkRepositoryDoesNotExist(path string) error {
 	_, err := os.Stat(path)
 
@@ -81,16 +62,45 @@ func checkRepositoryDoesNotExist(path string) error {
 // Removes the entire .gogit directory if it exists
 func cleanupRepository(gogitDir string) {
 	if _, err := os.Stat(gogitDir); err == nil {
-		slog.Debug("Cleaning up partial repository initialization",
-			"path", gogitDir)
+		slog.Debug("Cleaning up partial repository initialization", "path", gogitDir)
 
 		if err := os.RemoveAll(gogitDir); err != nil {
 			slog.Warn("Failed to cleanup repository directory",
 				"path", gogitDir,
 				"error", err)
 		} else {
-			slog.Debug("Successfully cleaned up repository directory",
-				"path", gogitDir)
+			slog.Debug("Successfully cleaned up repository directory", "path", gogitDir)
 		}
 	}
+}
+
+// createDirectoryStructure creates required repository directories.
+func createDirectoryStructure(gogitDir string) error {
+	directories := []string{
+		gogitDir,
+		filepath.Join(gogitDir, constants.Objects),
+		filepath.Join(gogitDir, constants.Refs),
+		filepath.Join(gogitDir, constants.Refs, constants.Heads),
+		filepath.Join(gogitDir, constants.Refs, constants.Tags),
+	}
+
+	for _, directory := range directories {
+		if err := os.MkdirAll(directory, constants.DirPerms); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", directory, err)
+		}
+	}
+
+	return nil
+}
+
+// createHeadFile writes HEAD file pointing to default branch.
+func createHeadFile(gogitDir string) error {
+	headFile := filepath.Join(gogitDir, constants.Head)
+	headContent := constants.DefaultRefPrefix + constants.DefaultBranch + "\n"
+
+	if err := os.WriteFile(headFile, []byte(headContent), constants.FilePerms); err != nil {
+		return fmt.Errorf("failed to create %s file: %w", constants.Head, err)
+	}
+
+	return nil
 }

@@ -121,3 +121,36 @@ func AssertDirExists(t *testing.T, path string) {
 		t.Errorf("Expected %s to be a directory, but it's a file", path)
 	}
 }
+
+// assertRepositoryStructure validates complete .gogit directory structure.
+// Verifies objects/, refs/heads/, refs/tags/ exist and HEAD contains correct branch reference.
+// Fatal error if any validation fails.
+func AssertRepositoryStructure(t *testing.T, repoPath string) {
+	t.Helper()
+
+	gogitDir := filepath.Join(repoPath, constants.Gogit)
+	AssertDirExists(t, gogitDir)
+
+	expectedDirs := []string{
+		constants.Objects,
+		constants.Refs,
+		filepath.Join(constants.Refs, constants.Heads),
+		filepath.Join(constants.Refs, constants.Tags),
+	}
+	for _, dir := range expectedDirs {
+		AssertDirExists(t, filepath.Join(gogitDir, dir))
+	}
+
+	headPath := filepath.Join(gogitDir, constants.Head)
+	AssertFileExists(t, headPath)
+
+	content, err := os.ReadFile(headPath)
+	if err != nil {
+		t.Fatalf("Failed to read %s file: %v", constants.Head, err)
+	}
+
+	expectedContent := constants.DefaultRefPrefix + constants.DefaultBranch + "\n"
+	if string(content) != expectedContent {
+		t.Errorf("%s content = %q, want %q", constants.Head, content, expectedContent)
+	}
+}

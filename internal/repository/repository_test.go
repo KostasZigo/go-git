@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/testutils"
 	"github.com/agiledragon/gomonkey/v2"
 )
@@ -18,27 +19,10 @@ func TestInitRepository(t *testing.T) {
 		t.Fatalf("InitRepository failed: %v", err)
 	}
 
-	gogitDirectory := filepath.Join(repoPath, ".gogit")
+	gogitDirectory := filepath.Join(repoPath, constants.Gogit)
 	testutils.AssertDirExists(t, gogitDirectory)
 
-	// Check required subdirectories exist
-	expectedDirectories := []string{"objects", "refs", "refs/heads", "refs/tags"}
-	for _, dir := range expectedDirectories {
-		testutils.AssertDirExists(t, filepath.Join(gogitDirectory, dir))
-	}
-
-	// Check HEAD file exists and has correct content
-	headPath := filepath.Join(gogitDirectory, "HEAD")
-	content, err := os.ReadFile(headPath)
-	if err != nil {
-		t.Errorf("Failed to read HEAD file: %v", err)
-	} else {
-		expected := "ref: refs/heads/main\n"
-		if string(content) != expected {
-			t.Errorf("HEAD file content = %q, want %q", string(content), expected)
-		}
-	}
-
+	testutils.AssertRepositoryStructure(t, repoPath)
 }
 
 // TestInitRepository_AlreadyExists verifies error when repository exists.
@@ -82,6 +66,6 @@ func TestInitRepository_MkdirAllFailure(t *testing.T) {
 	}
 
 	// Verify cleanup was called
-	gogitDirectory := filepath.Join(repoPath, ".gogit")
+	gogitDirectory := filepath.Join(repoPath, constants.Gogit)
 	testutils.AssertFileNotExists(t, gogitDirectory)
 }
