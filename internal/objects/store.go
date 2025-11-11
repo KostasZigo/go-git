@@ -13,10 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/utils"
 )
-
-var objectsRelativeFilePath string = filepath.Join(".gogit", "objects")
 
 // ObjectStore manages storage of Git objects
 type ObjectStore struct {
@@ -35,57 +34,37 @@ func (store *ObjectStore) Store(obj Object) error {
 	hash := obj.Hash()
 
 	// Calculate object path: .gogit/objects/ab/cdef123...
-	objectDir := filepath.Join(store.repoPath, objectsRelativeFilePath, hash[:2])
-	objectFile := filepath.Join(objectDir, hash[2:])
+	objectPath := store.objectPath(hash)
 
 	// Check if object already exists (content-addressable)
-	_, err := os.Stat(objectFile)
+	_, err := os.Stat(objectPath)
 	if err == nil {
 		slog.Debug("Object with this hash already exists",
 			"hash", hash)
 		return nil
 	}
 	if !(errors.Is(err, fs.ErrNotExist)) {
-		return err
+		return fmt.Errorf("failed to check object existence: %w", err)
 	}
 
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(objectDir, 0755); err != nil {
+	objectDir := filepath.Dir(objectPath)
+	if err := os.MkdirAll(objectDir, constants.DirPerms); err != nil {
 		return fmt.Errorf("failed to create object directory: %w", err)
 	}
 
 	// Compress object content
-	compressedData, err := store.compressObject(obj)
+	compressedData, err := store.compressData(obj.Data())
 	if err != nil {
 		return fmt.Errorf("failed to compress object: %w", err)
 	}
 
 	// Write compressed object data to file
-	if err := os.WriteFile(objectFile, compressedData, 0755); err != nil {
+	if err := os.WriteFile(objectPath, compressedData, constants.FilePerms); err != nil {
 		return fmt.Errorf("failed to write object file: %w", err)
 	}
 
 	return nil
-}
-
-func (store *ObjectStore) compressObject(obj Object) ([]byte, error) {
-	data := obj.Data()
-
-	// Compress with zlib
-	var buffer bytes.Buffer
-	// Crete a new writer that compresses and writes data to the buffer
-	writer := zlib.NewWriter(&buffer)
-
-	if _, err := writer.Write(data); err != nil {
-		return nil, err
-	}
-
-	// Call Close in order to flush any buffered data
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-
-	return buffer.Bytes(), nil
 }
 
 // ReadBlob reads a blob from storage by hash
@@ -118,41 +97,74 @@ func (store *ObjectStore) ReadCommit(hash string) (*Commit, error) {
 	return parseCommitData(data, hash)
 }
 
-// readObject is a private helper that reads and decompresses any object
-// It returns the raw decompressed data without parsing
-func (store *ObjectStore) readObject(hash string) ([]byte, error) {
-	objectFile := filepath.Join(store.repoPath, objectsRelativeFilePath, hash[:2], hash[2:])
+// Exists checks if an object exists in storage
+func (store *ObjectStore) Exists(hash string) bool {
+	_, err := os.Stat(store.objectPath(hash))
+	return err == nil
+}
 
-	// Read compressed file
-	compressedData, err := os.ReadFile(objectFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read object file %s: %w", hash, err)
-	}
+// objectPath constructs filesystem path for object hash.
+func (s *ObjectStore) objectPath(hash string) string {
+	return filepath.Join(s.repoPath, constants.Gogit, constants.Objects, hash[:constants.HashDirPrefixLength], hash[constants.HashDirPrefixLength:])
+}
 
-	// Decompress
-	reader, err := zlib.NewReader(bytes.NewReader(compressedData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create reader for decompressed data: %w", err)
-	}
-	defer reader.Close()
-
+// compressData compresses byte slice using zlib.
+func (store *ObjectStore) compressData(data []byte) ([]byte, error) {
+	// Compress with zlib
 	var buffer bytes.Buffer
-	if _, err := buffer.ReadFrom(reader); err != nil {
-		return nil, fmt.Errorf("failed to read decompressed data: %w", err)
+	// Crete a new writer that compresses and writes data to the buffer
+	writer := zlib.NewWriter(&buffer)
+
+	if _, err := writer.Write(data); err != nil {
+		writer.Close()
+		return nil, err
+	}
+
+	// Call Close in order to flush any buffered data
+	if err := writer.Close(); err != nil {
+		return nil, err
 	}
 
 	return buffer.Bytes(), nil
 }
 
+// readObject is a private helper that reads and decompresses any object
+// It returns the raw decompressed data without parsing
+func (store *ObjectStore) readObject(hash string) ([]byte, error) {
+	// Read compressed file
+	compressedData, err := os.ReadFile(store.objectPath(hash))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object file %s: %w", hash, err)
+	}
+
+	return decompressData(compressedData)
+}
+
+// decompressData decompresses zlib-compressed byte slice.
+func decompressData(compressed []byte) ([]byte, error) {
+	reader, err := zlib.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zlib reader: %w", err)
+	}
+	defer reader.Close()
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(reader); err != nil {
+		return nil, fmt.Errorf("failed to decompress data: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
 // parseBlobData parses decompressed blob data and returns a Blob object
 func parseBlobData(data []byte, expectedHash string) (*Blob, error) {
 	// Verify object type is blob
-	if !bytes.HasPrefix(data, []byte("blob ")) {
+	if !bytes.HasPrefix(data, []byte(constants.BlobPrefix)) {
 		return nil, fmt.Errorf("object %s is not a blob", expectedHash)
 	}
 
 	// Find null byte separator (end of header)
-	nullByteIndex := bytes.IndexByte(data, 0)
+	nullByteIndex := bytes.IndexByte(data, constants.NullByte)
 	if nullByteIndex == -1 {
 		return nil, fmt.Errorf("invalid blob format: no null byte found")
 	}
@@ -174,21 +186,18 @@ func parseBlobData(data []byte, expectedHash string) (*Blob, error) {
 // parseTreeData parses decompressed tree data and returns a Tree object
 func parseTreeData(data []byte, expectedHash string) (*Tree, error) {
 	// Verify object type is tree
-	if !bytes.HasPrefix(data, []byte("tree ")) {
+	if !bytes.HasPrefix(data, []byte(constants.TreePrefix)) {
 		return nil, fmt.Errorf("object %s is not a tree", expectedHash)
 	}
 
 	// Find null byte separator (end of header)
-	nullByteIndex := bytes.IndexByte(data, 0)
+	nullByteIndex := bytes.IndexByte(data, constants.NullByte)
 	if nullByteIndex == -1 {
 		return nil, fmt.Errorf("invalid tree format: no null byte found")
 	}
 
-	// Extract tree content (after null byte)
-	content := data[nullByteIndex+1:]
-
 	// Parse tree entries from binary content
-	entries, err := parseTreeEntries(content)
+	entries, err := parseTreeEntries(data[nullByteIndex+1:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse tree entries: %w", err)
 	}
@@ -196,7 +205,7 @@ func parseTreeData(data []byte, expectedHash string) (*Tree, error) {
 	// Create tree from entries
 	tree, err := NewTree(entries)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tree from entries: %v", err)
+		return nil, fmt.Errorf("failed to create tree from entries: %w", err)
 	}
 
 	// Verify hash matches
@@ -222,12 +231,11 @@ func parseTreeEntries(content []byte) ([]TreeEntry, error) {
 		}
 
 		// 2. Extract mode (e.g., "100644", "040000")
-		modeStr := string(content[offset : offset+spaceIndex])
-		mode := FileMode(modeStr)
+		mode := FileMode(content[offset : offset+spaceIndex])
 		offset += spaceIndex + 1
 
 		// 3. Find null byte (end of name)
-		nullIndex := bytes.IndexByte(content[offset:], 0)
+		nullIndex := bytes.IndexByte(content[offset:], constants.NullByte)
 		if nullIndex == -1 {
 			return nil, fmt.Errorf("invalid tree entry: no null byte after name")
 		}
@@ -237,19 +245,18 @@ func parseTreeEntries(content []byte) ([]TreeEntry, error) {
 		offset += nullIndex + 1
 
 		// 5. Extract 20-byte binary hash
-		if offset+20 > len(content) {
+		if offset+constants.HashByteLength > len(content) {
 			return nil, fmt.Errorf("invalid tree entry: incomplete hash for %s", name)
 		}
-		hashBytes := content[offset : offset+20]
 
 		// 6. Convert binary hash to hex string (40 chars)
-		hash := fmt.Sprintf("%x", hashBytes)
-		offset += 20
+		hash := fmt.Sprintf("%x", content[offset:offset+constants.HashByteLength])
+		offset += constants.HashByteLength
 
 		// 7. Create entry
 		entry, err := NewTreeEntry(mode, name, hash)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create tree entry: %v", err)
+			return nil, fmt.Errorf("failed to create entry for %s: %w", name, err)
 		}
 		entries = append(entries, *entry)
 	}
@@ -257,19 +264,19 @@ func parseTreeEntries(content []byte) ([]TreeEntry, error) {
 	return entries, nil
 }
 
+// parseCommitData parses decompressed commit data and validates hash.
 func parseCommitData(data []byte, hash string) (*Commit, error) {
-	if !bytes.HasPrefix(data, []byte("commit ")) {
+	if !bytes.HasPrefix(data, []byte(constants.CommitPrefix)) {
 		return nil, fmt.Errorf("object %s is not a commit", hash)
 	}
 
 	// Find end of header
-	nullByteIndex := bytes.IndexByte(data, 0)
+	nullByteIndex := bytes.IndexByte(data, constants.NullByte)
 	if nullByteIndex == -1 {
 		return nil, fmt.Errorf("invalid commit format: no null byte found")
 	}
 
-	content := string(data[nullByteIndex+1:])
-	commit, err := parseCommitContent(content)
+	commit, err := parseCommitContent(string(data[nullByteIndex+1:]))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse commit: %w", err)
 	}
@@ -281,6 +288,7 @@ func parseCommitData(data []byte, hash string) (*Commit, error) {
 	return commit, nil
 }
 
+// parseCommitContent parses commit text content into Commit object.
 func parseCommitContent(content string) (*Commit, error) {
 	lines := strings.Split(content, "\n")
 
@@ -294,41 +302,25 @@ func parseCommitContent(content string) (*Commit, error) {
 			break
 		}
 
-		if strings.HasPrefix(line, "tree ") {
-			treeHash = strings.TrimPrefix(line, "tree ")
-			continue
-		}
-		if strings.HasPrefix(line, "parent ") {
-			parentHash = strings.TrimPrefix(line, "parent ")
-			continue
-		}
-		if strings.HasPrefix(line, "author ") {
-			authorContent := strings.TrimPrefix(line, "author ")
-
+		switch {
+		case strings.HasPrefix(line, constants.TreePrefix):
+			treeHash = strings.TrimPrefix(line, constants.TreePrefix)
+		case strings.HasPrefix(line, constants.CommitParentPrefix):
+			parentHash = strings.TrimPrefix(line, constants.CommitParentPrefix)
+		case strings.HasPrefix(line, constants.CommitAuthorPrefix):
 			var err error
-			author, err = parseCommitAuthorLine(authorContent)
+			author, err = parseAuthor(strings.TrimPrefix(line, constants.CommitAuthorPrefix))
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse author: %w", err)
 			}
-
-			continue
-		}
-		if strings.HasPrefix(line, "committer ") {
-			committerContent := strings.TrimPrefix(line, "committer ")
-
+		case strings.HasPrefix(line, constants.CommitCommitterPrefix):
 			var err error
-			committer, err = parseCommitAuthorLine(committerContent)
+			committer, err = parseAuthor(strings.TrimPrefix(line, constants.CommitCommitterPrefix))
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse committer: %w", err)
 			}
-
-			continue
 		}
 	}
-
-	// Extract message
-	message := strings.Join(lines[messageIndex:], "\n")
-	message = strings.TrimRight(message, "\n")
 
 	// Validate required fields
 	if treeHash == "" {
@@ -340,6 +332,10 @@ func parseCommitContent(content string) (*Commit, error) {
 	if committer.Name == "" {
 		return nil, fmt.Errorf("commit missing committer")
 	}
+
+	// Extract message
+	message := strings.Join(lines[messageIndex:], "\n")
+	message = strings.TrimRight(message, "\n")
 
 	//Compute Hash
 	builtContent := buildCommitContent(treeHash, parentHash, message, author)
@@ -359,52 +355,54 @@ func parseCommitContent(content string) (*Commit, error) {
 	}, nil
 }
 
-func parseCommitAuthorLine(content string) (Author, error) {
-	errorResponse := fmt.Errorf("invalid author/committer format")
-
+// parseAuthor parses author/committer line format: Name <email> timestamp timezone
+func parseAuthor(content string) (Author, error) {
 	emailStartIndex := strings.Index(content, "<")
-	name := strings.TrimSpace(content[:emailStartIndex])
+	if emailStartIndex == -1 {
+		return Author{}, fmt.Errorf("invalid author format: no email")
+	}
 
+	name := strings.TrimSpace(content[:emailStartIndex])
 	parts := strings.Fields(content[emailStartIndex:])
 
-	email := strings.TrimRight(strings.TrimLeft(parts[0], "<"), ">")
+	if len(parts) < 3 {
+		return Author{}, fmt.Errorf("invalid author format: missing fields")
+	}
 
-	unixTime, err := strconv.ParseInt(parts[1], 10, 61)
+	email := strings.Trim(parts[0], "<>")
+
+	unixTime, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return Author{}, errorResponse
+		return Author{}, fmt.Errorf("invalid timestamp: %w", err)
 	}
 
 	timezone := parts[2]
+	if len(timezone) != 5 {
+		return Author{}, fmt.Errorf("invalid timezone format: %s", timezone)
+	}
 
 	offsetHours, err := strconv.Atoi(timezone[1:3])
 	if err != nil {
-		return Author{}, errorResponse
+		return Author{}, fmt.Errorf("invalid timezone hours: %w", err)
 	}
 
 	offsetMinutes, err := strconv.Atoi(timezone[3:5])
 	if err != nil {
-		return Author{}, errorResponse
+		return Author{}, fmt.Errorf("invalid timezone minutes: %w", err)
 	}
 
-	offsetSecods := offsetHours*3600 + offsetMinutes*60
+	offsetSeconds := (offsetHours * constants.SecondsPerHour) + (offsetMinutes * constants.SecondsPerMinute)
 
 	if timezone[0] == '-' {
-		offsetSecods = -offsetSecods
+		offsetSeconds = -offsetSeconds
 	}
 
-	location := time.FixedZone("", offsetSecods)
+	location := time.FixedZone("", offsetSeconds)
 	timestamp := time.Unix(unixTime, 0).In(location)
 
 	return Author{
-		name,
-		email,
-		timestamp,
+		Name:      name,
+		Email:     email,
+		Timestamp: timestamp,
 	}, nil
-}
-
-// Exists checks if an object exists in storage
-func (s *ObjectStore) Exists(hash string) bool {
-	objectFile := filepath.Join(s.repoPath, ".gogit", "objects", hash[:2], hash[2:])
-	_, err := os.Stat(objectFile)
-	return !(errors.Is(err, fs.ErrNotExist))
 }

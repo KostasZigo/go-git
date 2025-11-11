@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/testutils"
 )
 
@@ -26,7 +27,7 @@ func TestObjectStore_StoreBlob(t *testing.T) {
 
 	// Verify file was created
 	hash := blob.Hash()
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash[:2], hash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, hash[:constants.HashDirPrefixLength], hash[constants.HashDirPrefixLength:])
 	testutils.AssertFileExists(t, objectPath)
 }
 
@@ -46,7 +47,7 @@ func TestObjectStore_Compression(t *testing.T) {
 
 	// Read the raw file to verify compression
 	hash := blob.Hash()
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash[:2], hash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, hash[:constants.HashDirPrefixLength], hash[constants.HashDirPrefixLength:])
 	compressedData, err := os.ReadFile(objectPath)
 	if err != nil {
 		t.Fatalf("Failed to read stored object: %v", err)
@@ -101,7 +102,7 @@ func TestObjectStore_StoreIdempotent(t *testing.T) {
 
 	// Verify only one file was created (no duplicates)
 	hash := blob.Hash()
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash[:2], hash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, hash[:constants.HashDirPrefixLength], hash[constants.HashDirPrefixLength:])
 
 	info, err := os.Stat(objectPath)
 	if err != nil {
@@ -142,7 +143,7 @@ func TestObjectStore_ReadNonExistentBlob(t *testing.T) {
 	store := NewObjectStore(repoPath)
 
 	// Try to read a non-existent hash
-	fakeHash := "0000000000000000000000000000000000000000"
+	fakeHash := testutils.RandomHash()
 	_, err := store.ReadBlob(fakeHash)
 
 	if err == nil {
@@ -173,7 +174,7 @@ func TestObjectStore_StoreAndReadTree(t *testing.T) {
 
 	// Verify file was created
 	hash := tree.Hash()
-	objectPath := filepath.Join(repoPath, ".gogit", "objects", hash[:2], hash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, hash[:constants.HashDirPrefixLength], hash[constants.HashDirPrefixLength:])
 	testutils.AssertFileExists(t, objectPath)
 
 	// Read tree back
@@ -317,7 +318,7 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 func TestParseAuthorLine(t *testing.T) {
 	authorLine := "John Doe <john@example.com> 1698765432 -0500"
 
-	author, err := parseCommitAuthorLine(authorLine)
+	author, err := parseAuthor(authorLine)
 	if err != nil {
 		t.Fatalf("Failed to parse author line: %v", err)
 	}

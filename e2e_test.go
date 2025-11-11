@@ -190,7 +190,7 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	}
 
 	// Verify object was NOT created (no -w flag)
-	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:constants.HashDirPrefixLength], outputHash[constants.HashDirPrefixLength:])
 	if _, err := os.Stat(objectPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Object should not be created without -w flag")
 	}
@@ -230,7 +230,7 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 	}
 
 	// Verify object file was created at correct path
-	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, expectedHash[:2], expectedHash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, expectedHash[:constants.HashDirPrefixLength], expectedHash[constants.HashDirPrefixLength:])
 	testutils.AssertFileExists(t, objectPath)
 
 	// Verify object file is not empty (compressed data)

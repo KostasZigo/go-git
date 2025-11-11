@@ -52,7 +52,7 @@ func TestHashObjectCommand_Success_NoStorage(t *testing.T) {
 	}
 
 	// Verify object was NOT created (no -w flag)
-	objectPath := filepath.Join(repoPath, outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, outputHash[:constants.HashDirPrefixLength], outputHash[constants.HashDirPrefixLength:])
 	if _, err := os.Stat(objectPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Object should not be created without -w flag")
 	}
@@ -89,7 +89,7 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	}
 
 	// Verify object was created
-	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:constants.HashDirPrefixLength], outputHash[constants.HashDirPrefixLength:])
 	testutils.AssertFileExists(t, objectPath)
 
 	// Verify object can be read back
@@ -310,7 +310,7 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	}
 
 	// Verify only one object was created (content-addressable)
-	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, hash1[:2], hash1[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, hash1[:constants.HashDirPrefixLength], hash1[constants.HashDirPrefixLength:])
 	testutils.AssertFileExists(t, objectPath)
 }
 
@@ -379,6 +379,6 @@ func TestHashObjectCommand_LargeFile(t *testing.T) {
 	}
 
 	// Verify object was stored
-	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:2], outputHash[2:])
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:constants.HashDirPrefixLength], outputHash[constants.HashDirPrefixLength:])
 	testutils.AssertFileExists(t, objectPath)
 }
