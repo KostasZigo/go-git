@@ -88,7 +88,7 @@ func TestInitCommand_AlreadyExists(t *testing.T) {
 	}
 
 	// Verify error message mentions repository exists
-	expectedErrorMsg := fmt.Sprintf("failed to initialize repository - repository already exists at %s\\.gogit", repoPath)
+	expectedErrorMsg := fmt.Sprintf("failed to initialize repository - repository already exists at %s", filepath.Join(repoPath, constants.Gogit))
 	if !strings.Contains(err.Error(), expectedErrorMsg) {
 		t.Errorf("Expected error to contain %q, got: %q", expectedErrorMsg, err.Error())
 	}
