@@ -23,7 +23,7 @@ const (
 )
 
 // IsValid verifies file mode matches Git specification.
-func (m FileMode) IsValid() bool {
+func (m FileMode) isValid() bool {
 	switch m {
 	case ModeRegularFile, ModeExecutable, ModeSymlink, ModeDirectory, ModeSubmodule:
 		return true
@@ -40,7 +40,7 @@ type TreeEntry struct {
 }
 
 func NewTreeEntry(mode FileMode, name string, hash string) (*TreeEntry, error) {
-	if !mode.IsValid() {
+	if !mode.isValid() {
 		return nil, fmt.Errorf("invalid file mode: %s", mode)
 	}
 	if name == "" {

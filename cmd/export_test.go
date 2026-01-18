@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// createTestRootCmd creates fresh root command with init subcommand.
+// createTestRootCmd creates fresh root command with subcommand.
 func createTestRootCmd(cmd *cobra.Command) *cobra.Command {
 	testRootCmd := &cobra.Command{Use: "gogit"}
 	testRootCmd.AddCommand(cmd)

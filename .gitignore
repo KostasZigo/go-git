@@ -23,6 +23,9 @@ test-repos/
 /bin/
 /dist/
 
+# Real testing folder
+/test
+
 # instructions
 .github/instructions/
 .github/instructions/chat_instructions.instructions.md

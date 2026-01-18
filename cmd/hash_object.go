@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +59,7 @@ func runHashObject(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(cmd.OutOrStdout(), blob.Hash())
 
 	if writeFlag {
-		repoPath, err := findRepoRoot()
+		repoPath, err := utils.FindRepoRoot()
 		if err != nil {
 			return err
 		}
@@ -72,27 +71,4 @@ func runHashObject(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-// findRepoRoot locates .gogit directory by walking up directory tree.
-func findRepoRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		gogitPath := filepath.Join(dir, constants.Gogit)
-		if info, err := os.Stat(gogitPath); err == nil && info.IsDir() {
-			return dir, nil
-		}
-
-		// Dir returns all but the last element of path
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached root without finding .gogit
-			return "", fmt.Errorf("%s directory not found", constants.Gogit)
-		}
-		dir = parent
-	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io/fs"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,15 @@ func RandomString(n int) string {
 	bytes := make([]byte, n)
 	rand.Read(bytes)
 	return hex.EncodeToString(bytes)
+}
+
+func RandomInt(max int) int64 {
+	bigInt := big.NewInt(int64(max))
+	number, err := rand.Int(rand.Reader, bigInt)
+	if err != nil {
+		panic(err)
+	}
+	return number.Int64()
 }
 
 // RandomHash generates a random 40-character SHA-1 hash
@@ -71,7 +81,8 @@ func SetupTestRepoWithInit(t *testing.T) string {
 }
 
 // CreateTestFile creates a file with given content in the specified directory.
-// Returns the full path to the created file.
+// Returns the full path to the created file. If file already exists, it content is
+// udpated.
 func CreateTestFile(t *testing.T, dir, filename string, content []byte) string {
 	t.Helper()
 

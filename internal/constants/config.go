@@ -7,6 +7,7 @@ import "os"
 const (
 	InitCmdName       = "init"
 	HashObjectCmdName = "hash-object"
+	AddCmdName        = "add"
 )
 
 // Repository directory and file names define the gogit metadata structure.
@@ -28,6 +29,9 @@ const (
 
 	// Head points to current branch or detached commit.
 	Head = "HEAD"
+
+	// Index represents the staging area file tracking changes before commit.
+	Index = "index"
 )
 
 // Default repository values.
@@ -92,3 +96,20 @@ const (
 	SecondsPerHour   = 3600
 	SecondsPerMinute = 60
 )
+
+// FileMode represents Unix file permissions and type in Git objects.
+type FileMode string
+
+const (
+	ModeRegularFile FileMode = "100644" // Regular non-executable file
+	ModeExecutable  FileMode = "100755" // Executable file
+	ModeSymlink     FileMode = "120000" // Symbolic link
+	ModeDirectory   FileMode = "040000" // Directory (tree)
+	ModeSubmodule   FileMode = "160000" // Git submodule
+)
+
+// Index format version
+const IndexVersion = 1
+
+// Index signature identifying GoGit index files (DIRectory Cache).
+const IndexSignature = "DIRC"

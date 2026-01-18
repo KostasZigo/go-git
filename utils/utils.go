@@ -3,8 +3,11 @@ package utils
 import (
 	"crypto/sha1"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/KostasZigo/gogit/internal/constants"
 )
 
 type ObjectType string
@@ -50,4 +53,27 @@ func MustComputeHash(content []byte, objectType ObjectType) string {
 // Unlike filepath.Join, does not normalize "." or remove redundant separators.
 func BuildDirPath(dirs ...string) string {
 	return strings.Join(dirs, string(filepath.Separator)) + string(filepath.Separator)
+}
+
+// FindRepoRoot locates .gogit directory by walking up directory tree.
+func FindRepoRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	for {
+		gogitPath := filepath.Join(dir, constants.Gogit)
+		if info, err := os.Stat(gogitPath); err == nil && info.IsDir() {
+			return dir, nil
+		}
+
+		// Dir returns all but the last element of path
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached root without finding .gogit
+			return "", fmt.Errorf("%s directory not found", constants.Gogit)
+		}
+		dir = parent
+	}
 }

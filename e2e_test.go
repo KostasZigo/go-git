@@ -3,13 +3,16 @@ package main
 import (
 	"bytes"
 	"compress/zlib"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -202,7 +205,6 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// Build binary and run `gogit init` command
 	repoPath := setupTestRepo(t)
 	initializeRepository(t, repoPath)
 
@@ -266,6 +268,309 @@ func TestE2E_HashObjectCommand_InvalidArgs(t *testing.T) {
 	if !strings.Contains(outputStr, expectedMsg) {
 		t.Errorf("Expected error to contain %q, got: %s", expectedMsg, outputStr)
 	}
+}
+
+// TestE2E_AddCommand_SingleFile verifies staging single file creates blob and updates index.
+func TestE2E_AddCommand_SingleFile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	testFileName := testutils.RandomString(10)
+	testFileContent := []byte(testutils.RandomString(100))
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
+
+	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+	}
+
+	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContent, repoPath)
+
+	expectedFiles := map[string][]byte{
+		testFileName: testFileContent,
+	}
+	assertIndexCreationAndContent(t, repoPath, expectedFiles)
+}
+
+// TestE2E_AddCommand_MultipleFiles verifies staging multiple files in single command.
+func TestE2E_AddCommand_MultipleFiles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	files := []struct {
+		name    string
+		content []byte
+	}{
+		{testutils.RandomString(10), []byte(testutils.RandomString(100))},
+		{testutils.RandomString(10), []byte(testutils.RandomString(100))},
+		{testutils.RandomString(10), []byte(testutils.RandomString(100))},
+	}
+
+	for _, file := range files {
+		testutils.CreateTestFile(t, repoPath, file.name, file.content)
+	}
+
+	args := []string{constants.AddCmdName}
+	for _, file := range files {
+		args = append(args, file.name)
+	}
+
+	cmd := exec.Command(sharedBinaryPath, args...)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+	}
+
+	for _, file := range files {
+		assertAddCommandOutputAndObjectCreation(t, file.name, output, file.content, repoPath)
+	}
+
+	expectedFiles := map[string][]byte{}
+	for _, file := range files {
+		expectedFiles[file.name] = file.content
+	}
+	assertIndexCreationAndContent(t, repoPath, expectedFiles)
+}
+
+// TestE2E_AddCommand_FileNotFound verifies error for nonexistent file.
+func TestE2E_AddCommand_FileNotFound(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	testFileName := testutils.RandomString(10)
+	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err == nil {
+		t.Fatal("Expected error when trying to add a non-existing file.")
+	}
+
+	outputStr := string(output)
+	expectedErrorMessage := "Error: failed to add file " + testFileName + ": failed to stat file "
+	if !strings.Contains(outputStr, expectedErrorMessage) {
+		t.Errorf("Expected [%s] error, got: %v", expectedErrorMessage, outputStr)
+	}
+}
+
+// TestE2E_AddCommand_NotInRepository verifies error when outside repository.
+func TestE2E_AddCommand_NotInRepository(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+
+	testFileName := testutils.RandomString(10)
+	testFileContent := []byte(testutils.RandomString(100))
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
+
+	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err == nil {
+		t.Fatal("Expected error when trying to add a file that does not belong to an initialized repository.")
+	}
+
+	outputStr := string(output)
+	expectedErrorMessage := constants.Gogit + " directory not found"
+	if !strings.Contains(outputStr, expectedErrorMessage) {
+		t.Errorf("Expected [%s] error, got: %v", expectedErrorMessage, outputStr)
+	}
+}
+
+// TestE2E_AddCommand_UpdateExistingFile verifies updating already-staged file.
+func TestE2E_AddCommand_UpdateExistingFile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	testFileName := testutils.RandomString(10)
+	testFileContent := []byte(testutils.RandomString(100))
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
+
+	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+	}
+
+	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContent, repoPath)
+
+	expectedFiles := map[string][]byte{
+		testFileName: testFileContent,
+	}
+	assertIndexCreationAndContent(t, repoPath, expectedFiles)
+
+	// update existing file's content and add it to the index again
+	testFileContentUpdated := []byte(testutils.RandomString(1000))
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContentUpdated)
+
+	cmd = exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd.Dir = repoPath
+	output, err = cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+	}
+
+	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContentUpdated, repoPath)
+
+	expectedFiles = map[string][]byte{
+		testFileName: testFileContentUpdated,
+	}
+	assertIndexCreationAndContent(t, repoPath, expectedFiles)
+}
+
+// TestE2E_AddCommand_NoArguments verifies error when no files specified.
+func TestE2E_AddCommand_NoArguments(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err == nil {
+		t.Error("Expected error when no arguments provided")
+	}
+
+	outputStr := string(output)
+	expectedMsg := fmt.Sprintf("%s command accepts at least %d arg(s), received %d", constants.AddCmdName, 1, 0)
+	if !strings.Contains(outputStr, expectedMsg) {
+		t.Errorf("Expected error to contain %q, got: %s", expectedMsg, outputStr)
+	}
+}
+
+// TestE2E_AddCommand_FileInSubdirectory verifies staging file in nested directory.
+func TestE2E_AddCommand_FileInSubdirectory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	subDir := filepath.Join("src", "pkg")
+	if err := os.MkdirAll(filepath.Join(repoPath, subDir), constants.DirPerms); err != nil {
+		t.Fatalf("Failed to create subdirectory: %v", err)
+	}
+
+	testFileName := filepath.Join(subDir, "module.go")
+	testFileContent := []byte(testutils.RandomString(100))
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
+
+	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+	}
+
+	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContent, repoPath)
+
+	expectedFiles := map[string][]byte{
+		testFileName: testFileContent,
+	}
+	assertIndexCreationAndContent(t, repoPath, expectedFiles)
+}
+
+// TestE2E_AddCommand_SameContentDifferentFiles verifies identical content produces same hash.
+func TestE2E_AddCommand_SameContentDifferentFiles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	sharedContent := []byte(testutils.RandomString(1000))
+	file1 := testutils.RandomString(10)
+	file2 := testutils.RandomString(10)
+
+	testutils.CreateTestFile(t, repoPath, file1, sharedContent)
+	testutils.CreateTestFile(t, repoPath, file2, sharedContent)
+
+	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, file1, file2)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+	}
+
+	fileNames := []string{file1, file2}
+	for _, fileName := range fileNames {
+		assertAddCommandOutputAndObjectCreation(t, fileName, output, sharedContent, repoPath)
+	}
+
+	expectedFiles := map[string][]byte{}
+	for _, fileName := range fileNames {
+		expectedFiles[fileName] = sharedContent
+	}
+	assertIndexCreationAndContent(t, repoPath, expectedFiles)
+}
+
+// TestE2E_AddCommand_IdempotentAdd verifies adding same file twice is idempotent.
+func TestE2E_AddCommand_IdempotentAdd(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	testFileName := testutils.RandomString(10)
+	testFileContent := []byte(testutils.RandomString(1000))
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
+
+	cmd1 := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd1.Dir = repoPath
+	if _, err := cmd1.CombinedOutput(); err != nil {
+		t.Fatalf("First add failed: %v", err)
+	}
+
+	cmd2 := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd2.Dir = repoPath
+	output, err := cmd2.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Second add failed: %v", err)
+	}
+
+	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContent, repoPath)
+
+	expectedFiles := map[string][]byte{
+		testFileName: testFileContent,
+	}
+	assertIndexCreationAndContent(t, repoPath, expectedFiles)
 }
 
 // Helper Methods
@@ -332,5 +637,164 @@ func assertBlobContent(t *testing.T, decompressedData, expectedContent []byte) {
 	content := decompressedData[nullByteIndex+1:]
 	if !bytes.Equal(content, expectedContent) {
 		t.Errorf("Content mismatch: expected %q, got %q", expectedContent, content)
+	}
+}
+
+// assertAddCommandOutputAndObjectCreation verifies add command output and blob object creation and content.
+func assertAddCommandOutputAndObjectCreation(t *testing.T, testFileName string, output []byte, testFileContent []byte, repoPath string) {
+	expectedOutput := fmt.Sprintf("add '%s'", testFileName)
+	if !strings.Contains(string(output), expectedOutput) {
+		t.Errorf("Expected output to contain %q, got: %s", expectedOutput, string(output))
+	}
+
+	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	if err != nil {
+		t.Fatalf("Failed to compute hash: %v", err)
+	}
+
+	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, expectedHash[:constants.HashDirPrefixLength], expectedHash[constants.HashDirPrefixLength:])
+	testutils.AssertFileExists(t, objectPath)
+
+	//Verify File content
+	decompressedContent := decompressBlobObject(t, objectPath)
+	assertBlobContent(t, decompressedContent, testFileContent)
+}
+
+// assertIndexCreationAndContent verifies index cretion and content
+func assertIndexCreationAndContent(t *testing.T, repoPath string, expectedFiles map[string][]byte) {
+	indexPath := filepath.Join(repoPath, constants.Gogit, constants.Index)
+	testutils.AssertFileExists(t, indexPath)
+
+	assertIndexContent(t, indexPath, expectedFiles)
+}
+
+// assertIndexContent verifies index content
+func assertIndexContent(t *testing.T, indexPath string, expectedFiles map[string][]byte) {
+	t.Helper()
+
+	indexData, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("Failed to read index file: %v", err)
+	}
+
+	reader := bytes.NewReader(indexData)
+
+	readAndAssertIndexHeader(t, reader, expectedFiles)
+	readAndAssertIndexEntries(t, reader, expectedFiles)
+	_, err = reader.ReadByte()
+	if err == nil {
+		t.Fatal("Expeceted an error when trying to read form the index while its meant to have reached EOF")
+	}
+}
+
+// readAndAssertIndexHeader verifies index header content
+func readAndAssertIndexHeader(t *testing.T, reader *bytes.Reader, expectedFiles map[string][]byte) {
+	signature := make([]byte, 4)
+	if _, err := io.ReadFull(reader, signature); err != nil {
+		t.Fatalf("Failed to read signature: %v", err)
+	}
+	if string(signature) != constants.IndexSignature {
+		t.Fatalf("Invalid signature: expected %s, got %s", constants.IndexSignature, string(signature))
+	}
+
+	var version uint32
+	if err := binary.Read(reader, binary.BigEndian, &version); err != nil {
+		t.Fatalf("Failed to read version: %v", err)
+	}
+	if version != constants.IndexVersion {
+		t.Fatalf("Invalid version: expected %d, got %d", constants.IndexVersion, version)
+	}
+
+	var entryCount uint32
+	if err := binary.Read(reader, binary.BigEndian, &entryCount); err != nil {
+		t.Fatalf("Failed to read entry count: %v", err)
+	}
+	if int(entryCount) != len(expectedFiles) {
+		t.Fatalf("Entry count mismatch: expected %d, got %d", len(expectedFiles), entryCount)
+	}
+}
+
+// readAndAssertIndexEntries verifies index entries content
+func readAndAssertIndexEntries(t *testing.T, reader *bytes.Reader, expectedFiles map[string][]byte) {
+	// Sort the map keys that correspond to the filepats as they are expected to be sorted inside the index
+	keys := make([]string, 0, len(expectedFiles))
+	for k := range expectedFiles {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	for _, key := range keys {
+		// Verify expected file was indexed
+		expectedContent, _ := expectedFiles[key]
+		parseAndAssertIndexEntry(t, reader, key, expectedContent)
+	}
+}
+
+// parseIndexEntry reads single entry from binary stream.
+func parseAndAssertIndexEntry(t *testing.T, reader *bytes.Reader, filepath string, expectedContent []byte) {
+	t.Helper()
+
+	// File mode (4 bytes)
+	var fileMode uint32
+	if err := binary.Read(reader, binary.BigEndian, &fileMode); err != nil {
+		t.Fatalf("Failed to read file mode: %v", err)
+	}
+
+	// Object hash (20 bytes)
+	hashBytes := make([]byte, constants.HashByteLength)
+	if _, err := io.ReadFull(reader, hashBytes); err != nil {
+		t.Fatalf("Failed to read hash: %v", err)
+	}
+
+	// Verify hash matches file content
+	expectedHash, err := utils.ComputeHash(expectedContent, utils.BlobObjectType)
+	if err != nil {
+		t.Fatalf("Failed to compute expected hash for %s: %v", filepath, err)
+	}
+
+	hash := fmt.Sprintf("%x", hashBytes)
+	if hash != expectedHash {
+		t.Fatalf("Hash mismatch for %s: expected %s, got %s", filepath, expectedHash, hash)
+	}
+
+	// File size (8 bytes)
+	var fileSize int64
+	if err := binary.Read(reader, binary.BigEndian, &fileSize); err != nil {
+		t.Fatalf("Failed to read file size: %v", err)
+	}
+	// Verify file size
+	if fileSize != int64(len(expectedContent)) {
+		t.Fatalf("Size mismatch for %s: expected %d, got %d", filepath, len(expectedContent), fileSize)
+	}
+
+	// Modified time (8 bytes)
+	var lastModified int64
+	if err := binary.Read(reader, binary.BigEndian, &lastModified); err != nil {
+		t.Fatalf("Failed to read modified time: %v", err)
+	}
+
+	// Path length (2 bytes)
+	var pathLength uint16
+	if err := binary.Read(reader, binary.BigEndian, &pathLength); err != nil {
+		t.Fatalf("Failed to read path length: %v", err)
+	}
+
+	// Path (N bytes)
+	pathBytes := make([]byte, pathLength)
+	if _, err := io.ReadFull(reader, pathBytes); err != nil {
+		t.Fatalf("Failed to read path: %v", err)
+	}
+	// verify expected file path
+	if string(pathBytes) != filepath {
+		t.Fatalf("Expected file path to be [%s] but got [%s]", filepath, string(pathBytes))
+	}
+
+	// Null terminator (1 byte)
+	var nullByte byte
+	if err := binary.Read(reader, binary.BigEndian, &nullByte); err != nil {
+		t.Fatalf("Failed to read null terminator: %v", err)
+	}
+	if nullByte != constants.NullByte {
+		t.Errorf("Invalid null terminator: expected 0x00, got 0x%02x", nullByte)
 	}
 }
