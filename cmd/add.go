@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -70,11 +71,22 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// Create object store
 	store := objects.NewObjectStore(repoPath)
 
-	// Order file paths
-	filePaths := slices.Clone(args)
+	var filePaths []string
+	// Check if all files should be added
+	if len(args) == 1 && args[0] == "." {
+		filePaths, err = collectAllRepoFiles(repoPath)
+		if err != nil {
+			return fmt.Errorf("failed to collect repository files: %w", err)
+		}
+	} else {
+		// Individual file arguments
+		filePaths = slices.Clone(args)
+	}
+
+	// Sort paths for deterministic processing
 	slices.Sort(filePaths)
 
-	// Process each file argument
+	// Process each file
 	for _, filePath := range filePaths {
 		if err := addFile(cmd, repoPath, filePath, idx, store); err != nil {
 			return fmt.Errorf("failed to add file %s: %w", filePath, err)
@@ -87,6 +99,46 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// collectAllRepoFiles recursively walks repository collecting non-ignored files.
+// Returns relative paths from repository root suitable for staging.
+func collectAllRepoFiles(repoPath string) ([]string, error) {
+	var filePaths []string
+	goGitDir := filepath.Join(repoPath, constants.Gogit)
+
+	err := filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("failed to access path %s: %w", path, err)
+		}
+
+		// Skip .gogit directory entirely
+		if d.IsDir() && path == goGitDir {
+			return filepath.SkipDir
+		}
+
+		// Skip hidden directories (starting with .)
+		if d.IsDir() && filepath.Base(path)[0] == '.' && path != repoPath {
+			return filepath.SkipDir
+		}
+
+		// Collect regular files only
+		if d.Type().IsRegular() {
+			relPath, err := filepath.Rel(repoPath, path)
+			if err != nil {
+				return fmt.Errorf("failed to compute relative path for %s: %w", path, err)
+			}
+			filePaths = append(filePaths, relPath)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk repository: %w", err)
+	}
+
+	return filePaths, nil
 }
 
 // addFile stages single file by creating blob and updating index.

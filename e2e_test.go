@@ -573,6 +573,55 @@ func TestE2E_AddCommand_IdempotentAdd(t *testing.T) {
 	assertIndexCreationAndContent(t, repoPath, expectedFiles)
 }
 
+// TestE2E_AddCommand_AddAll verifies staging all files with "."
+func TestE2E_AddCommand_AddAll(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	// Create file structure
+	files := []struct {
+		name    string
+		content []byte
+	}{
+		{testutils.RandomString(10), []byte(testutils.RandomString(100))},
+		{testutils.RandomString(10), []byte(testutils.RandomString(100))},
+		{filepath.Join(testutils.RandomString(10), testutils.RandomString(10)), []byte(testutils.RandomString(100))},
+		{filepath.Join(testutils.RandomString(10), testutils.RandomString(10)), []byte(testutils.RandomString(100))},
+	}
+
+	for _, file := range files {
+		dir := filepath.Dir(file.name)
+		if dir != "." {
+			if err := os.MkdirAll(filepath.Join(repoPath, dir), 0755); err != nil {
+				t.Fatalf("Failed to create directory: %v", err)
+			}
+		}
+		testutils.CreateTestFile(t, repoPath, file.name, file.content)
+	}
+
+	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, ".")
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("add . failed: %v\nOutput: %s", err, output)
+	}
+
+	for _, file := range files {
+		assertAddCommandOutputAndObjectCreation(t, file.name, output, file.content, repoPath)
+	}
+
+	expectedFiles := map[string][]byte{}
+	for _, file := range files {
+		expectedFiles[file.name] = file.content
+	}
+	assertIndexCreationAndContent(t, repoPath, expectedFiles)
+}
+
 // Helper Methods
 
 // setupTestRepo creates test directory.

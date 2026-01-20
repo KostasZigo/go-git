@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -223,5 +225,97 @@ func TestAddCommand_UpdateExistingFile(t *testing.T) {
 
 	if originalFileSize == modifiedFileSize {
 		t.Error("Expected file size to change after file modification")
+	}
+}
+
+// TestAddCommand_AddAll verifies staging all repository files with "."
+func TestAddCommand_AddAll(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	changeToRepoDir(t, repoPath)
+
+	// Create multiple files in repository
+	files := map[string][]byte{
+		testutils.RandomString(10): []byte(testutils.RandomString(100)),
+		testutils.RandomString(10): []byte(testutils.RandomString(100)),
+		filepath.Join(testutils.RandomString(10), testutils.RandomString(10)): []byte(testutils.RandomString(100)),
+	}
+
+	for path, content := range files {
+		dir := filepath.Dir(path)
+		if dir != "." {
+			if err := os.MkdirAll(filepath.Join(repoPath, dir), constants.DirPerms); err != nil {
+				t.Fatalf("Failed to create directory %s: %v", dir, err)
+			}
+		}
+		testutils.CreateTestFile(t, repoPath, path, content)
+	}
+
+	testRootCmd := createTestRootCmd(addCmd)
+	stdout := captureStdout(testRootCmd)
+
+	// Execute "add ."
+	testRootCmd.SetArgs([]string{constants.AddCmdName, "."})
+	if err := testRootCmd.Execute(); err != nil {
+		t.Fatalf("add . command failed: %v", err)
+	}
+
+	// Verify Output
+	output := stdout.String()
+
+	testFileNames := make([]string, 0, len(files))
+	for key := range files {
+		testFileNames = append(testFileNames, key)
+	}
+
+	orderedTestFileNames := slices.Clone(testFileNames)
+	slices.Sort(orderedTestFileNames)
+
+	var sb strings.Builder
+	for _, testFileName := range orderedTestFileNames {
+		fmt.Fprintf(&sb, "add '%s'\n", testFileName)
+	}
+	expectedOutput := sb.String()
+
+	if !strings.Contains(output, expectedOutput) {
+		t.Fatalf("Expected output to contain %s, got: %s", expectedOutput, output)
+	}
+
+	// Verify all files staged
+	indexManager := index.NewManager(repoPath)
+	index, err := indexManager.Load()
+	if err != nil {
+		t.Fatalf("Failed to load index: %v", err)
+	}
+
+	indexEntryList := index.GetEntryList()
+	if len(indexEntryList) != len(testFileNames) {
+		t.Fatalf("Expected %d entries, got %d", len(testFileNames), index.CountEntries())
+	}
+
+	for i, indexEntry := range indexEntryList {
+		if indexEntry.Path() != orderedTestFileNames[i] {
+			t.Fatalf("File %s is missing from index or is in the right order, got [%s]", orderedTestFileNames[i], indexEntry.Path())
+		}
+	}
+}
+
+// TestAddCommand_AddAll_EmptyRepository verifies handling of empty working tree
+func TestAddCommand_AddAll_EmptyRepository(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	changeToRepoDir(t, repoPath)
+
+	testRootCmd := createTestRootCmd(addCmd)
+	captureStdout(testRootCmd)
+
+	testRootCmd.SetArgs([]string{constants.AddCmdName, "."})
+	if err := testRootCmd.Execute(); err != nil {
+		t.Fatalf("add . command should succeed on empty repo: %v", err)
+	}
+
+	indexManager := index.NewManager(repoPath)
+	index, _ := indexManager.Load()
+
+	if index.CountEntries() != 0 {
+		t.Errorf("Expected 0 entries for empty repo, got %d", index.CountEntries())
 	}
 }
