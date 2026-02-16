@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/objects"
 )
 
 // FileMode represents Git index modes (uint32 for binary serialization)
@@ -14,14 +15,13 @@ const (
 	ModeRegularFile FileMode = 0o100644
 	ModeExecutable  FileMode = 0o100755
 	ModeSymlink     FileMode = 0o120000
-	ModeDirectory   FileMode = 0o040000
 	ModeSubmodule   FileMode = 0o160000
 )
 
 // IsValid verifies file mode matches Git specification.
 func (m FileMode) isValid() bool {
 	switch m {
-	case ModeRegularFile, ModeExecutable, ModeSymlink, ModeDirectory, ModeSubmodule:
+	case ModeRegularFile, ModeExecutable, ModeSymlink, ModeSubmodule:
 		return true
 	default:
 		return false
@@ -76,4 +76,21 @@ func (indexEntry *IndexEntry) FileSize() int64 {
 
 func (indexEntry *IndexEntry) LastModified() time.Time {
 	return indexEntry.lastModified
+}
+
+// ToObjectFileMode converts index FileMode to objects.FileMode for tree creation
+func ToObjectFileMode(m FileMode) objects.FileMode {
+	switch m {
+	case ModeRegularFile:
+		return objects.ModeRegularFile
+	case ModeExecutable:
+		return objects.ModeExecutable
+	case ModeSymlink:
+		return objects.ModeSymlink
+	case ModeSubmodule:
+		return objects.ModeSubmodule
+	default:
+		// Should not occur if index validates modes properly
+		return objects.ModeRegularFile
+	}
 }

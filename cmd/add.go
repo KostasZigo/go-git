@@ -208,10 +208,6 @@ func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, st
 func detectFileMode(info os.FileInfo) index.FileMode {
 	mode := info.Mode()
 
-	if mode.IsDir() {
-		return index.ModeDirectory
-	}
-
 	if mode&os.ModeSymlink != 0 {
 		return index.ModeSymlink
 	}

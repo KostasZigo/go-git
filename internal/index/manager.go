@@ -40,8 +40,8 @@ func (manager *IndexManager) Save(index *Index) error {
 	// Track success for cleanup
 	succeeded := false
 	defer func() {
-		tempFile.Close()
 		if !succeeded {
+			tempFile.Close()
 			os.Remove(tempPath)
 		}
 	}()
