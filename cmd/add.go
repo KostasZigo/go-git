@@ -200,6 +200,8 @@ func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, st
 		return fmt.Errorf("failed to add [%s] entry to index: %w", absolutePath, err)
 	}
 
+	// TODO:  remove this print because it happens even when there are no real changes
+	// Alternatively only print the files that changed
 	cmd.Printf("add '%s'\n", relativeFilePath)
 	return nil
 }

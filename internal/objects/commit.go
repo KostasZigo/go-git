@@ -117,6 +117,22 @@ func (c *Commit) Hash() string {
 	return c.hash
 }
 
+func (c *Commit) TreeHash() string {
+	return c.treeHash
+}
+
+func (c *Commit) ParentHash() string {
+	return c.parentHash
+}
+
+func (c *Commit) Message() string {
+	return c.message
+}
+
+func (c *Commit) Author() Author {
+	return c.author
+}
+
 func (c *Commit) Content() []byte {
 	return buildCommitContent(c.treeHash, c.parentHash, c.message, c.author)
 }

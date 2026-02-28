@@ -8,6 +8,7 @@ const (
 	InitCmdName       = "init"
 	HashObjectCmdName = "hash-object"
 	AddCmdName        = "add"
+	CommitCmdName     = "commit"
 )
 
 // Repository directory and file names define the gogit metadata structure.

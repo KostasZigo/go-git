@@ -111,7 +111,7 @@ func writeTree(node *directoryNode, store *objects.ObjectStore) (string, error) 
 // to the full filesystem path of the current branch ref file.
 // Returns the absolute path to the ref file (e.g., .gogit/refs/heads/master).
 func resolveHEADRef(repoPath string) (string, error) {
-	headContent, err := os.ReadFile(filepath.Join(repoPath, constants.Head))
+	headContent, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
 	if err != nil {
 		return "", fmt.Errorf("failed to read HEAD file: %w", err)
 	}
@@ -124,7 +124,7 @@ func resolveHEADRef(repoPath string) (string, error) {
 	}
 
 	relRefPath := strings.TrimPrefix(trimmed, refPrefix)
-	fullRefPath := filepath.Join(repoPath, relRefPath)
+	fullRefPath := filepath.Join(repoPath, constants.Gogit, relRefPath)
 	return fullRefPath, nil
 }
 
@@ -212,15 +212,15 @@ func updateRefFile(repoPath, commitHash string) error {
 // OrchestrateCommitExecution orchestrates the full commit workflow:
 // loads the index, builds the tree hierarchy, resolves the parent commit,
 // creates and stores the commit object, and updates the current branch ref.
-func OrchestrateCommitExecution(repoPath string, message string, author objects.Author) error {
+func OrchestrateCommitExecution(repoPath string, message string, author objects.Author) (string, error) {
 	// 1. load staged files entries from index
 	entries, err := loadIndexEntries(repoPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if len(entries) == 0 {
-		return fmt.Errorf("nothing to commit")
+		return "", fmt.Errorf("nothing to commit")
 	}
 
 	// 2. construct full directory node in-memory - to be used in order to create and store Tree entries
@@ -230,30 +230,41 @@ func OrchestrateCommitExecution(repoPath string, message string, author objects.
 	store := objects.NewObjectStore(repoPath)
 	rootTreeHash, err := writeTree(directoryNode, store)
 	if err != nil {
-		return fmt.Errorf("failed to create commit tree directory: %w", err)
+		return "", fmt.Errorf("failed to create commit tree directory: %w", err)
 	}
 
 	// 4. resolve commit parent hash
 	refPath, err := resolveHEADRef(repoPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	parentHash, err := getParentCommitHash(refPath)
 	if err != nil {
-		return err
+		return "", err
+	}
+
+	// 4.5 reject commit if tree is unchanged from parent
+	if parentHash != "" {
+		parentCommit, err := store.ReadCommit(parentHash)
+		if err != nil {
+			return "", fmt.Errorf("failed to read parent commit %q: %w", parentHash, err)
+		}
+		if parentCommit.TreeHash() == rootTreeHash {
+			return "", fmt.Errorf("nothing to commit: working tree clean")
+		}
 	}
 
 	// 5. create and store commit in the filesystem
 	commitHash, err := createAndStoreCommit(rootTreeHash, parentHash, message, author, store)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// 6. update reference file with the new commit hash
-	if err := updateRefFile(refPath, commitHash); err != nil {
-		return fmt.Errorf("failed to update ref file [%s]: %w", refPath, err)
+	if err := updateRefFile(repoPath, commitHash); err != nil {
+		return "", fmt.Errorf("failed to update ref file [%s]: %w", refPath, err)
 	}
 
-	return nil
+	return commitHash, nil
 }
