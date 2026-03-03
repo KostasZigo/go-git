@@ -43,7 +43,8 @@ func buildDirectoryTree(entries []*index.IndexEntry) *directoryNode {
 	root := &directoryNode{children: make(map[string]*directoryNode)}
 
 	for _, entry := range entries {
-		pathSegments := strings.Split(entry.Path(), string(filepath.Separator))
+		// Index paths are stored as forward-slash-separated (normalized at add time).
+		pathSegments := strings.Split(entry.Path(), "/")
 		current := root
 
 		// Create intermediate directories

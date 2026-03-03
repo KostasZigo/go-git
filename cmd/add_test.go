@@ -264,7 +264,8 @@ func TestAddCommand_AddAll(t *testing.T) {
 
 	testFileNames := make([]string, 0, len(files))
 	for key := range files {
-		testFileNames = append(testFileNames, key)
+		fileName := filepath.ToSlash(key)
+		testFileNames = append(testFileNames, fileName)
 	}
 
 	orderedTestFileNames := slices.Clone(testFileNames)

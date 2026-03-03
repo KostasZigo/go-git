@@ -169,6 +169,9 @@ func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, st
 		return fmt.Errorf("file is not inside the repository: %w", err)
 	}
 
+	// Normalize to forward slashes so index and tree entries are OS-independent.
+	relativeFilePath = filepath.ToSlash(relativeFilePath)
+
 	// Create blob from file
 	blob, err := objects.NewBlobFromFile(absolutePath)
 	if err != nil {

@@ -923,7 +923,7 @@ func assertBlobContent(t *testing.T, decompressedData, expectedContent []byte) {
 
 // assertAddCommandOutputAndObjectCreation verifies add command output and blob object creation and content.
 func assertAddCommandOutputAndObjectCreation(t *testing.T, testFileName string, output []byte, testFileContent []byte, repoPath string) {
-	expectedOutput := fmt.Sprintf("add '%s'", testFileName)
+	expectedOutput := fmt.Sprintf("add '%s'", filepath.ToSlash(testFileName))
 	if !strings.Contains(string(output), expectedOutput) {
 		t.Errorf("Expected output to contain %q, got: %s", expectedOutput, string(output))
 	}
@@ -1000,14 +1000,18 @@ func readAndAssertIndexEntries(t *testing.T, reader *bytes.Reader, expectedFiles
 	// Sort the map keys that correspond to the filepats as they are expected to be sorted inside the index
 	keys := make([]string, 0, len(expectedFiles))
 	for k := range expectedFiles {
-		keys = append(keys, k)
+		keys = append(keys, (k))
 	}
 	slices.Sort(keys)
 
 	for _, key := range keys {
 		// Verify expected file was indexed
-		expectedContent, _ := expectedFiles[key]
-		parseAndAssertIndexEntry(t, reader, key, expectedContent)
+		expectedContent, exists := expectedFiles[key]
+		if !exists {
+			t.Fatalf("Expected entry for key [%s] to exist", key)
+		}
+		normalizedKey := filepath.ToSlash(key) // File path Separator is converted to fornt-slash during add command for OS unaware reasons
+		parseAndAssertIndexEntry(t, reader, normalizedKey, expectedContent)
 	}
 }
 

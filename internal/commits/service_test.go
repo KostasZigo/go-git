@@ -23,9 +23,9 @@ func Test_BuildDirectoryTree_MixedRootAndNestedFiles(t *testing.T) {
 	subfolder := testutils.RandomString(3)
 	filePaths := []string{
 		testutils.RandomString(10),
-		filepath.Join(folder, testutils.RandomString(10)),
-		filepath.Join(folder, testutils.RandomString(10)),
-		filepath.Join(folder, subfolder, testutils.RandomString(10)),
+		filepath.ToSlash(filepath.Join(folder, testutils.RandomString(10))),
+		filepath.ToSlash(filepath.Join(folder, testutils.RandomString(10))),
+		filepath.ToSlash(filepath.Join(folder, subfolder, testutils.RandomString(10))),
 	}
 
 	var entries []*index.IndexEntry

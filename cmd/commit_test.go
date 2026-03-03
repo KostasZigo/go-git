@@ -175,7 +175,7 @@ func TestCommitCommand_DuplicateCommitNoChanges(t *testing.T) {
 	}
 
 	errorOutput := errOut.String()
-	expectedErrorMessage := "nothing to commit"
+	expectedErrorMessage := "nothing to commit: working tree clean"
 	if !strings.Contains(errorOutput, expectedErrorMessage) {
 		t.Fatalf("Expected error message to contain [%s], but got [%s]", expectedErrorMessage, errorOutput)
 	}
