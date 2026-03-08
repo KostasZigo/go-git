@@ -317,7 +317,7 @@ func Test_GetParentCommitHash_RefExists(t *testing.T) {
 		t.Fatalf("Failed to write ref file: %v", err)
 	}
 
-	hash, err := getParentCommitHash(refPath)
+	hash, err := getRefCommitHash(refPath)
 	if err != nil {
 		t.Fatalf("getParentCommitHash failed: %v", err)
 	}
@@ -334,9 +334,9 @@ func Test_GetParentCommitHash_FirstCommit(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
 
-	hash, err := getParentCommitHash(refPath)
+	hash, err := getRefCommitHash(refPath)
 	if err != nil {
-		t.Fatalf("getParentCommitHash failed: %v", err)
+		t.Fatalf("getRefCommitHash failed: %v", err)
 	}
 
 	if hash != "" {

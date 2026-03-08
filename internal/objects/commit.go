@@ -23,6 +23,10 @@ func (a Author) String() string {
 		a.Email)
 }
 
+func (a Author) Time() time.Time {
+	return a.Timestamp
+}
+
 // Commit represents a snapshot of the repository
 type Commit struct {
 	hash       string

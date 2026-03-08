@@ -129,10 +129,10 @@ func resolveHEADRef(repoPath string) (string, error) {
 	return fullRefPath, nil
 }
 
-// getParentCommitHash reads the commit hash stored in the given branch ref file.
+// getRefCommitHash reads the commit hash stored in the given branch ref file.
 // Returns an empty string if the ref file does not exist (first commit scenario).
 // Returns an error for any other filesystem failure.
-func getParentCommitHash(refPath string) (string, error) {
+func getRefCommitHash(refPath string) (string, error) {
 	parentCommitHash, err := os.ReadFile(refPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -240,7 +240,7 @@ func OrchestrateCommitExecution(repoPath string, message string, author objects.
 		return "", err
 	}
 
-	parentHash, err := getParentCommitHash(refPath)
+	parentHash, err := getRefCommitHash(refPath)
 	if err != nil {
 		return "", err
 	}
