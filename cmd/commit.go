@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/KostasZigo/gogit/internal/commits"
 	"github.com/KostasZigo/gogit/internal/objects"
@@ -51,12 +50,8 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	}
 
 	// author should be resolved from git config
-	// use *dummy* author for now. Git config author resolution to be implemented later
-	author := objects.Author{
-		Name:      "Ash Ketchum",
-		Email:     "pickachu_pallet@gmail.com",
-		Timestamp: time.Now(),
-	}
+	// use *default* author for now. Git config author resolution to be implemented later
+	author := objects.DefaultAuthor()
 	commitHash, err := commits.OrchestrateCommitExecution(repoPath, messageFlag, author)
 	if err != nil {
 		return err

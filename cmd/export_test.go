@@ -98,3 +98,17 @@ func treeEntryNames(entries []objects.TreeEntry) []string {
 	}
 	return names
 }
+
+// commitWithSingleFile stages a random file and commits it with the
+// given message. Fails the test if either the add or commit command fails.
+func commitWithSingleFile(t *testing.T, repoPath, commitMessage string) {
+	stageRandomFile(t, repoPath)
+
+	command := createTestRootCmd(commitCmd)
+	captureStdout(command)
+
+	command.SetArgs([]string{constants.CommitCmdName, "-m", commitMessage})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("commit command failed: %v", err)
+	}
+}

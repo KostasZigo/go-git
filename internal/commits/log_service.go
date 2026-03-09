@@ -94,6 +94,9 @@ func OrchestrateLogExecution(repoPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if refHash == "" {
+		return "", fmt.Errorf("failed to read commit hash from [%s]", refPath)
+	}
 
 	store := objects.NewObjectStore(repoPath)
 	commitLogEntries, err := collectCommitHistory(store, refHash)

@@ -27,6 +27,17 @@ func (a Author) Time() time.Time {
 	return a.Timestamp
 }
 
+// DefaultAuthor returns a placeholder Author using the default name and
+// email from constants. Intended as a temporary solution until git config
+// based author resolution is implemented.
+func DefaultAuthor() Author {
+	return Author{
+		Name:      constants.DefaultAuthorName,
+		Email:     constants.DefaultAuthorEmail,
+		Timestamp: time.Now(),
+	}
+}
+
 // Commit represents a snapshot of the repository
 type Commit struct {
 	hash       string

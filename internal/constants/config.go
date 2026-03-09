@@ -9,6 +9,7 @@ const (
 	HashObjectCmdName = "hash-object"
 	AddCmdName        = "add"
 	CommitCmdName     = "commit"
+	LogCmdName        = "log"
 )
 
 // Repository directory and file names define the gogit metadata structure.
@@ -117,3 +118,7 @@ const IndexSignature = "DIRC"
 
 // Commit Date format
 const CommitDateFormat = "Mon Jan 2 15:04:05 2006 -0700"
+
+// Author default values
+const DefaultAuthorName = "Ash Ketchum"
+const DefaultAuthorEmail = "pikachu_pallet@pokemon.com"
