@@ -6,6 +6,7 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/utils"
 )
 
 // CommitLogEntry acts as a DTO holding the metadata of a single commit used for
@@ -71,10 +72,11 @@ func formatCommitHistory(commitLogEntries []CommitLogEntry) (string, error) {
 
 	var outputCommitHistory strings.Builder
 	for _, commit := range commitLogEntries {
-		outputCommitHistory.WriteString(fmt.Sprintf("%s %s Author: %s, Date: %s\n", commit.Hash,
+		outputCommitHistory.WriteString(utils.FormatCommitLogEntry(
+			commit.Hash,
 			commit.Message,
 			commit.Author.String(),
-			commit.Author.Time().Format(constants.CommitDateFormat)))
+			commit.Author.Time()))
 	}
 
 	return outputCommitHistory.String(), nil

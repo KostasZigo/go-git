@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
 )
@@ -76,4 +77,14 @@ func FindRepoRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// FormatCommitLogEntry renders a single commit log line with colored hash,
+// author, and date fields.
+func FormatCommitLogEntry(hash, message, author string, time time.Time) string {
+	return fmt.Sprintf("%s %s %s %s\n",
+		constants.HashColor(hash),
+		message,
+		constants.AuthorColor("Author: "+author),
+		constants.DateColor("Date: "+time.Format(constants.CommitDateFormat)))
 }

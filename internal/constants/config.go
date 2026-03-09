@@ -1,6 +1,10 @@
 package constants
 
-import "os"
+import (
+	"os"
+
+	"github.com/fatih/color"
+)
 
 // Command name constants used in tests and error messages.
 // Cobra Use fields remain inline for CLI discoverability.
@@ -122,3 +126,10 @@ const CommitDateFormat = "Mon Jan 2 15:04:05 2006 -0700"
 // Author default values
 const DefaultAuthorName = "Ash Ketchum"
 const DefaultAuthorEmail = "pikachu_pallet@pokemon.com"
+
+// Terminal output coloring
+var (
+	HashColor   = color.New(color.FgYellow).SprintFunc()
+	AuthorColor = color.New(color.FgGreen).SprintFunc()
+	DateColor   = color.New(color.FgCyan).SprintFunc()
+)

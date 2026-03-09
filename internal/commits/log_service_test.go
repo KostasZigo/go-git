@@ -1,7 +1,6 @@
 package commits
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +10,15 @@ import (
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/utils"
+	"github.com/fatih/color"
 )
+
+// TestMain disables colored output for all tests in this package to
+func TestMain(m *testing.M) {
+	color.NoColor = true
+	os.Exit(m.Run())
+}
 
 // TestCollectCommitHistory_SingleCommit creates a single commit in an
 // initialized repository and verifies that collectCommitHistory returns
@@ -173,10 +180,12 @@ func TestFormatCommitHistory_SingleCommit(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	expectedHistoryOutput := fmt.Sprintf("%s %s Author: %s, Date: %s\n", commit.Hash,
+	expectedHistoryOutput := utils.FormatCommitLogEntry(
+		commit.Hash,
 		commit.Message,
 		commit.Author.String(),
-		commit.Author.Time().Format(constants.CommitDateFormat))
+		commit.Author.Time(),
+	)
 
 	if historyOutput != expectedHistoryOutput {
 		t.Fatalf("Expected commit history output to be [%s], got [%s]", expectedHistoryOutput, historyOutput)
@@ -209,10 +218,12 @@ func TestFormatCommitHistory_ChainCommits(t *testing.T) {
 
 	var expectedHistoryOutput strings.Builder
 	for _, commit := range commitLogEntries {
-		expectedHistoryOutput.WriteString(fmt.Sprintf("%s %s Author: %s, Date: %s\n", commit.Hash,
+		expectedHistoryOutput.WriteString(utils.FormatCommitLogEntry(
+			commit.Hash,
 			commit.Message,
 			commit.Author.String(),
-			commit.Author.Time().Format(constants.CommitDateFormat)))
+			commit.Author.Time(),
+		))
 	}
 
 	if historyOutput != expectedHistoryOutput.String() {
@@ -288,10 +299,12 @@ func TestOrchestrateLogExecution(t *testing.T) {
 
 	var expectedHistoryOutput strings.Builder
 	for _, commit := range logEntries {
-		expectedHistoryOutput.WriteString(fmt.Sprintf("%s %s Author: %s, Date: %s\n", commit.Hash,
+		expectedHistoryOutput.WriteString(utils.FormatCommitLogEntry(
+			commit.Hash,
 			commit.Message,
 			commit.Author.String(),
-			commit.Author.Time().Format(constants.CommitDateFormat)))
+			commit.Author.Time(),
+		))
 	}
 
 	if historyOutput != expectedHistoryOutput.String() {

@@ -10,6 +10,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/utils"
 )
 
 // TestLog_SingleCommit_Sucess stages and commits a single file, then
@@ -40,10 +41,12 @@ func TestLog_SingleCommit_Sucess(t *testing.T) {
 	}
 
 	output := stdout.String()
-	expectedOutput := fmt.Sprintf("%s %s Author: %s, Date: %s\n", commitHash,
-		message,
+	expectedOutput := utils.FormatCommitLogEntry(
+		commit.Hash(),
+		commit.Message(),
 		commit.Author().String(),
-		commit.Author().Time().Format(constants.CommitDateFormat))
+		commit.Author().Time(),
+	)
 
 	if output != expectedOutput {
 		t.Fatalf("Expected commit history output to be [%s], got [%s]", expectedOutput, output)
@@ -70,10 +73,12 @@ func TestLog_CommitChain_Sucess(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to read commit object: %v", err)
 		}
-		commitLogEntries = append(commitLogEntries, fmt.Sprintf("%s %s Author: %s, Date: %s\n", commit.Hash(),
+		commitLogEntries = append(commitLogEntries, utils.FormatCommitLogEntry(
+			commit.Hash(),
 			commit.Message(),
 			commit.Author().String(),
-			commit.Author().Time().Format(constants.CommitDateFormat)))
+			commit.Author().Time(),
+		))
 	}
 
 	// Reverse commit order as they meant to appear from most recent to least recent
@@ -116,7 +121,7 @@ func TestLog_EmptyRepository_NoCommits(t *testing.T) {
 	expectedErrorMessage := fmt.Sprintf("failed to read commit hash from [%s]",
 		filepath.Join(repoPath, constants.Gogit, "refs", "heads", "main"))
 	if !strings.Contains(errorOutput, expectedErrorMessage) {
-		t.Fatal("Expected error output to contain [%s], got [%s]", expectedErrorMessage, errorOutput)
+		t.Fatalf("Expected error output to contain [%s], got [%s]", expectedErrorMessage, errorOutput)
 	}
 }
 
@@ -135,7 +140,7 @@ func TestLog_OutsideRepository(t *testing.T) {
 		t.Fatal("Expected log command to fail when executed outside a repository")
 	}
 
-	expectedErrorMessage := ".gogit directory not found"
+	expectedErrorMessage := constants.Gogit + " directory not found"
 	errorOutput := errOut.String()
 	if !strings.Contains(errorOutput, expectedErrorMessage) {
 		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, errorOutput)
