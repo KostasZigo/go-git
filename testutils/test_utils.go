@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
@@ -164,4 +165,16 @@ func AssertRepositoryStructure(t *testing.T, repoPath string) {
 	if string(content) != expectedContent {
 		t.Errorf("%s content = %q, want %q", constants.Head, content, expectedContent)
 	}
+}
+
+// readRefFile reads the default branch ref file and returns the trimmed commit hash.
+// Fails the test if the file cannot be read.
+func ReadDefaultRefFile(t *testing.T, repoPath string) string {
+	t.Helper()
+	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
+	content, err := os.ReadFile(refPath)
+	if err != nil {
+		t.Fatalf("Failed to read ref file: %v", err)
+	}
+	return strings.TrimSpace(string(content))
 }

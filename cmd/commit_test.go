@@ -38,7 +38,7 @@ func TestCommitCommand_FirstCommitWithStagedFiles(t *testing.T) {
 	}
 
 	// Extract commit hash from ref file
-	commitHash := readRefFile(t, repoPath)
+	commitHash := testutils.ReadDefaultRefFile(t, repoPath)
 	if len(commitHash) != constants.HashStringLength {
 		t.Fatalf("Expected %d-char hash in ref file, got [%d]: %s", constants.HashStringLength, len(commitHash), commitHash)
 	}
@@ -93,7 +93,7 @@ func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
 		t.Fatalf("commit command failed: %v", err)
 	}
 
-	firstHash := readRefFile(t, repoPath)
+	firstHash := testutils.ReadDefaultRefFile(t, repoPath)
 
 	// Commit modified file
 	stageFile(t, fileName, fileContent+"-v2", repoPath)
@@ -101,7 +101,7 @@ func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
 		t.Fatalf("commit command failed: %v", err)
 	}
 
-	secondHash := readRefFile(t, repoPath)
+	secondHash := testutils.ReadDefaultRefFile(t, repoPath)
 	if firstHash == secondHash {
 		t.Fatal("First and second commit hashes must differ")
 	}
@@ -236,7 +236,7 @@ func TestCommitCommand_DeeplyNestedDirectoryStructure(t *testing.T) {
 	}
 
 	// Read commit and walk tree chain
-	commitHash := readRefFile(t, repoPath)
+	commitHash := testutils.ReadDefaultRefFile(t, repoPath)
 	store := objects.NewObjectStore(repoPath)
 
 	commit, err := store.ReadCommit(commitHash)
@@ -319,11 +319,11 @@ func TestCommitCommand_ThreeSequentialCommits_ParentChain(t *testing.T) {
 			t.Fatalf("commit [%s] failed: %v", msg, err)
 		}
 
-		hashes[i] = readRefFile(t, repoPath)
+		hashes[i] = testutils.ReadDefaultRefFile(t, repoPath)
 	}
 
 	// Ref file must point to the latest commit
-	latestCommitHash := readRefFile(t, repoPath)
+	latestCommitHash := testutils.ReadDefaultRefFile(t, repoPath)
 	if hashes[2] != latestCommitHash {
 		t.Fatalf("Ref file expected to point to commit [%s], got [%s]", hashes[2], latestCommitHash)
 	}

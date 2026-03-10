@@ -3,8 +3,6 @@ package cmd
 import (
 	"bytes"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
@@ -76,18 +74,6 @@ func stageFile(t *testing.T, fileName, fileContent, filePath string) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("add command failed: %v", err)
 	}
-}
-
-// readRefFile reads the default branch ref file and returns the trimmed commit hash.
-// Fails the test if the file cannot be read.
-func readRefFile(t *testing.T, repoPath string) string {
-	t.Helper()
-	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
-	content, err := os.ReadFile(refPath)
-	if err != nil {
-		t.Fatalf("Failed to read ref file: %v", err)
-	}
-	return strings.TrimSpace(string(content))
 }
 
 // treeEntryNames extracts names from a slice of tree entries for use in error messages.

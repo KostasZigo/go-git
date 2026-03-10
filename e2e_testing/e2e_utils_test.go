@@ -17,6 +17,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/testutils"
 	"github.com/KostasZigo/gogit/utils"
+	"github.com/fatih/color"
 )
 
 // sharedBinaryPath stores compiled gogit binary path built once in TestMain.
@@ -53,6 +54,7 @@ func TestMain(m *testing.M) {
 		panic("Failed to build binary: " + err.Error())
 	}
 
+	color.NoColor = true
 	os.Exit(m.Run())
 }
 
@@ -298,10 +300,10 @@ func extractObjectBody(t *testing.T, data []byte) string {
 	return string(data[nullIndex+1:])
 }
 
-// extractFieldFromCommitBody scans the commit body for a line starting with
+// extractFieldFromObjectBody scans the commit body for a line starting with
 // "<field> " and returns the value after the space.
 // Returns empty string if the field is not found.
-func extractFieldFromCommitBody(t *testing.T, body, field string) string {
+func extractFieldFromObjectBody(t *testing.T, body, field string) string {
 	t.Helper()
 
 	prefix := field + " "
@@ -336,4 +338,43 @@ func assertCommitObjectContent(t *testing.T, decompressedData []byte, expectedMe
 	if !strings.Contains(body, expectedMessage) {
 		t.Fatalf("Commit object missing message %q.\nCommit body:\n%s", expectedMessage, body)
 	}
+}
+
+// commitWithSingleFile creates a random file, stages it via the add binary
+// command, and commits it with a random message via the commit binary command.
+// Fails the test if any step produces an error.
+func commitWithSingleFile(t *testing.T, repoPath string) {
+	t.Helper()
+
+	// Create and stage a file
+	testFileName := testutils.RandomString(10)
+	testFileContent := []byte(testutils.RandomString(100))
+	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
+
+	addCmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	addCmd.Dir = repoPath
+	if output, err := addCmd.CombinedOutput(); err != nil {
+		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
+	}
+
+	// Execute commit
+	commitMessage := testutils.RandomString(10)
+	commitCmd := exec.Command(sharedBinaryPath, constants.CommitCmdName, "-m", commitMessage)
+	commitCmd.Dir = repoPath
+	output, err := commitCmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("commit command failed: %v\nOutput: %s", err, output)
+	}
+}
+
+// retrieveCommitDataFromDefault reads the commit hash from the default branch
+// ref file, locates the raw commit object on disk, decompresses it, and returns
+// both the hash and the full decompressed bytes including the object header.
+func retrieveCommitDataFromDefault(t *testing.T, repoPath string) (string, []byte) {
+	t.Helper()
+
+	commitHash := testutils.ReadDefaultRefFile(t, repoPath)
+	commitObjectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, commitHash[:constants.HashDirPrefixLength], commitHash[constants.HashDirPrefixLength:])
+	return commitHash, decompressObject(t, commitObjectPath)
 }

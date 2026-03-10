@@ -24,7 +24,7 @@ func TestLog_SingleCommit_Sucess(t *testing.T) {
 	message := testutils.RandomString(100)
 	commitWithSingleFile(t, repoPath, message)
 
-	commitHash := readRefFile(t, repoPath)
+	commitHash := testutils.ReadDefaultRefFile(t, repoPath)
 
 	store := objects.NewObjectStore(repoPath)
 	commit, err := store.ReadCommit(commitHash)
@@ -68,7 +68,7 @@ func TestLog_CommitChain_Sucess(t *testing.T) {
 		message := testutils.RandomString(100)
 		commitWithSingleFile(t, repoPath, message)
 
-		commitHash := readRefFile(t, repoPath)
+		commitHash := testutils.ReadDefaultRefFile(t, repoPath)
 		commit, err := store.ReadCommit(commitHash)
 		if err != nil {
 			t.Fatalf("Failed to read commit object: %v", err)

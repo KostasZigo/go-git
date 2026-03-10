@@ -80,7 +80,7 @@ func TestE2E_CommitCommand_FirstCommit(t *testing.T) {
 
 	// Verify tree object exists and has correct type header
 	commitBody := extractObjectBody(t, commitData)
-	treeHash := extractFieldFromCommitBody(t, commitBody, "tree")
+	treeHash := extractFieldFromObjectBody(t, commitBody, "tree")
 	if len(treeHash) != constants.HashStringLength {
 		t.Fatalf("Expected %d-char tree hash, got %d: %q", constants.HashStringLength, len(treeHash), treeHash)
 	}
@@ -188,8 +188,8 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 	}
 
 	// Extract tree hashes from both commits and verify they differ
-	firstTreeHash := extractFieldFromCommitBody(t, firstCommitBody, "tree")
-	secondTreeHash := extractFieldFromCommitBody(t, secondCommitBody, "tree")
+	firstTreeHash := extractFieldFromObjectBody(t, firstCommitBody, "tree")
+	secondTreeHash := extractFieldFromObjectBody(t, secondCommitBody, "tree")
 
 	if firstTreeHash == secondTreeHash {
 		t.Fatal("Tree hashes must differ between commits with different file content")
