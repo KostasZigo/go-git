@@ -1,16 +1,14 @@
 package e2etesting
 
 import (
-	"errors"
+	"bytes"
 	"fmt"
-	"io/fs"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/testutils"
 	"github.com/KostasZigo/gogit/utils"
 )
@@ -55,8 +53,8 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	}
 
 	// Verify object was NOT created (no -w flag)
-	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, outputHash[:constants.HashDirPrefixLength], outputHash[constants.HashDirPrefixLength:])
-	if _, err := os.Stat(objectPath); !errors.Is(err, fs.ErrNotExist) {
+	store := objects.NewObjectStore(repoPath)
+	if store.Exists(outputHash) {
 		t.Error("Object should not be created without -w flag")
 	}
 }
@@ -93,22 +91,16 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 		t.Fatalf("Expected printed has to be [%s] but got [%s]", expectedHash, printedHash)
 	}
 
-	// Verify object file was created at correct path
-	objectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, expectedHash[:constants.HashDirPrefixLength], expectedHash[constants.HashDirPrefixLength:])
-	testutils.AssertFileExists(t, objectPath)
-
-	// Verify object file is not empty (compressed data)
-	info, err := os.Stat(objectPath)
+	// Verify blob object is stored and content matches
+	store := objects.NewObjectStore(repoPath)
+	blob, err := store.ReadBlob(expectedHash)
 	if err != nil {
-		t.Fatalf("Failed to stat object file: %v", err)
-	}
-	if info.Size() == 0 {
-		t.Error("Object file should not be empty")
+		t.Fatalf("Failed to read blob object [%s]: %v", expectedHash, err)
 	}
 
-	//Verify File content
-	decompressedContent := decompressObject(t, objectPath)
-	assertBlobContent(t, decompressedContent, testFileContent)
+	if !bytes.Equal(blob.Content(), testFileContent) {
+		t.Fatalf("Blob content mismatch: expected [%s], got [%s]", testFileContent, blob.Content())
+	}
 }
 
 // TestE2E_HashObjectCommand_InvalidArgs verifies error for missing arguments.

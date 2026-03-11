@@ -1,7 +1,6 @@
 package e2etesting
 
 import (
-	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/testutils"
 	"github.com/KostasZigo/gogit/utils"
 )
@@ -71,26 +71,25 @@ func TestE2E_CommitCommand_FirstCommit(t *testing.T) {
 		t.Fatalf("Expected output to contain short hash %q, got: %s", shortHash, outputStr)
 	}
 
-	// Verify commit object exists
-	commitObjectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, commitHash[:constants.HashDirPrefixLength], commitHash[constants.HashDirPrefixLength:])
-	testutils.AssertFileExists(t, commitObjectPath)
+	// Verify commit object is readable and contains expected message
+	commit := readCommitByHash(t, repoPath, commitHash)
+	if commit.Message() != commitMessage {
+		t.Fatalf("Expected commit message to be [%s], got [%s]", commitMessage, commit.Message())
+	}
 
-	commitData := decompressObject(t, commitObjectPath)
-	assertCommitObjectContent(t, commitData, commitMessage)
+	// Verify commit is an initial commit (no parent)
+	if !commit.IsInitialCommit() {
+		t.Fatalf("Expected initial commit (with no parent), got parent [%s]", commit.ParentHash())
+	}
 
-	// Verify tree object exists and has correct type header
-	commitBody := extractObjectBody(t, commitData)
-	treeHash := extractFieldFromObjectBody(t, commitBody, "tree")
+	// Verify tree object is readable
+	store := objects.NewObjectStore(repoPath)
+	treeHash := commit.TreeHash()
 	if len(treeHash) != constants.HashStringLength {
 		t.Fatalf("Expected %d-char tree hash, got %d: %q", constants.HashStringLength, len(treeHash), treeHash)
 	}
-
-	treeObjectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, treeHash[:constants.HashDirPrefixLength], treeHash[constants.HashDirPrefixLength:])
-	testutils.AssertFileExists(t, treeObjectPath)
-
-	treeData := decompressObject(t, treeObjectPath)
-	if !bytes.HasPrefix(treeData, []byte("tree ")) {
-		t.Fatalf("Tree object has wrong type header: %q", string(treeData[:20]))
+	if _, err := store.ReadTree(treeHash); err != nil {
+		t.Fatalf("Failed to read tree object [%s]: %v", treeHash, err)
 	}
 
 	// Verify blob object for the staged file exists
@@ -98,8 +97,9 @@ func TestE2E_CommitCommand_FirstCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to compute expected blob hash: %v", err)
 	}
-	blobObjectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, expectedBlobHash[:constants.HashDirPrefixLength], expectedBlobHash[constants.HashDirPrefixLength:])
-	testutils.AssertFileExists(t, blobObjectPath)
+	if !store.Exists(expectedBlobHash) {
+		t.Fatalf("Blob object [%s] not found in object store", expectedBlobHash)
+	}
 }
 
 // TestE2E_CommitCommand_FullWorkflow verifies the multi-commit workflow:
@@ -165,50 +165,33 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 		t.Fatal("First and second commit hashes must differ")
 	}
 
-	// Both commit objects must exist
-	firstObjectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, firstHash[:constants.HashDirPrefixLength], firstHash[constants.HashDirPrefixLength:])
-	secondObjectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, secondHash[:constants.HashDirPrefixLength], secondHash[constants.HashDirPrefixLength:])
-	testutils.AssertFileExists(t, firstObjectPath)
-	testutils.AssertFileExists(t, secondObjectPath)
-
-	// Verify second commit references first as parent
-	secondCommitData := decompressObject(t, secondObjectPath)
-	secondCommitBody := extractObjectBody(t, secondCommitData)
-
-	if !strings.Contains(secondCommitBody, "parent "+firstHash) {
-		t.Fatalf("Second commit missing parent reference to first commit.\nExpected parent: %s\nCommit body:\n%s", firstHash, secondCommitBody)
-	}
+	// Read both commits via ObjectStore
+	firstCommit := readCommitByHash(t, repoPath, firstHash)
+	secondCommit := readCommitByHash(t, repoPath, secondHash)
 
 	// Verify first commit has no parent
-	firstCommitData := decompressObject(t, firstObjectPath)
-	firstCommitBody := extractObjectBody(t, firstCommitData)
-
-	if strings.Contains(firstCommitBody, "parent ") {
-		t.Fatalf("First commit should have no parent.\nCommit body:\n%s", firstCommitBody)
+	if !firstCommit.IsInitialCommit() {
+		t.Fatalf("First commit should have no parent, got parent [%s]", firstCommit.ParentHash())
 	}
 
-	// Extract tree hashes from both commits and verify they differ
-	firstTreeHash := extractFieldFromObjectBody(t, firstCommitBody, "tree")
-	secondTreeHash := extractFieldFromObjectBody(t, secondCommitBody, "tree")
+	// Verify second commit references first as parent
+	if secondCommit.ParentHash() != firstHash {
+		t.Fatalf("Second commit parent mismatch: expected [%s], got [%s]", firstHash, secondCommit.ParentHash())
+	}
 
+	// Verify tree hashes differ between commits with different file content
+	firstTreeHash := firstCommit.TreeHash()
+	secondTreeHash := secondCommit.TreeHash()
 	if firstTreeHash == secondTreeHash {
 		t.Fatal("Tree hashes must differ between commits with different file content")
 	}
 
-	// Verify both tree objects exist and have correct type header
+	// Verify both tree objects are readable
+	store := objects.NewObjectStore(repoPath)
 	for _, treeHash := range []string{firstTreeHash, secondTreeHash} {
-		treeObjectPath := filepath.Join(repoPath, constants.Gogit, constants.Objects, treeHash[:constants.HashDirPrefixLength], treeHash[constants.HashDirPrefixLength:])
-		testutils.AssertFileExists(t, treeObjectPath)
-
-		treeData := decompressObject(t, treeObjectPath)
-		if !bytes.HasPrefix(treeData, []byte("tree ")) {
-			t.Fatalf("Object %s is not a tree: %q", treeHash[:7], string(treeData[:20]))
+		if _, err := store.ReadTree(treeHash); err != nil {
+			t.Fatalf("Failed to read tree object [%s]: %v", treeHash, err)
 		}
-	}
-
-	// Verify ref file points to second commit
-	if secondHash != strings.TrimSpace(string(secondHashBytes)) {
-		t.Fatalf("Ref file should point to second commit %s", secondHash)
 	}
 }
 
