@@ -107,23 +107,23 @@ func collectAllRepoFiles(repoPath string) ([]string, error) {
 	var filePaths []string
 	goGitDir := filepath.Join(repoPath, constants.Gogit)
 
-	err := filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(repoPath, func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("failed to access path %s: %w", path, err)
 		}
 
 		// Skip .gogit directory entirely
-		if d.IsDir() && path == goGitDir {
+		if dirEntry.IsDir() && path == goGitDir {
 			return filepath.SkipDir
 		}
 
 		// Skip hidden directories (starting with .)
-		if d.IsDir() && filepath.Base(path)[0] == '.' && path != repoPath {
+		if dirEntry.IsDir() && filepath.Base(path)[0] == '.' && path != repoPath {
 			return filepath.SkipDir
 		}
 
 		// Collect regular files only
-		if d.Type().IsRegular() {
+		if dirEntry.Type().IsRegular() {
 			relPath, err := filepath.Rel(repoPath, path)
 			if err != nil {
 				return fmt.Errorf("failed to compute relative path for %s: %w", path, err)
@@ -178,6 +178,12 @@ func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, st
 		return fmt.Errorf("failed to create blob from file %s: %w", absolutePath, err)
 	}
 
+	// Skip unchanged files: if an index entry already exists with the same
+	// content hash, the file has not been modified.
+	if existing := idx.GetEntry(relativeFilePath); existing != nil && existing.Hash() == blob.Hash() {
+		return nil
+	}
+
 	// Store Blob in objects/
 	if err := store.Store(blob); err != nil {
 		return fmt.Errorf("failed to strore file blob: %w", err)
@@ -203,8 +209,6 @@ func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, st
 		return fmt.Errorf("failed to add [%s] entry to index: %w", absolutePath, err)
 	}
 
-	// TODO:  remove this print because it happens even when there are no real changes
-	// Alternatively only print the files that changed
 	cmd.Printf("add '%s'\n", relativeFilePath)
 	return nil
 }

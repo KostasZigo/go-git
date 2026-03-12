@@ -32,6 +32,12 @@ func (index *Index) AddEntry(entry *IndexEntry) error {
 	return nil
 }
 
+// GetEntry returns the index entry for the given path, or nil if no entry
+// exists.
+func (index *Index) GetEntry(path string) *IndexEntry {
+	return index.entries[path]
+}
+
 // RemoveEntry deletes an entry from the index based on its path
 func (index *Index) RemoveEntry(path string) {
 	delete(index.entries, path)

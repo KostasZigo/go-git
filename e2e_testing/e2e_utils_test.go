@@ -82,8 +82,7 @@ func initializeRepository(t *testing.T, repoPath string) {
 
 // assertAddCommandOutputAndObjectCreation verifies add command output and blob
 // object creation and content. Checks stdout contains the expected add message,
-// reads the blob from the ObjectStore by its computed hash, and compares the
-// stored content against the original file content.
+// reads the blob by its computed hash, and compares the stored content.
 func assertAddCommandOutputAndObjectCreation(t *testing.T, testFileName string, output []byte, testFileContent []byte, repoPath string) {
 	t.Helper()
 
@@ -91,6 +90,15 @@ func assertAddCommandOutputAndObjectCreation(t *testing.T, testFileName string, 
 	if !strings.Contains(string(output), expectedOutput) {
 		t.Errorf("Expected output to contain %q, got: %s", expectedOutput, string(output))
 	}
+
+	assertAddCommandObjectCreation(t, testFileName, testFileContent, repoPath)
+}
+
+// assertAddCommandObjectCreation verifies add command blob object creation and content.
+// Checks stdout contains the expected add message,
+// reads the blob by its computed hash, and compares the stored content.
+func assertAddCommandObjectCreation(t *testing.T, testFileName string, testFileContent []byte, repoPath string) {
+	t.Helper()
 
 	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
 	if err != nil {

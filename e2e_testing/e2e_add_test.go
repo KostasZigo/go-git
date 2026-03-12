@@ -302,12 +302,12 @@ func TestE2E_AddCommand_IdempotentAdd(t *testing.T) {
 
 	cmd2 := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
 	cmd2.Dir = repoPath
-	output, err := cmd2.CombinedOutput()
+	_, err := cmd2.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Second add failed: %v", err)
 	}
 
-	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContent, repoPath)
+	assertAddCommandObjectCreation(t, testFileName, testFileContent, repoPath)
 
 	expectedFiles := map[string][]byte{
 		testFileName: testFileContent,
