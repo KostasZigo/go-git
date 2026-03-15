@@ -1,0 +1,77 @@
+package commits
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/utils"
+)
+
+type ResolvedTarget struct {
+	IsBranch bool
+	Hash     string
+}
+
+func ResolveTarget(repoPath, target string) (resolvedTarget *ResolvedTarget, err error) {
+	if target == "" {
+		return nil, fmt.Errorf("checkout target cannot be empty")
+	}
+
+	resolvedTarget, err = searchForTargetInRefs(repoPath, target)
+	if err != nil {
+		return nil, fmt.Errorf("failed search for checkout target [%s] in refs: %w", target, err)
+	}
+	if resolvedTarget != nil {
+		return resolvedTarget, nil
+	}
+
+	resolvedTarget, err = searchForTargetInCommitObjects(repoPath, target)
+	if err != nil {
+		return nil, fmt.Errorf("failed search for checkout target [%s] in commit objects: %w", target, err)
+	}
+	if resolvedTarget == nil {
+		return nil, fmt.Errorf("checkout target [%s] not found as branch or commit", target)
+	}
+	return resolvedTarget, nil
+}
+
+func searchForTargetInRefs(repoPath, target string) (*ResolvedTarget, error) {
+	branchPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, target)
+	content, err := os.ReadFile(branchPath)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read branch file: %w", err)
+	}
+
+	hash := strings.TrimSpace(string(content))
+	return &ResolvedTarget{
+		IsBranch: true,
+		Hash:     hash,
+	}, nil
+}
+
+func searchForTargetInCommitObjects(repoPath, target string) (*ResolvedTarget, error) {
+	if !utils.IsValidSHA1Hash(target) {
+		return nil, nil
+	}
+
+	store := objects.NewObjectStore(repoPath)
+	if !store.Exists(target) {
+		return nil, nil
+	}
+
+	commit, err := store.ReadCommit(target)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read commit for checkout target [%s]: %w", target, err)
+	}
+	return &ResolvedTarget{
+		IsBranch: false,
+		Hash:     commit.Hash(),
+	}, nil
+}

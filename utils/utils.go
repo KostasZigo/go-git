@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,6 +49,16 @@ func MustComputeHash(content []byte, objectType ObjectType) string {
 		panic(err)
 	}
 	return hash
+}
+
+// IsValidSHA1Hash checks whether the given string is a well-formed SHA-1 hash:
+// exactly 40 characters of valid hexadecimal (0-9, a-f, A-F).
+func IsValidSHA1Hash(hash string) bool {
+	if len(hash) != constants.HashStringLength {
+		return false
+	}
+	_, err := hex.DecodeString(hash)
+	return err == nil
 }
 
 // BuildDirPath constructs os-agnostic display direcotry path with trailing separator preserving all components.
