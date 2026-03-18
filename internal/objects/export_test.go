@@ -35,57 +35,6 @@ func assertBlobContent(t *testing.T, blob *Blob, expectedContent []byte) {
 	}
 }
 
-// createTreeEntry creates tree entry and fails test on error.
-func createTreeEntry(t *testing.T, mode FileMode, name, hash string) TreeEntry {
-	t.Helper()
-
-	entry, err := NewTreeEntry(mode, name, hash)
-	if err != nil {
-		t.Fatalf("Failed to create tree entry: %v", err)
-	}
-
-	return *entry
-}
-
-// createTree creates tree from entries and fails test on error.
-func createTree(t *testing.T, entries []TreeEntry) *Tree {
-	t.Helper()
-
-	tree, err := NewTree(entries)
-	if err != nil {
-		t.Fatalf("Failed to create tree: %v", err)
-	}
-
-	return tree
-}
-
-// createAndStoreTree creates tree from entries, stores it, and returns tree.
-func createAndStoreTree(t *testing.T, store *ObjectStore, entries []TreeEntry) *Tree {
-	t.Helper()
-
-	tree := createTree(t, entries)
-	if err := store.Store(tree); err != nil {
-		t.Fatalf("Failed to store tree: %v", err)
-	}
-
-	return tree
-}
-
-// assertTreeEntryEqual verifies two tree entries match.
-func assertTreeEntryEqual(t *testing.T, actual, expected TreeEntry) {
-	t.Helper()
-
-	if actual.Name() != expected.Name() {
-		t.Errorf("Entry name mismatch: expected %s, got %s", expected.Name(), actual.Name())
-	}
-	if actual.Hash() != expected.Hash() {
-		t.Errorf("Entry hash mismatch: expected %s, got %s", expected.Hash(), actual.Hash())
-	}
-	if actual.Mode() != expected.Mode() {
-		t.Errorf("Entry mode mismatch: expected %s, got %s", expected.Mode(), actual.Mode())
-	}
-}
-
 // createTestAuthor returns test author with UTC timezone.
 func createTestAuthor(name, email string) Author {
 	return Author{

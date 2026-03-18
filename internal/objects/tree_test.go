@@ -1,9 +1,11 @@
-package objects
+package objects_test
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/internal/objects/objectstestutils"
 	"github.com/KostasZigo/gogit/testutils"
 )
 
@@ -13,14 +15,14 @@ import (
 func TestNewTreeEntry(t *testing.T) {
 	entryName := "test.txt"
 	hash := testutils.RandomHash()
-	entry, err := NewTreeEntry(ModeRegularFile, entryName, hash)
+	entry, err := objects.NewTreeEntry(objects.ModeRegularFile, entryName, hash)
 
 	if err != nil {
 		t.Fatal("Expected New Tree Entry to be created")
 	}
 
-	if entry.Mode() != ModeRegularFile {
-		t.Errorf("Expected mode [%s], got [%s]", ModeRegularFile, entry.Mode())
+	if entry.Mode() != objects.ModeRegularFile {
+		t.Errorf("Expected mode [%s], got [%s]", objects.ModeRegularFile, entry.Mode())
 	}
 
 	if entry.Name() != entryName {
@@ -34,8 +36,8 @@ func TestNewTreeEntry(t *testing.T) {
 
 // TestTreeEntry_IsDirectory verifies directory vs file mode detection.
 func TestTreeEntry_IsDirectory(t *testing.T) {
-	dirEntry := createTreeEntry(t, ModeDirectory, "src", testutils.RandomHash())
-	fileEntry := createTreeEntry(t, ModeRegularFile, "main.go", testutils.RandomHash())
+	dirEntry := objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, "src", testutils.RandomHash())
+	fileEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "main.go", testutils.RandomHash())
 
 	if !dirEntry.IsDirectory() {
 		t.Fatal("Expected directory entry to be identified as directory")
@@ -50,7 +52,7 @@ func TestTreeEntry_IsDirectory(t *testing.T) {
 
 // TestNewTree_EmptyTree verifies empty tree creation and hash computation.
 func TestNewTree_EmptyTree(t *testing.T) {
-	_, err := NewTree([]TreeEntry{})
+	_, err := objects.NewTree([]objects.TreeEntry{})
 	if err == nil {
 		t.Fatalf("Expected to fail when creating empty tree: %v", err)
 	}
@@ -64,11 +66,11 @@ func TestNewTree_EmptyTree(t *testing.T) {
 // TestNewTree_SingleEntry verifies tree with single file entry.
 func TestNewTree_SingleEntry(t *testing.T) {
 	// Create a blob first
-	blob := NewBlob([]byte("test content\n"))
-	entry := createTreeEntry(t, ModeRegularFile, "test.txt", blob.Hash())
+	blob := objects.NewBlob([]byte("test content\n"))
+	entry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "test.txt", blob.Hash())
 
-	entries := []TreeEntry{entry}
-	tree := createTree(t, entries)
+	entries := []objects.TreeEntry{entry}
+	tree := objectstestutils.CreateTree(t, entries)
 
 	if tree.Hash() == "" {
 		t.Error("Tree hash should not be empty")
@@ -81,15 +83,15 @@ func TestNewTree_SingleEntry(t *testing.T) {
 
 // TestNewTree_MultipleEntries verifies tree with multiple file entries.
 func TestNewTree_MultipleEntries(t *testing.T) {
-	blob1 := NewBlob([]byte("content1\n"))
-	blob2 := NewBlob([]byte("content2\n"))
+	blob1 := objects.NewBlob([]byte("content1\n"))
+	blob2 := objects.NewBlob([]byte("content2\n"))
 
-	entries := []TreeEntry{
-		createTreeEntry(t, ModeRegularFile, "file1.txt", blob1.Hash()),
-		createTreeEntry(t, ModeRegularFile, "file2.txt", blob2.Hash()),
+	entries := []objects.TreeEntry{
+		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "file1.txt", blob1.Hash()),
+		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "file2.txt", blob2.Hash()),
 	}
 
-	tree := createTree(t, entries)
+	tree := objectstestutils.CreateTree(t, entries)
 
 	if len(tree.Entries()) != len(entries) {
 		t.Errorf("Expected %d entries, got %d", len(entries), len(tree.Entries()))
@@ -98,13 +100,13 @@ func TestNewTree_MultipleEntries(t *testing.T) {
 
 func TestNewTree_SortsEntries(t *testing.T) {
 	// Add entries in wrong order
-	entries := []TreeEntry{
-		createTreeEntry(t, ModeRegularFile, "z.txt", testutils.RandomHash()),
-		createTreeEntry(t, ModeRegularFile, "a.txt", testutils.RandomHash()),
-		createTreeEntry(t, ModeRegularFile, "m.txt", testutils.RandomHash()),
+	entries := []objects.TreeEntry{
+		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "z.txt", testutils.RandomHash()),
+		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "a.txt", testutils.RandomHash()),
+		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "m.txt", testutils.RandomHash()),
 	}
 
-	tree := createTree(t, entries)
+	tree := objectstestutils.CreateTree(t, entries)
 
 	sortedEntries := tree.Entries()
 	expectedOrder := []string{"a.txt", "m.txt", "z.txt"}
@@ -120,20 +122,20 @@ func TestNewTree_SortsEntries(t *testing.T) {
 // TestTree_NestedStructure verifies tree with nested directory structure.
 func TestTree_NestedStructure(t *testing.T) {
 	// Create blobs for files
-	mainBlob := NewBlob([]byte("package main\n"))
-	readmeBlob := NewBlob([]byte("# Project\n"))
+	mainBlob := objects.NewBlob([]byte("package main\n"))
+	readmeBlob := objects.NewBlob([]byte("# Project\n"))
 
 	// Create subtree for src/ directory
-	srcTree := createTree(t, []TreeEntry{
-		createTreeEntry(t, ModeRegularFile, "main.go", mainBlob.Hash()),
+	srcTree := objectstestutils.CreateTree(t, []objects.TreeEntry{
+		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "main.go", mainBlob.Hash()),
 	})
 
 	// Create root tree
-	rootEntries := []TreeEntry{
-		createTreeEntry(t, ModeRegularFile, "README.md", readmeBlob.Hash()),
-		createTreeEntry(t, ModeDirectory, "src", srcTree.Hash()),
+	rootEntries := []objects.TreeEntry{
+		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "README.md", readmeBlob.Hash()),
+		objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, "src", srcTree.Hash()),
 	}
-	rootTree := createTree(t, rootEntries)
+	rootTree := objectstestutils.CreateTree(t, rootEntries)
 
 	// Verify structure
 	if len(rootTree.Entries()) != len(rootEntries) {

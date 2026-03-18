@@ -11,11 +11,18 @@ import (
 	"github.com/KostasZigo/gogit/utils"
 )
 
+// ResolvedTarget holds the result of resolving a checkout target string.
+// IsBranch indicates whether the target was resolved via a branch ref file or direct commit.
+// Hash contains the commit hash the target points to.
 type ResolvedTarget struct {
 	IsBranch bool
 	Hash     string
 }
 
+// ResolveTarget resolves a checkout target string to a commit hash.
+// Resolution order follows convention: branch refs are checked first,
+// then the object store for direct commit hashes.
+// Returns an error if the target is empty, not found, or unreadable.
 func ResolveTarget(repoPath, target string) (resolvedTarget *ResolvedTarget, err error) {
 	if target == "" {
 		return nil, fmt.Errorf("checkout target cannot be empty")
@@ -39,6 +46,9 @@ func ResolveTarget(repoPath, target string) (resolvedTarget *ResolvedTarget, err
 	return resolvedTarget, nil
 }
 
+// searchForTargetInRefs checks if target matches a branch name under refs/heads/.
+// Returns nil, nil if no matching branch exists (not an error).
+// Returns an error only for filesystem failures.
 func searchForTargetInRefs(repoPath, target string) (*ResolvedTarget, error) {
 	branchPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, target)
 	content, err := os.ReadFile(branchPath)
@@ -56,6 +66,10 @@ func searchForTargetInRefs(repoPath, target string) (*ResolvedTarget, error) {
 	}, nil
 }
 
+// searchForTargetInCommitObjects checks if target is a valid SHA-1 hash
+// pointing to an existing commit object in the store.
+// Returns nil, nil if the target is not a valid hash or the object does not exist.
+// Returns an error only if the object exists but cannot be read as a commit.
 func searchForTargetInCommitObjects(repoPath, target string) (*ResolvedTarget, error) {
 	if !utils.IsValidSHA1Hash(target) {
 		return nil, nil

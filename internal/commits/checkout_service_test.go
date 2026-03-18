@@ -8,9 +8,12 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/internal/objects/objectstestutils"
 	"github.com/KostasZigo/gogit/testutils"
 )
 
+// TestCheckout_ResolveTarget_Branch verifies resolution of a valid branch name
+// to the commit hash stored in its ref file.
 func TestCheckout_ResolveTarget_Branch(t *testing.T) {
 	target := testutils.RandomString(10)
 	branchRefContent := []byte(testutils.RandomHash() + "\n")
@@ -39,6 +42,8 @@ func TestCheckout_ResolveTarget_Branch(t *testing.T) {
 	}
 }
 
+// TestCheckout_ResolveTarget_CommitHash verifies resolution of a valid commit hash
+// directly from the object store when no matching branch exists.
 func TestCheckout_ResolveTarget_CommitHash(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 
@@ -75,6 +80,8 @@ func TestCheckout_ResolveTarget_CommitHash(t *testing.T) {
 	}
 }
 
+// TestCheckout_ResolveTarget_BranchNonExist_TargetNoSHA1 verifies error when target
+// is not a valid SHA-1 hash and does not match any branch name.
 func TestCheckout_ResolveTarget_BranchNonExist_TargetNoSHA1(t *testing.T) {
 	target := testutils.RandomString(10)
 	repoPath := testutils.SetupTestRepoWithInit(t)
@@ -90,6 +97,8 @@ func TestCheckout_ResolveTarget_BranchNonExist_TargetNoSHA1(t *testing.T) {
 	}
 }
 
+// TestCheckout_ResolveTarget_BranchNonExist_CommitNonExist verifies error when target
+// is a valid SHA-1 format but matches neither a branch nor a stored commit.
 func TestCheckout_ResolveTarget_BranchNonExist_CommitNonExist(t *testing.T) {
 	target := testutils.RandomHash()
 	repoPath := testutils.SetupTestRepoWithInit(t)
@@ -105,6 +114,7 @@ func TestCheckout_ResolveTarget_BranchNonExist_CommitNonExist(t *testing.T) {
 	}
 }
 
+// TestCheckout_ResolveTarget_EmptyString verifies error when target is an empty string.
 func TestCheckout_ResolveTarget_EmptyString(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	_, err := ResolveTarget(repoPath, "")
@@ -118,6 +128,8 @@ func TestCheckout_ResolveTarget_EmptyString(t *testing.T) {
 	}
 }
 
+// TestCheckout_ResolveTarget_BranchTakesPriorityOverCommitHash verifies that branch
+// resolution takes priority over commit hash lookup when the target matches both.
 func TestCheckout_ResolveTarget_BranchTakesPriorityOverCommitHash(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 
@@ -151,4 +163,18 @@ func TestCheckout_ResolveTarget_BranchTakesPriorityOverCommitHash(t *testing.T) 
 	if resolvedTarget.Hash != branchCommitHash {
 		t.Fatalf("Expected commit hash to be [%s], got [%s]", branchCommitHash, resolvedTarget.Hash)
 	}
+}
+
+func TestCheckout_RestoreTree_SingleRootFile(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+
+	store := objects.NewObjectStore(repoPath)
+
+	// Create a blob
+	blob := objects.NewBlob([]byte(testutils.RandomString(100)))
+	if err := store.Store(blob); err != nil {
+		t.Fatalf("Failed to store blob: %v", err)
+	}
+
+	objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), blob.Hash())
 }
