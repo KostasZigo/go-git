@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/testutils"
 )
 
 // createTreeEntry creates tree entry and fails test on error.
@@ -55,4 +56,38 @@ func AssertTreeEntryEqual(t *testing.T, actual, expected objects.TreeEntry) {
 	if actual.Mode() != expected.Mode() {
 		t.Errorf("Entry mode mismatch: expected %s, got %s", expected.Mode(), actual.Mode())
 	}
+}
+
+// CreateAndStoreBlob creates a blob from content, stores it in the object store,
+// and returns the blob. Fails the test on error.
+func CreateAndStoreBlob(t *testing.T, store *objects.ObjectStore, content []byte) *objects.Blob {
+	t.Helper()
+
+	blob := objects.NewBlob(content)
+	if err := store.Store(blob); err != nil {
+		t.Fatalf("Failed to store blob: %v", err)
+	}
+
+	return blob
+}
+
+// StoreBlobTree creates a flat tree containing one blob per provided file name.
+// Each blob is created with random content and stored in the object store.
+// Returns the stored root tree and a map of file name to blob for assertion lookup.
+func StoreBlobTree(t *testing.T, store *objects.ObjectStore, fileNames ...string) (*objects.Tree, map[string]*objects.Blob) {
+	t.Helper()
+
+	blobMap := make(map[string]*objects.Blob, len(fileNames))
+	entries := make([]objects.TreeEntry, 0, len(fileNames))
+
+	for _, name := range fileNames {
+		blob := CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
+		blobMap[name] = blob
+
+		entry := CreateTreeEntry(t, objects.ModeRegularFile, name, blob.Hash())
+		entries = append(entries, entry)
+	}
+
+	tree := CreateAndStoreTree(t, store, entries)
+	return tree, blobMap
 }

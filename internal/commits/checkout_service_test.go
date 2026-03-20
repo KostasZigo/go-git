@@ -2,6 +2,7 @@ package commits
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -165,16 +166,129 @@ func TestCheckout_ResolveTarget_BranchTakesPriorityOverCommitHash(t *testing.T) 
 	}
 }
 
+// TestCheckout_RestoreTree_SingleRootFile verifies that a tree with a single blob entry
+// restores the file to disk with correct content and no extra files.
 func TestCheckout_RestoreTree_SingleRootFile(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-
 	store := objects.NewObjectStore(repoPath)
 
-	// Create a blob
-	blob := objects.NewBlob([]byte(testutils.RandomString(100)))
-	if err := store.Store(blob); err != nil {
-		t.Fatalf("Failed to store blob: %v", err)
+	fileName := testutils.RandomString(10)
+	tree, blobs := objectstestutils.StoreBlobTree(t, store, fileName)
+
+	err := RestoreTree(repoPath, tree.Hash())
+	if err != nil {
+		t.Fatalf("Failed to restore tree: %v", err)
 	}
 
-	objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), blob.Hash())
+	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), blobs[fileName].Content())
+
+	// Verify no extra files were created in repo root (only .gogit dir and restored file)
+	dirEntries, err := os.ReadDir(repoPath)
+	if err != nil {
+		t.Fatalf("Failed to read repo directory: %v", err)
+	}
+
+	for _, entry := range dirEntries {
+		if entry.Name() == constants.Gogit || entry.Name() == fileName {
+			continue
+		}
+		t.Fatalf("Unexpected restored file [%s]", entry.Name())
+	}
+}
+
+// TestCheckout_RestoreTree_NestedDirectory verifies that a tree referencing a subtree
+// creates the directory and restores files inside with correct content.
+func TestCheckout_RestoreTree_NestedDirectory(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	dirName := testutils.RandomString(10)
+	fileName := testutils.RandomString(10)
+	subtree, blobs := objectstestutils.StoreBlobTree(t, store, fileName)
+
+	// Root Tree
+	rootTreeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, dirName, subtree.Hash())
+	entries := []objects.TreeEntry{
+		rootTreeEntry,
+	}
+	rootTree := objectstestutils.CreateAndStoreTree(t, store, entries)
+
+	err := RestoreTree(repoPath, rootTree.Hash())
+	if err != nil {
+		t.Fatalf("Failed to restore tree: %v", err)
+	}
+
+	testutils.AssertDirExists(t, filepath.Join(repoPath, dirName))
+	testutils.AssertFileContent(t, filepath.Join(repoPath, dirName, fileName), blobs[fileName].Content())
+}
+
+// TestCheckout_RestoreTree_ManyFiles_DifferentLevels verifies that a tree with
+// multiple files at root level and inside a subdirectory restores all files correctly.
+func TestCheckout_RestoreTree_ManyFiles_DifferentLevels(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	// Create subdirectory as a flat tree with two files
+	dirName := testutils.RandomString(10)
+	subFile1 := testutils.RandomString(10)
+	subFile2 := testutils.RandomString(10)
+	subTree, subBlobs := objectstestutils.StoreBlobTree(t, store, subFile1, subFile2)
+
+	// Create a root-level file
+	rootFileName := testutils.RandomString(10)
+	rootBlob := objectstestutils.CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
+
+	// Build root tree combining the subdirectory and root-level file
+	dirEntry := objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, dirName, subTree.Hash())
+	fileEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
+	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
+
+	err := RestoreTree(repoPath, rootTree.Hash())
+	if err != nil {
+		t.Fatalf("Failed to restore tree: %v", err)
+	}
+
+	// Verify root-level file
+	testutils.AssertFileContent(t, filepath.Join(repoPath, rootFileName), rootBlob.Content())
+
+	// Verify subdirectory and its files
+	testutils.AssertDirExists(t, filepath.Join(repoPath, dirName))
+	testutils.AssertFileContent(t, filepath.Join(repoPath, dirName, subFile1), subBlobs[subFile1].Content())
+	testutils.AssertFileContent(t, filepath.Join(repoPath, dirName, subFile2), subBlobs[subFile2].Content())
+}
+
+// TestCheckout_RestoreTree_UnknowTreeHash verifies error when the provided
+// tree hash does not exist in the object store.
+func TestCheckout_RestoreTree_UnknowTreeHash(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+
+	err := RestoreTree(repoPath, testutils.RandomHash())
+	if err == nil {
+		t.Fatal("Expected error when tree hash to restore doesn't exist")
+	}
+
+	expectedErrorMessage := "TBD"
+	if strings.Contains(err.Error(), expectedErrorMessage) {
+		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+	}
+}
+
+// TestCheckout_RestoreTree_UnknowBlobHash_ReferencedByTree verifies error when a tree
+// entry references a blob hash that does not exist in the object store.
+func TestCheckout_RestoreTree_UnknowBlobHash_ReferencedByTree(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	treeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), testutils.RandomHash())
+	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{treeEntry})
+
+	err := RestoreTree(repoPath, rootTree.Hash())
+	if err == nil {
+		t.Fatal("Expected error when tree a references non existent blob")
+	}
+
+	expectedErrorMessage := "TBD"
+	if strings.Contains(err.Error(), expectedErrorMessage) {
+		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+	}
 }

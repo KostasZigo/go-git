@@ -24,7 +24,7 @@ func TestObjectStore_StoreAndReadTree(t *testing.T) {
 	}
 
 	// Create Tree with blob entry
-	treeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "file.txt", blob.Hash())
+	treeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), blob.Hash())
 	entries := []objects.TreeEntry{
 		treeEntry,
 	}

@@ -178,3 +178,18 @@ func ReadDefaultRefFile(t *testing.T, repoPath string) string {
 	}
 	return strings.TrimSpace(string(content))
 }
+
+// AssertFileContent reads the file at the given path and verifies its content
+// matches the expected byte slice. Fails the test on read error or content mismatch.
+func AssertFileContent(t *testing.T, filePath string, expectedContent []byte) {
+	t.Helper()
+
+	actualContent, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read file %s: %v", filePath, err)
+	}
+
+	if string(actualContent) != string(expectedContent) {
+		t.Fatalf("File content mismatch at %s:\n  expected: [%s]\n  got: [%s]", filePath, expectedContent, actualContent)
+	}
+}
