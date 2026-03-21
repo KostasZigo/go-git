@@ -89,3 +89,56 @@ func searchForTargetInCommitObjects(repoPath, target string) (*ResolvedTarget, e
 		Hash:     commit.Hash(),
 	}, nil
 }
+
+// RestoreTree reads a stored tree object and reconstructs its contents on the
+// filesystem under repoPath. Constructs the ObjectStore internally and delegates
+// to the recursive walker.
+func RestoreTree(repoPath, treeHash string) error {
+	store := objects.NewObjectStore(repoPath)
+	return restoreTreeRecursive(repoPath, treeHash, store)
+}
+
+// restoreTreeRecursive walks a tree object and writes its entries to dirPath.
+// Subtree entries are created as directories and descended into recursively.
+// Blob entries are written as files via the object store.
+func restoreTreeRecursive(dirPath, treeHash string, store *objects.ObjectStore) error {
+	tree, err := store.ReadTree(treeHash)
+	if err != nil {
+		return fmt.Errorf("failed to read tree [%s]: %w", treeHash, err)
+	}
+
+	for _, treeEntry := range tree.Entries() {
+		entryPath := filepath.Join(dirPath, treeEntry.Name())
+
+		if !treeEntry.IsDirectory() {
+			if err := createFileFromBlob(store, treeEntry.Hash(), entryPath); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err := os.MkdirAll(entryPath, constants.DirPerms); err != nil {
+			return fmt.Errorf("failed to create directory [%s]: %w", entryPath, err)
+		}
+		if err := restoreTreeRecursive(entryPath, treeEntry.Hash(), store); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// createFileFromBlob reads a blob from the object store and writes its content
+// to the specified file path.
+func createFileFromBlob(store *objects.ObjectStore, blobHash, filePath string) error {
+	blob, err := store.ReadBlob(blobHash)
+	if err != nil {
+		return fmt.Errorf("failed to create file [%s] from blob [%s]: %w", filePath, blobHash, err)
+	}
+
+	if err := os.WriteFile(filePath, blob.Content(), constants.FilePerms); err != nil {
+		return fmt.Errorf("failed to write [%s] file: %w", filePath, err)
+	}
+
+	return nil
+}

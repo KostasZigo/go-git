@@ -73,10 +73,6 @@ func (treeEntry *TreeEntry) IsDirectory() bool {
 	return treeEntry.mode == ModeDirectory
 }
 
-func (treeEntry *TreeEntry) IsExecutable() bool {
-	return treeEntry.mode == ModeExecutable
-}
-
 // Tree represents a Git tree object (directory snapshot)
 type Tree struct {
 	entries []TreeEntry
