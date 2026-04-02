@@ -115,7 +115,7 @@ func AssertFileNotExists(t *testing.T, path string) {
 	}
 }
 
-// AssertDirExists checks that a directory exists at the given path.
+// AssertDirExists checks that a directory exists with the given path.
 // Fails the test if the directory doesn't exist.
 func AssertDirExists(t *testing.T, path string) {
 	t.Helper()
@@ -131,6 +131,18 @@ func AssertDirExists(t *testing.T, path string) {
 	}
 	if !info.IsDir() {
 		t.Errorf("Expected %s to be a directory, but it's a file", path)
+	}
+}
+
+// AssertDirNotExists checks that a directory does not exist at the given path.
+// Fails the test if the directory exists.
+func AssertDirNotExists(t *testing.T, path string) {
+	t.Helper()
+
+	_, err := os.Stat(path)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Expected directory to not exist at %s", path)
+		return
 	}
 }
 
