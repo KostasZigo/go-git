@@ -405,3 +405,93 @@ func TestCheckout_DeleteIndexFiles_FileAlreadyMissing(t *testing.T) {
 
 	testutils.AssertFileNotExists(t, filepath.Join(repoPath, fileName))
 }
+
+func TestCheckout_RebuildIndex_SingleFile(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+
+	store := objects.NewObjectStore(repoPath)
+
+	fileName := testutils.RandomString(10)
+	tree, blobs := objectstestutils.StoreBlobTree(t, store, fileName)
+
+	err := RestoreTree(repoPath, tree.Hash())
+	if err != nil {
+		t.Fatalf("Failed to restore tree: %v", err)
+	}
+
+	idxManager := index.NewManager(repoPath)
+	idx, err := idxManager.Load()
+	if err != nil {
+		t.Fatalf("Failed to load index: %v", err)
+	}
+
+	if len(idx.GetEntryList()) != len(blobs) {
+		t.Fatalf("Expected index entries length to be [%d], got [%d]", len(blobs), len(idx.GetEntryList()))
+	}
+
+	blob := blobs[fileName]
+	indexEntry := idx.GetEntryList()[0]
+	if indexEntry.Hash() != blob.Hash() {
+		t.Fatalf("Expected index entry's hash to be [%s], got [%s]", blob.Hash(), indexEntry.Hash())
+	}
+	if indexEntry.Path() != fileName {
+		t.Fatalf("Expected index entry's rel path to be [%s], got [%s]", fileName, indexEntry.Path())
+	}
+	if indexEntry.Mode() != index.ModeRegularFile {
+		t.Fatalf("Expected file mode to be [%v], got [%v]", index.ModeRegularFile, indexEntry.Mode())
+	}
+}
+
+func TestCheckout_RebuildIndex_ManyFiles_DifferentLevels(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	// Create subdirectory as a flat tree with two files
+	dirName := testutils.RandomString(10)
+	subFile1 := testutils.RandomString(10)
+	subFile2 := testutils.RandomString(10)
+	subTree, subBlobs := objectstestutils.StoreBlobTree(t, store, subFile1, subFile2)
+
+	// Create a root-level file
+	rootFileName := testutils.RandomString(10)
+	rootBlob := objectstestutils.CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
+
+	// Build root tree combining the subdirectory and root-level file
+	dirEntry := objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, dirName, subTree.Hash())
+	fileEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
+	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
+
+	err := RestoreTree(repoPath, rootTree.Hash())
+	if err != nil {
+		t.Fatalf("Failed to restore tree: %v", err)
+	}
+
+	idxManager := index.NewManager(repoPath)
+	idx, err := idxManager.Load()
+	if err != nil {
+		t.Fatalf("Failed to load index: %v", err)
+	}
+
+	// collect all blobs
+	blobMap := make(map[string]*objects.Blob, len(subBlobs)+1)
+	for k, v := range subBlobs {
+		relPath := filepath.ToSlash(filepath.Join(dirName, k))
+		blobMap[relPath] = v
+	}
+	blobMap[rootFileName] = rootBlob
+
+	// Assertions
+	if len(idx.GetEntryList()) != len(blobMap) {
+		t.Fatalf("Expected index entries length to be [%d], got [%d]", len(blobMap), len(idx.GetEntryList()))
+	}
+
+	for _, entry := range idx.GetEntryList() {
+		blob, exist := blobMap[entry.Path()]
+		if !exist {
+			t.Fatalf("Expected index entry with relative path [%s] to exist in the list of created blobs [%v]", entry.Path(), blobMap)
+		}
+		if entry.Hash() != blob.Hash() {
+			t.Fatalf("Expected index entry's hash to be [%s], got [%s]", blob.Hash(), entry.Hash())
+		}
+	}
+}

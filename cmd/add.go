@@ -12,11 +12,9 @@ import (
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/utils/indexutils"
 	"github.com/spf13/cobra"
 )
-
-// ExecutableFileMask is used on bitwise opertations for identifying executable files
-const ExecutableFileMask = 0111
 
 var addCmd = &cobra.Command{
 	Use:   "add <file>...",
@@ -190,7 +188,7 @@ func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, st
 	}
 
 	// Determine file mode
-	fileMode := detectFileMode(fileInfo)
+	fileMode := indexutils.DetectIndexFileMode(fileInfo)
 
 	// create index entry
 	entry, err := index.NewEntry(
@@ -211,25 +209,4 @@ func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, st
 
 	cmd.Printf("add '%s'\n", relativeFilePath)
 	return nil
-}
-
-// detectFileMode converts os.FileInfo mode to Git index FileMode.
-func detectFileMode(info os.FileInfo) index.FileMode {
-	mode := info.Mode()
-
-	if mode&os.ModeSymlink != 0 {
-		return index.ModeSymlink
-	}
-
-	// Check if file is regular (standard file with no special type bits set)
-	if mode.IsRegular() {
-		// Extract permission bits and check execute flags across user/group/other
-		// Non-zero result means at least one execute bit is set
-		if mode.Perm()&ExecutableFileMask != 0 {
-			return index.ModeExecutable
-		}
-		return index.ModeRegularFile
-	}
-
-	return index.ModeRegularFile
 }

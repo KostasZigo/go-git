@@ -5,14 +5,17 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/utils/indexutils"
 )
 
 // ResolvedTarget holds the result of resolving a checkout target string.
@@ -182,18 +185,30 @@ func isDirEmpty(path string) (bool, error) {
 	return false, err
 }
 
-// RestoreTree reads a stored tree object and reconstructs its contents on the
-// filesystem under repoPath. Constructs the ObjectStore internally and delegates
-// to the recursive walker.
+// RestoreTree reads a stored tree object, reconstructs its contents on the
+// filesystem under repoPath, and rebuilds the index from the restored files.
+// The index is saved to disk after the tree walk completes.
 func RestoreTree(repoPath, treeHash string) error {
 	store := objects.NewObjectStore(repoPath)
-	return restoreTreeRecursive(repoPath, treeHash, store)
+	idx := index.NewIndex()
+
+	if err := restoreTreeRecursive(repoPath, "", treeHash, store, idx); err != nil {
+		return err
+	}
+
+	idxManager := index.NewManager(repoPath)
+	if err := idxManager.Save(idx); err != nil {
+		return fmt.Errorf("failed to save rebuilt index: %w", err)
+	}
+
+	return nil
 }
 
 // restoreTreeRecursive walks a tree object and writes its entries to dirPath.
-// Subtree entries are created as directories and descended into recursively.
-// Blob entries are written as files via the object store.
-func restoreTreeRecursive(dirPath, treeHash string, store *objects.ObjectStore) error {
+// relDir accumulates the forward-slash relative path prefix from the repository root,
+// used to construct index entry paths. Subtree entries are created as directories
+// and descended into recursively. Blob entries are written as files and added to the index.
+func restoreTreeRecursive(dirPath, relDir, treeHash string, store *objects.ObjectStore, idx *index.Index) error {
 	tree, err := store.ReadTree(treeHash)
 	if err != nil {
 		return fmt.Errorf("failed to read tree [%s]: %w", treeHash, err)
@@ -201,9 +216,13 @@ func restoreTreeRecursive(dirPath, treeHash string, store *objects.ObjectStore) 
 
 	for _, treeEntry := range tree.Entries() {
 		entryPath := filepath.Join(dirPath, treeEntry.Name())
+		entryRelPath := path.Join(relDir, treeEntry.Name())
 
 		if !treeEntry.IsDirectory() {
 			if err := createFileFromBlob(store, treeEntry.Hash(), entryPath); err != nil {
+				return err
+			}
+			if err := addFileToRebuiltIndex(entryPath, entryRelPath, treeEntry.Hash(), idx); err != nil {
 				return err
 			}
 			continue
@@ -212,7 +231,7 @@ func restoreTreeRecursive(dirPath, treeHash string, store *objects.ObjectStore) 
 		if err := os.MkdirAll(entryPath, constants.DirPerms); err != nil {
 			return fmt.Errorf("failed to create directory [%s]: %w", entryPath, err)
 		}
-		if err := restoreTreeRecursive(entryPath, treeEntry.Hash(), store); err != nil {
+		if err := restoreTreeRecursive(entryPath, entryRelPath, treeEntry.Hash(), store, idx); err != nil {
 			return err
 		}
 	}
@@ -230,6 +249,35 @@ func createFileFromBlob(store *objects.ObjectStore, blobHash, filePath string) e
 
 	if err := os.WriteFile(filePath, blob.Content(), constants.FilePerms); err != nil {
 		return fmt.Errorf("failed to write [%s] file: %w", filePath, err)
+	}
+
+	return nil
+}
+
+// addFileToRebuiltIndex stats the file at absPath to obtain size, mode, and
+// modification time, then creates an index entry using the provided relative
+// path and blob hash, and adds it to the index.
+func addFileToRebuiltIndex(absPath, relPath, hash string, idx *index.Index) error {
+	fileInfo, err := os.Stat(absPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat file %s: %w", absPath, err)
+	}
+
+	fileMode := indexutils.DetectIndexFileMode(fileInfo)
+
+	entry, err := index.NewEntry(
+		fileMode,
+		hash,
+		relPath,
+		fileInfo.Size(),
+		fileInfo.ModTime().Truncate(time.Second),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create index entry for %s: %w", relPath, err)
+	}
+
+	if err := idx.AddEntry(entry); err != nil {
+		return fmt.Errorf("failed to add [%s] entry to index: %w", relPath, err)
 	}
 
 	return nil
