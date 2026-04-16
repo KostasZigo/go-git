@@ -77,11 +77,26 @@ func CreateAndStoreBlob(t *testing.T, store *objects.ObjectStore, content []byte
 func StoreBlobTree(t *testing.T, store *objects.ObjectStore, fileNames ...string) (*objects.Tree, map[string]*objects.Blob) {
 	t.Helper()
 
-	blobMap := make(map[string]*objects.Blob, len(fileNames))
-	entries := make([]objects.TreeEntry, 0, len(fileNames))
-
+	fileContents := make(map[string][]byte, len(fileNames))
 	for _, name := range fileNames {
-		blob := CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
+		fileContents[name] = []byte(testutils.RandomString(100))
+	}
+
+	return StoreBlobTreeWithContent(t, store, fileContents)
+}
+
+// StoreBlobTreeWithContent creates a flat tree containing one blob per entry in
+// the provided fileContents map (fileName → content). Each blob is stored in the
+// object store with the given content. Returns the stored root tree and a map of
+// file name to blob for assertion lookup.
+func StoreBlobTreeWithContent(t *testing.T, store *objects.ObjectStore, fileContents map[string][]byte) (*objects.Tree, map[string]*objects.Blob) {
+	t.Helper()
+
+	blobMap := make(map[string]*objects.Blob, len(fileContents))
+	entries := make([]objects.TreeEntry, 0, len(fileContents))
+
+	for name, content := range fileContents {
+		blob := CreateAndStoreBlob(t, store, content)
 		blobMap[name] = blob
 
 		entry := CreateTreeEntry(t, objects.ModeRegularFile, name, blob.Hash())
@@ -90,4 +105,22 @@ func StoreBlobTree(t *testing.T, store *objects.ObjectStore, fileNames ...string
 
 	tree := CreateAndStoreTree(t, store, entries)
 	return tree, blobMap
+}
+
+// CreateAndStoreCommit creates a commit object referencing the given tree hash
+// and parent hash, stores it in the object store, and returns the commit.
+// Pass an empty parentHash for an initial commit.
+func CreateAndStoreCommit(t *testing.T, store *objects.ObjectStore, treeHash, parentHash, message string) *objects.Commit {
+	t.Helper()
+
+	commit, err := objects.NewCommit(treeHash, parentHash, message, objects.DefaultAuthor())
+	if err != nil {
+		t.Fatalf("Failed to create commit: %v", err)
+	}
+
+	if err := store.Store(commit); err != nil {
+		t.Fatalf("Failed to store commit: %v", err)
+	}
+
+	return commit
 }

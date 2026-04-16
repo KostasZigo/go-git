@@ -205,3 +205,24 @@ func AssertFileContent(t *testing.T, filePath string, expectedContent []byte) {
 		t.Fatalf("File content mismatch at %s:\n  expected: [%s]\n  got: [%s]", filePath, expectedContent, actualContent)
 	}
 }
+
+// WriteRefFile writes a commit hash into the branch ref file at refs/heads/<branchName>.
+func WriteRefFile(t *testing.T, repoPath, branchName, commitHash string) {
+	t.Helper()
+
+	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, branchName)
+	if err := os.WriteFile(refPath, []byte(commitHash+"\n"), constants.FilePerms); err != nil {
+		t.Fatalf("failed to write ref file for branch %s: %v", branchName, err)
+	}
+}
+
+// ReadHEADFile reads and returns the raw content of .gogit/HEAD.
+func ReadHEADFile(t *testing.T, repoPath string) string {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
+	if err != nil {
+		t.Fatalf("failed to read HEAD file: %v", err)
+	}
+	return string(content)
+}

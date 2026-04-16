@@ -1,8 +1,10 @@
 package commits
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -185,10 +187,10 @@ func isDirEmpty(path string) (bool, error) {
 	return false, err
 }
 
-// RestoreTree reads a stored tree object, reconstructs its contents on the
+// RestoreTreeAndRebuildIndex reads a stored tree object, reconstructs its contents on the
 // filesystem under repoPath, and rebuilds the index from the restored files.
 // The index is saved to disk after the tree walk completes.
-func RestoreTree(repoPath, treeHash string) error {
+func RestoreTreeAndRebuildIndex(repoPath, treeHash string) error {
 	store := objects.NewObjectStore(repoPath)
 	idx := index.NewIndex()
 
@@ -278,6 +280,152 @@ func addFileToRebuiltIndex(absPath, relPath, hash string, idx *index.Index) erro
 
 	if err := idx.AddEntry(entry); err != nil {
 		return fmt.Errorf("failed to add [%s] entry to index: %w", relPath, err)
+	}
+
+	return nil
+}
+
+// checkIfDirty compares each index entry against its on-disk counterpart.
+// Uses a file-size + modified-time fast path to skip unchanged files, falling back to a
+// full content hash comparison when metadata differs. Collects all dirty
+// entries into a single error rather than failing on the first mismatch.
+func checkIfDirty(repoPath string, idxEntries []*index.IndexEntry) error {
+	var errorBuilder strings.Builder
+	for _, idxEntry := range idxEntries {
+		absPath := filepath.Join(repoPath, filepath.FromSlash(idxEntry.Path()))
+		info, err := os.Stat(absPath)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				fmt.Fprintf(&errorBuilder, "dirty: [%s] file got deleted\n\n", idxEntry.Path())
+			} else {
+				fmt.Fprintf(&errorBuilder, "dirty: [%s] failed to stat file: %s\n\n", idxEntry.Path(), err.Error())
+			}
+			continue
+		}
+
+		if info.Size() == idxEntry.FileSize() && info.ModTime().Truncate(time.Second).Equal(idxEntry.LastModified().Truncate(time.Second)) {
+			continue
+		}
+
+		content, err := os.ReadFile(absPath)
+		if err != nil {
+			fmt.Fprintf(&errorBuilder, "dirty: [%s] failed to read file: %s\n\n", idxEntry.Path(), err.Error())
+			continue
+		}
+		hash := utils.MustComputeHash(content, utils.BlobObjectType)
+		if hash != idxEntry.Hash() {
+			fmt.Fprintf(&errorBuilder, "dirty: [%s] file was modified \n\n", idxEntry.Path())
+		}
+	}
+
+	if errorBuilder.Len() != 0 {
+		return fmt.Errorf("working directory contains dirty files:\n\n%s", errorBuilder.String())
+	}
+	return nil
+}
+
+// updateHEAD atomically replaces the HEAD file with the given content using
+// a temp-file-then-rename strategy identical to IndexManager.Save.
+// For branch targets, content should be "ref: refs/heads/<branch>\n".
+// For detached commits, content should be "<commit-hash>\n".
+func updateHEAD(repoPath string, content string) error {
+	headFilePath := filepath.Join(repoPath, constants.Gogit, constants.Head)
+	tempFile, err := os.CreateTemp(filepath.Dir(headFilePath), "HEAD-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary HEAD file: %w", err)
+	}
+	tempPath := tempFile.Name()
+
+	// Track success for cleanup
+	succeeded := false
+	defer func() {
+		if !succeeded {
+			tempFile.Close()
+			os.Remove(tempPath)
+		}
+	}()
+
+	if _, err := tempFile.WriteString(content); err != nil {
+		return fmt.Errorf("failed to write content to HEAD file: %w", err)
+	}
+
+	// Force OS to flush data to physical disk before rename
+	// Critical for durability guarantees on power loss
+	if err := tempFile.Sync(); err != nil {
+		return fmt.Errorf("failed to sync temporary file: %w", err)
+	}
+
+	// Close temp file descriptor before rename
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
+
+	// Replace HEAD file with temporary file
+	if err := os.Rename(tempPath, headFilePath); err != nil {
+		return fmt.Errorf("failed to rename temporary file to HEAD: %w", err)
+	}
+	succeeded = true
+
+	return nil
+}
+
+// OrchestrateCheckoutExecution orchestrates the full checkout workflow:
+// resolves the target to a commit hash, reads the commit to obtain its tree,
+// loads the current index, cleans the working tree, restores the target
+// commit's tree (rebuilding the index), and updates HEAD.
+//
+// When force is true the dirty-check is skipped, allowing recovery from a
+// previously interrupted checkout. Steps 4-6 are destructive and
+// non-transactional: if restore fails after clean, the working tree is left
+// in a partial state. Re-running with force=true is the recovery path.
+func OrchestrateCheckoutExecution(repoPath, target string, force bool) error {
+	// 1. Resolve target to commit hash
+	resolvedTarget, err := ResolveTarget(repoPath, target)
+	if err != nil {
+		return fmt.Errorf("failure while resolving target: %w", err)
+	}
+
+	// 2. Read the commit object to obtain its tree hash
+	store := objects.NewObjectStore(repoPath)
+	commit, err := store.ReadCommit(resolvedTarget.Hash)
+	if err != nil {
+		return fmt.Errorf("failed to read commit [%s]: %w", resolvedTarget.Hash, err)
+	}
+
+	// 3. Check if working directory is dirty
+	idxManager := index.NewManager(repoPath)
+	idx, err := idxManager.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load index before checking if working tree is dirty: %w", err)
+	}
+
+	idxEntries := idx.GetEntryList()
+	if !force {
+		if err := checkIfDirty(repoPath, idxEntries); err != nil {
+			return err
+		}
+	}
+
+	// 4. Clean working directory
+	if err := CleanWorkingTree(repoPath, idxEntries); err != nil {
+		return fmt.Errorf("failed to clean working directory: %w", err)
+	}
+
+	// 5. Restore file structure for repository snapshot and rebuild index
+	if err := RestoreTreeAndRebuildIndex(repoPath, commit.TreeHash()); err != nil {
+		return fmt.Errorf("failed to restore file structure from tree [%s] of commit [%s]: %w", commit.TreeHash(), resolvedTarget.Hash, err)
+	}
+
+	// 6. Update HEAD file reference
+	var headFileContent string
+	if resolvedTarget.IsBranch {
+		headFileContent = constants.DefaultRefPrefix + target + "\n"
+	} else {
+		headFileContent = resolvedTarget.Hash + "\n"
+	}
+
+	if err := updateHEAD(repoPath, headFileContent); err != nil {
+		return fmt.Errorf("failure during updating HEAD file: %w", err)
 	}
 
 	return nil

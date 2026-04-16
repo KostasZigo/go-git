@@ -178,7 +178,7 @@ func TestCheckout_RestoreTree_SingleRootFile(t *testing.T) {
 	fileName := testutils.RandomString(10)
 	tree, blobs := objectstestutils.StoreBlobTree(t, store, fileName)
 
-	err := RestoreTree(repoPath, tree.Hash())
+	err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash())
 	if err != nil {
 		t.Fatalf("Failed to restore tree: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestCheckout_RestoreTree_NestedDirectory(t *testing.T) {
 	}
 	rootTree := objectstestutils.CreateAndStoreTree(t, store, entries)
 
-	err := RestoreTree(repoPath, rootTree.Hash())
+	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
 		t.Fatalf("Failed to restore tree: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestCheckout_RestoreTree_ManyFiles_DifferentLevels(t *testing.T) {
 	fileEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
 	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
 
-	err := RestoreTree(repoPath, rootTree.Hash())
+	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
 		t.Fatalf("Failed to restore tree: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestCheckout_RestoreTree_ManyFiles_DifferentLevels(t *testing.T) {
 func TestCheckout_RestoreTree_UnknowTreeHash(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 
-	err := RestoreTree(repoPath, testutils.RandomHash())
+	err := RestoreTreeAndRebuildIndex(repoPath, testutils.RandomHash())
 	if err == nil {
 		t.Fatal("Expected error when tree hash to restore doesn't exist")
 	}
@@ -285,7 +285,7 @@ func TestCheckout_RestoreTree_UnknowBlobHash_ReferencedByTree(t *testing.T) {
 	treeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), testutils.RandomHash())
 	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{treeEntry})
 
-	err := RestoreTree(repoPath, rootTree.Hash())
+	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err == nil {
 		t.Fatal("Expected error when tree a references non existent blob")
 	}
@@ -414,7 +414,7 @@ func TestCheckout_RebuildIndex_SingleFile(t *testing.T) {
 	fileName := testutils.RandomString(10)
 	tree, blobs := objectstestutils.StoreBlobTree(t, store, fileName)
 
-	err := RestoreTree(repoPath, tree.Hash())
+	err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash())
 	if err != nil {
 		t.Fatalf("Failed to restore tree: %v", err)
 	}
@@ -461,7 +461,7 @@ func TestCheckout_RebuildIndex_ManyFiles_DifferentLevels(t *testing.T) {
 	fileEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
 	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
 
-	err := RestoreTree(repoPath, rootTree.Hash())
+	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
 		t.Fatalf("Failed to restore tree: %v", err)
 	}
@@ -493,5 +493,216 @@ func TestCheckout_RebuildIndex_ManyFiles_DifferentLevels(t *testing.T) {
 		if entry.Hash() != blob.Hash() {
 			t.Fatalf("Expected index entry's hash to be [%s], got [%s]", blob.Hash(), entry.Hash())
 		}
+	}
+}
+
+// TestCheckout_Orchestrate_BranchCheckout verifies the full checkout workflow
+// for checking out a  branch. Constructs a two-commit history, populates the working tree
+// with creates a branch pointing at the first commit
+// the second commit's content, then checks out the branch.
+// Asserts that the working tree is restored to the first commit's content,
+// and HEAD is updated accordingly.
+func TestCheckout_Orchestrate_BranchCheckout(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	fileName := testutils.RandomString(10)
+	originalContent := []byte(testutils.RandomString(50))
+	updatedContent := []byte(testutils.RandomString(50))
+
+	firstTree, firstBlobs := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: originalContent})
+	firstCommit := objectstestutils.CreateAndStoreCommit(t, store, firstTree.Hash(), "", testutils.RandomString(20))
+
+	secondTree, _ := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: updatedContent})
+	secondCommit := objectstestutils.CreateAndStoreCommit(t, store, secondTree.Hash(), firstCommit.Hash(), testutils.RandomString(20))
+
+	// Point main at secondCommit and populate working tree + index to match
+	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, secondCommit.Hash())
+	if err := RestoreTreeAndRebuildIndex(repoPath, secondTree.Hash()); err != nil {
+		t.Fatalf("failed to set up working tree: %v", err)
+	}
+	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), updatedContent)
+
+	featureBranch := testutils.RandomString(10)
+	testutils.WriteRefFile(t, repoPath, featureBranch, firstCommit.Hash())
+
+	if err := OrchestrateCheckoutExecution(repoPath, featureBranch, false); err != nil {
+		t.Fatalf("Failed to checkout branch [%s]: %v", featureBranch, err)
+	}
+
+	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), originalContent)
+
+	expectedHEAD := constants.DefaultRefPrefix + featureBranch + "\n"
+	if head := testutils.ReadHEADFile(t, repoPath); head != expectedHEAD {
+		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedHEAD, head)
+	}
+
+	idxManager := index.NewManager(repoPath)
+	idx, err := idxManager.Load()
+	if err != nil {
+		t.Fatalf("Failed to load index: %v", err)
+	}
+
+	entries := idx.GetEntryList()
+	if len(entries) != len(firstBlobs) {
+		t.Fatalf("Expected index to have [%d] entry, got %d", len(firstBlobs), len(entries))
+	}
+	if entries[0].Hash() != firstBlobs[fileName].Hash() {
+		t.Fatalf("Expected index entry hash [%s], got [%s]", firstBlobs[fileName].Hash(), entries[0].Hash())
+	}
+	if entries[0].Path() != fileName {
+		t.Fatalf("Expected index entry path [%s], got [%s]", fileName, entries[0].Path())
+	}
+}
+
+func TestCheckout_Orchestrate_CommitCheckout(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	fileName := testutils.RandomString(10)
+	originalContent := []byte(testutils.RandomString(50))
+	updatedContent := []byte(testutils.RandomString(50))
+
+	firstTree, firstBlob := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: originalContent})
+	firstCommit := objectstestutils.CreateAndStoreCommit(t, store, firstTree.Hash(), "", testutils.RandomString(20))
+
+	secondTree, _ := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: updatedContent})
+	secondCommit := objectstestutils.CreateAndStoreCommit(t, store, secondTree.Hash(), firstCommit.Hash(), testutils.RandomString(20))
+
+	// Point main at secondCommit and populate working tree + index to match
+	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, secondCommit.Hash())
+	if err := RestoreTreeAndRebuildIndex(repoPath, secondTree.Hash()); err != nil {
+		t.Fatalf("failed to set up working tree: %v", err)
+	}
+	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), updatedContent)
+
+	firstCommitHash := firstCommit.Hash()
+	if err := OrchestrateCheckoutExecution(repoPath, firstCommitHash, false); err != nil {
+		t.Fatalf("Failed to checkout commit [%s]: %v", firstCommit.Hash(), err)
+	}
+	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), originalContent)
+
+	expectedHEAD := firstCommitHash + "\n"
+	if head := testutils.ReadHEADFile(t, repoPath); head != expectedHEAD {
+		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedHEAD, head)
+	}
+
+	idxManager := index.NewManager(repoPath)
+	idx, err := idxManager.Load()
+	if err != nil {
+		t.Fatalf("Failed to load index: %v", err)
+	}
+
+	entries := idx.GetEntryList()
+	if len(entries) != len(firstBlob) {
+		t.Fatalf("Expected index to have [%d] entry, got %d", len(firstBlob), len(entries))
+	}
+	if entries[0].Hash() != firstBlob[fileName].Hash() {
+		t.Fatalf("Expected index entry hash [%s], got [%s]", firstBlob[fileName].Hash(), entries[0].Hash())
+	}
+	if entries[0].Path() != fileName {
+		t.Fatalf("Expected index entry path [%s], got [%s]", fileName, entries[0].Path())
+	}
+
+}
+
+func TestCheckout_Orchestrate_DirtyDir(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	fileName := testutils.RandomString(10)
+	tree, blob := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: []byte(testutils.RandomString(10))})
+	commit := objectstestutils.CreateAndStoreCommit(t, store, tree.Hash(), "", testutils.RandomString(20))
+
+	idx := index.NewIndex()
+	filePath := indextestutils.CreateTrackedFileContent(t, repoPath, repoPath, fileName, blob[fileName].Content(), idx)
+
+	idxManager := index.NewManager(repoPath)
+	if err := idxManager.Save(idx); err != nil {
+		t.Fatalf("Failed to save index: %v", err)
+	}
+
+	originalContent, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+	updatedContent := append(originalContent, []byte(" new content ")...)
+	if err := os.WriteFile(filePath, updatedContent, constants.FilePerms); err != nil {
+		t.Fatalf("Failed to write updated file: %v", err)
+	}
+
+	err = OrchestrateCheckoutExecution(repoPath, commit.Hash(), false)
+	if err == nil {
+		t.Fatal("Expected error when directory is dirty")
+	}
+
+	expectedErrorMessage := fmt.Sprintf("working directory contains dirty files:\n\ndirty: [%s] file was modified", fileName)
+	if !strings.Contains(err.Error(), expectedErrorMessage) {
+		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+	}
+}
+
+func TestCheckout_Orchestrate_NonExistingTarget(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	hash := testutils.RandomHash()
+	err := OrchestrateCheckoutExecution(repoPath, hash, false)
+	if err == nil {
+		t.Fatal("Expected error target reference does not exist.")
+	}
+
+	expectedErrorMessage := fmt.Sprintf("failure while resolving target: checkout target [%s] not found as branch or commit", hash)
+	if !strings.Contains(err.Error(), expectedErrorMessage) {
+		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+	}
+}
+
+// TestCheckout_Orchestrate_CurrentBranchNoop verifies that checking out the branch
+// HEAD already points to succeeds without modifying the working tree, HEAD, or index.
+func TestCheckout_Orchestrate_CurrentBranchNoop(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	fileName := testutils.RandomString(10)
+	content := []byte(testutils.RandomString(50))
+
+	tree, blobs := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: content})
+	commit := objectstestutils.CreateAndStoreCommit(t, store, tree.Hash(), "", testutils.RandomString(20))
+
+	// Point main at commit and populate working tree + index to match
+	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, commit.Hash())
+	if err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash()); err != nil {
+		t.Fatalf("failed to set up working tree: %v", err)
+	}
+
+	idxManager := index.NewManager(repoPath)
+	idxBefore, err := idxManager.Load()
+	if err != nil {
+		t.Fatalf("Failed to load index before checkout: %v", err)
+	}
+	entriesBefore := idxBefore.GetEntryList()
+
+	if err := OrchestrateCheckoutExecution(repoPath, constants.DefaultBranch, false); err != nil {
+		t.Fatalf("Failed to checkout current branch: %v", err)
+	}
+
+	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), content)
+	expectedHEAD := constants.DefaultRefPrefix + constants.DefaultBranch + "\n"
+	if head := testutils.ReadHEADFile(t, repoPath); head != expectedHEAD {
+		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedHEAD, head)
+	}
+
+	idxAfter, err := idxManager.Load()
+	if err != nil {
+		t.Fatalf("Failed to load index after checkout: %v", err)
+	}
+	entriesAfter := idxAfter.GetEntryList()
+	if len(entriesAfter) != len(entriesBefore) {
+		t.Fatalf("Expected index to have [%d] entries, got %d", len(entriesBefore), len(entriesAfter))
+	}
+	if entriesAfter[0].Hash() != blobs[fileName].Hash() {
+		t.Fatalf("Expected index entry hash [%s], got [%s]", blobs[fileName].Hash(), entriesAfter[0].Hash())
+	}
+	if entriesAfter[0].Path() != fileName {
+		t.Fatalf("Expected index entry path [%s], got [%s]", fileName, entriesAfter[0].Path())
 	}
 }
