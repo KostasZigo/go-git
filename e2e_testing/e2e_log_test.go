@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // TestE2E_LogCommand_SingleCommit verifies the log command output after a

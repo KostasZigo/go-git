@@ -8,7 +8,7 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // TestCommitCommand_FirstCommitWithStagedFiles

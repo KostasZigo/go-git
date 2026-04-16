@@ -10,7 +10,7 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // TestAddCommand_Success verifies file staging creates blob and updates index.

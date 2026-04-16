@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // FileMode represents Unix file permissions and type in Git objects.

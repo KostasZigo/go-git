@@ -9,8 +9,8 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/testutils"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/testutils"
+	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // TestE2E_HashObjectCommand_NoStorage verifies hash computation without storage.

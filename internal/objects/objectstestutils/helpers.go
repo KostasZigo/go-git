@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // createTreeEntry creates tree entry and fails test on error.

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // TestNewBlob verifies blob creation from raw content.

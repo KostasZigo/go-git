@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/KostasZigo/gogit/internal/commits"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/utils"
 	"github.com/spf13/cobra"
 )
 

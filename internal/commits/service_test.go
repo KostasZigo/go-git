@@ -11,7 +11,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // Test_BuildDirectoryTree_MixedRootAndNestedFiles verifies that a flat

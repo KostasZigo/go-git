@@ -6,7 +6,7 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/objects/objectstestutils"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // TREE ENTRY TESTS

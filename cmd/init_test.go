@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/testutils"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/testutils"
+	"github.com/KostasZigo/gogit/internal/utils"
 	"github.com/agiledragon/gomonkey/v2"
 )
 

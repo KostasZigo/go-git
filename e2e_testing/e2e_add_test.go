@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // TestE2E_AddCommand_SingleFile verifies staging single file creates blob and updates index.

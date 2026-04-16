@@ -8,8 +8,8 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
-	"github.com/KostasZigo/gogit/testutils"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/testutils"
+	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // CreateTrackedFile creates a file with random content on disk inside the given

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // Represents commit author/committer

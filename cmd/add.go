@@ -11,8 +11,8 @@ import (
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/utils"
-	"github.com/KostasZigo/gogit/utils/indexutils"
+	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/utils/indexutils"
 	"github.com/spf13/cobra"
 )
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // BLOB STORAGE TESTS

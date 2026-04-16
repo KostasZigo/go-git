@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // TestWrite_EmptyIndex verifies serialization of empty index.

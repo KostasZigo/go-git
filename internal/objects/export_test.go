@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/KostasZigo/gogit/testutils"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/testutils"
+	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // assertBlobHash verifies blob hash matches expected value for given content.

@@ -9,8 +9,8 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/testutils"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/testutils"
+	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // TestLog_SingleCommit_Sucess stages and commits a single file, then

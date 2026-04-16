@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/utils"
+	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 type Blob struct {

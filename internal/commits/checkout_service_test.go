@@ -13,7 +13,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/index/indextestutils"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/objects/objectstestutils"
-	"github.com/KostasZigo/gogit/testutils"
+	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
 // TestCheckout_ResolveTarget_Branch verifies resolution of a valid branch name
