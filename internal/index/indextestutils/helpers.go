@@ -3,6 +3,7 @@ package indextestutils
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -49,4 +50,32 @@ func CreateTrackedFileContent(t *testing.T, repoPath, dir, fileName string, cont
 	}
 
 	return absPath
+}
+
+// AssertIndexEntryPaths loads the index from disk and verifies that the entry count
+// matches expectedCount and that every path in expectedPaths appears in the index.
+func AssertIndexEntryPaths(t *testing.T, repoPath string, expectedCount int, expectedPaths []string) {
+	t.Helper()
+
+	idxManager := index.NewManager(repoPath)
+	idx, err := idxManager.Load()
+	if err != nil {
+		t.Fatalf("Failed to load index: %v", err)
+	}
+
+	entries := idx.GetEntryList()
+	if len(entries) != expectedCount {
+		t.Fatalf("Expected index to have %d entries, got %d", expectedCount, len(entries))
+	}
+
+	actualPaths := make([]string, len(entries))
+	for i, e := range entries {
+		actualPaths[i] = e.Path()
+	}
+
+	for _, expected := range expectedPaths {
+		if !slices.Contains(actualPaths, expected) {
+			t.Fatalf("Expected index entry path [%s] to exist in %v", expected, actualPaths)
+		}
+	}
 }

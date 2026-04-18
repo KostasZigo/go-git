@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,8 +82,8 @@ func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
 	changeToRepoDir(t, repoPath)
 
 	fileName := testutils.RandomString(10)
-	fileContent := testutils.RandomString(100)
-	stageFile(t, fileName, fileContent, repoPath)
+	fileContent := testutils.RandomByteSlice(100)
+	stageFile(t, fileName, repoPath, fileContent)
 
 	// Execute initial commit command
 	message := testutils.RandomString(10)
@@ -96,7 +97,8 @@ func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
 	firstHash := testutils.ReadDefaultRefFile(t, repoPath)
 
 	// Commit modified file
-	stageFile(t, fileName, fileContent+"-v2", repoPath)
+	updatedFileContent := append(fileContent, []byte("-v2")...)
+	stageFile(t, fileName, repoPath, updatedFileContent)
 	if err := command.Execute(); err != nil {
 		t.Fatalf("commit command failed: %v", err)
 	}
@@ -156,8 +158,8 @@ func TestCommitCommand_DuplicateCommitNoChanges(t *testing.T) {
 	changeToRepoDir(t, repoPath)
 
 	fileName := testutils.RandomString(10)
-	fileContent := testutils.RandomString(100)
-	stageFile(t, fileName, fileContent, repoPath)
+	fileContent := testutils.RandomByteSlice(100)
+	stageFile(t, fileName, repoPath, fileContent)
 
 	// Execute initial commit command
 	message := testutils.RandomString(10)
@@ -219,13 +221,13 @@ func TestCommitCommand_DeeplyNestedDirectoryStructure(t *testing.T) {
 	thirdLevel := testutils.RandomString(10)
 	nestedPath := filepath.Join(repoPath, firstLevel, secondLevel, thirdLevel)
 	nestedFileName := testutils.RandomString(10)
-	nestedContent := testutils.RandomString(100)
+	nestedContent := testutils.RandomByteSlice(100)
 
 	if err := os.MkdirAll(nestedPath, constants.DirPerms); err != nil {
 		t.Fatalf("Failed to create directory %s: %v", nestedPath, err)
 	}
 
-	stageFile(t, nestedFileName, nestedContent, nestedPath)
+	stageFile(t, nestedFileName, nestedPath, nestedContent)
 
 	// Execute commit
 	commitRoot := createTestRootCmd(commitCmd)
@@ -286,8 +288,8 @@ func TestCommitCommand_DeeplyNestedDirectoryStructure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read blob 'd.go': %v", err)
 	}
-	if string(blob.Content()) != nestedContent {
-		t.Fatalf("Expected blob content [%s], got [%s]", nestedContent, string(blob.Content()))
+	if !bytes.Equal(blob.Content(), nestedContent) {
+		t.Fatalf("Expected blob content [%s], got [%s]", nestedContent, blob.Content())
 	}
 }
 
@@ -309,8 +311,8 @@ func TestCommitCommand_ThreeSequentialCommits_ParentChain(t *testing.T) {
 
 	for i, msg := range messages {
 		// Write distinct content for each commit
-		content := testutils.RandomString(50)
-		stageFile(t, fileName, content, repoPath)
+		content := testutils.RandomByteSlice(50)
+		stageFile(t, fileName, repoPath, content)
 
 		command := createTestRootCmd(commitCmd)
 		captureStdout(command)

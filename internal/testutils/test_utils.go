@@ -21,6 +21,14 @@ func RandomString(n int) string {
 	return hex.EncodeToString(bytes)
 }
 
+// RandomByteSlice generates a cryptographically random byte slice of length n.
+func RandomByteSlice(n int) []byte {
+	bytes := make([]byte, n)
+	rand.Read(bytes)
+	return bytes
+}
+
+// RandomInt generates a cryptographically random int64 in the range [0, max).
 func RandomInt(max int) int64 {
 	bigInt := big.NewInt(int64(max))
 	number, err := rand.Int(rand.Reader, bigInt)
@@ -225,4 +233,24 @@ func ReadHEADFile(t *testing.T, repoPath string) string {
 		t.Fatalf("failed to read HEAD file: %v", err)
 	}
 	return string(content)
+}
+
+// WriteHEADFile overwrites .gogit/HEAD with the given content.
+func WriteHEADFile(t *testing.T, repoPath string, content []byte) {
+	t.Helper()
+
+	path := filepath.Join(repoPath, constants.Gogit, constants.Head)
+	if err := os.WriteFile(path, content, constants.FilePerms); err != nil {
+		t.Fatalf("failed to write HEAD file: %v", err)
+	}
+}
+
+// AssertHEADContent reads .gogit/HEAD and verifies its content matches the expected string.
+func AssertHEADContent(t *testing.T, repoPath, expectedContent string) {
+	t.Helper()
+
+	head := ReadHEADFile(t, repoPath)
+	if head != expectedContent {
+		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedContent, head)
+	}
 }

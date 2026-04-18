@@ -14,6 +14,7 @@ const (
 	AddCmdName        = "add"
 	CommitCmdName     = "commit"
 	LogCmdName        = "log"
+	CheckoutCmdName   = "checkout"
 )
 
 // Repository directory and file names define the gogit metadata structure.

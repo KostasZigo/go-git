@@ -392,6 +392,8 @@ func OrchestrateCheckoutExecution(repoPath, target string, force bool) error {
 		return fmt.Errorf("failed to read commit [%s]: %w", resolvedTarget.Hash, err)
 	}
 
+	// Fix idempotency -> fast return (update head)
+
 	// 3. Check if working directory is dirty
 	idxManager := index.NewManager(repoPath)
 	idx, err := idxManager.Load()

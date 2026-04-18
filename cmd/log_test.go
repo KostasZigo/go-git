@@ -22,7 +22,7 @@ func TestLog_SingleCommit_Sucess(t *testing.T) {
 
 	// Create commit history
 	message := testutils.RandomString(100)
-	commitWithSingleFile(t, repoPath, message)
+	commitWithSingleRandomFile(t, repoPath, message)
 
 	commitHash := testutils.ReadDefaultRefFile(t, repoPath)
 
@@ -66,7 +66,7 @@ func TestLog_CommitChain_Sucess(t *testing.T) {
 	commitLogEntries := make([]string, 3)
 	for range 3 {
 		message := testutils.RandomString(100)
-		commitWithSingleFile(t, repoPath, message)
+		commitWithSingleRandomFile(t, repoPath, message)
 
 		commitHash := testutils.ReadDefaultRefFile(t, repoPath)
 		commit, err := store.ReadCommit(commitHash)
