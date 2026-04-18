@@ -16,24 +16,12 @@ var initCmd = &cobra.Command{
 It creates a .gogit directory and necessary configuration files, allowing you to start tracking your project's history.
 If a repository already exists, the command will not overwrite existing data.`,
 	SilenceUsage: true,
-	Args:         maximumArgs(1),
+	Args:         maximumArgs(1, constants.InitCmdName),
 	RunE:         runInit,
 }
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-}
-
-// maximumArgs validates command receives at most n positional arguments.
-// Returns error with usage help if argument limit exceeded.
-func maximumArgs(n int) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if len(args) > n {
-			cmd.SilenceUsage = false
-			return fmt.Errorf("%s command accepts at most %d arg(s), received %d", constants.InitCmdName, n, len(args))
-		}
-		return nil
-	}
 }
 
 // runInit executes repository initialization at specified or current directory.

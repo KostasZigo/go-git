@@ -46,8 +46,9 @@ func TestCheckoutCommand_BranchCheckout(t *testing.T) {
 
 	// Verify stdout message
 	output := stdout.String()
-	if !strings.Contains(output, branch) {
-		t.Fatalf("Expected output to contain branch [%s], got: [%s]", branch, output)
+	expectedOutput := fmt.Sprintf("checked out [%s]\n", branch)
+	if !strings.Contains(output, expectedOutput) {
+		t.Fatalf("Expected output to contain branch [%s], got: [%s]", expectedOutput, output)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContent)
 	testutils.AssertHEADContent(t, repoPath, constants.DefaultRefPrefix+branch+"\n")
@@ -109,8 +110,9 @@ func TestCheckoutCommand_Force(t *testing.T) {
 
 	// Verify stdout message
 	output := stdout.String()
-	if !strings.Contains(output, firstCommitHash) {
-		t.Fatalf("Expected stdout to contain [%s], got: [%s]", firstCommitHash, output)
+	expectedOutput := fmt.Sprintf("checked out [%s]\n", firstCommitHash)
+	if !strings.Contains(output, expectedOutput) {
+		t.Fatalf("Expected stdout to contain [%s], got: [%s]", expectedOutput, output)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContent)
 	testutils.AssertHEADContent(t, repoPath, firstCommitHash+"\n")
@@ -152,8 +154,9 @@ func TestCheckoutCommand_RoundTripBetweenBranches(t *testing.T) {
 
 	// Verify stdout message
 	output := stdout.String()
-	if !strings.Contains(output, featureBranch) {
-		t.Fatalf("Expected stdout to contain [%s], got: [%s]", featureBranch, output)
+	expectedOutput := fmt.Sprintf("checked out [%s]\n", featureBranch)
+	if !strings.Contains(output, expectedOutput) {
+		t.Fatalf("Expected stdout to contain [%s], got: [%s]", expectedOutput, output)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, firstFileName), firstFileContent)
 	testutils.AssertHEADContent(t, repoPath, constants.DefaultRefPrefix+featureBranch+"\n")
@@ -173,8 +176,9 @@ func TestCheckoutCommand_RoundTripBetweenBranches(t *testing.T) {
 
 	// Verify stdout message
 	output = stdout.String()
-	if !strings.Contains(output, constants.DefaultBranch) {
-		t.Fatalf("Expected stdout to contain [%s], got: [%s]", constants.DefaultBranch, output)
+	expectedOutput = fmt.Sprintf("checked out [%s]\n", constants.DefaultBranch)
+	if !strings.Contains(output, expectedOutput) {
+		t.Fatalf("Expected stdout to contain [%s], got: [%s]", expectedOutput, output)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, firstFileName), firstFileContent)
 	testutils.AssertFileContent(t, filepath.Join(repoPath, secondFileName), secondFileContent)

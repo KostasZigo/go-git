@@ -1,33 +1,58 @@
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/KostasZigo/gogit/internal/commits"
+	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/spf13/cobra"
+)
 
 var checkoutCmd = &cobra.Command{
 	Use:   "checkout <target>",
 	Short: "Checkout to a given target",
-	Long: `Checkout to a given target.
-	Directories are hashed and stored as tree objects, files and sub-directories are added as tree entries.
-	A commit object is also hashed and stored as stored as commit object. The current refs/heads/<branch-name> file mentioned in 
-	HEAD file is updated with the commit's hash.
+	Long: `Switch the working directory to the state of a given branch or commit.
+
+Resolves the target as a branch name first (under refs/heads/), then as a
+direct commit hash. Aborts if the working tree has uncommitted modifications
+unless --force is set. On success: cleans tracked files, restores the target
+commit's tree to disk, rebuilds the index, and updates HEAD.
 
 Examples:
-  # Checkout with checking if working directory is dirty
-  gogit checkout target
+  # Checkout a branch
+  gogit checkout feature-branch
 
-  # Commit with without checking whether working directory is clean - force
-  gogit checkout -f target
-  gogit checkout --force target`,
+  # Checkout a specific commit (detached HEAD)
+  gogit checkout abc123...
+
+  # Force checkout, discarding uncommitted changes
+  gogit checkout -f main
+  gogit checkout --force main`,
 
 	SilenceUsage: true,
-	Args:         exactArgs(1),
+	Args:         exactArgs(1, constants.CheckoutCmdName),
 	RunE:         runCheckout,
 }
 
+// forceFlag skips the dirty working tree check when set via -f/--force.
+var forceFlag bool
+
 func init() {
+	checkoutCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "disregard working tree state and rebuild working tree based on target")
 	rootCmd.AddCommand(checkoutCmd)
 }
 
+// runCheckout resolves the target and delegates to the checkout orchestrator,
 func runCheckout(cmd *cobra.Command, args []string) error {
+	// Find repository root path
+	repoPath, err := utils.FindRepoRoot()
+	if err != nil {
+		return err
+	}
 
+	if err := commits.OrchestrateCheckoutExecution(repoPath, args[0], forceFlag); err != nil {
+		return err
+	}
+
+	cmd.Printf("checked out [%s]\n", args[0])
 	return nil
 }

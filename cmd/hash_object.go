@@ -22,7 +22,7 @@ Examples:
   # Compute hash and store in .gogit/objects
   gogit hash-object -w myfile.txt`,
 	SilenceUsage: true,
-	Args:         exactArgs(1),
+	Args:         exactArgs(1, constants.HashObjectCmdName),
 	RunE:         runHashObject,
 }
 
@@ -33,18 +33,6 @@ func init() {
 
 	// Add flag using Cobra's flag system
 	hashObjectCmd.Flags().BoolVarP(&writeFlag, "write", "w", false, "Write the object into the objects folder")
-}
-
-// exactArgs validates command receives exactly n positional arguments.
-// enables usage printing in case of error
-func exactArgs(n int) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if len(args) != n {
-			cmd.SilenceUsage = false
-			return fmt.Errorf("%s command requires exactly %d argument (filepath), received %d", constants.HashObjectCmdName, n, len(args))
-		}
-		return nil
-	}
 }
 
 // runHashObject computes hash and optionally stores blob object.

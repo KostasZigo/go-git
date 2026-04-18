@@ -32,24 +32,12 @@ Examples:
   # Stage all files in directory (future feature)
   gogit add .`,
 	SilenceUsage: true,
-	Args:         minimumArgs(1),
+	Args:         minimumArgs(1, constants.AddCmdName),
 	RunE:         runAdd,
 }
 
 func init() {
 	rootCmd.AddCommand(addCmd)
-}
-
-// minimumArgs validates command receives at least n positional arguments.
-// Returns error with usage help if argument limit exceeded.
-func minimumArgs(n int) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if len(args) < n {
-			cmd.SilenceUsage = false
-			return fmt.Errorf("%s command accepts at least %d arg(s), received %d", constants.AddCmdName, n, len(args))
-		}
-		return nil
-	}
 }
 
 // runAdd stages files in index and creates blob objects.
