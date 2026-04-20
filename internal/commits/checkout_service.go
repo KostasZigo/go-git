@@ -1,6 +1,7 @@
 package commits
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -369,6 +370,79 @@ func updateHEAD(repoPath string, content string) error {
 	return nil
 }
 
+// handleHeadUpdate builds the HEAD file content from the resolved target and
+// atomically writes it. Branch targets produce a symbolic ref, detached targets
+// produce a raw commit hash.
+func handleHeadUpdate(repoPath, target string, resolvedTarget ResolvedTarget) error {
+	var headFileContent string
+	if resolvedTarget.IsBranch {
+		headFileContent = constants.DefaultRefPrefix + target + "\n"
+	} else {
+		headFileContent = resolvedTarget.Hash + "\n"
+	}
+
+	if err := updateHEAD(repoPath, headFileContent); err != nil {
+		return fmt.Errorf("failure during updating HEAD file: %w", err)
+	}
+
+	return nil
+}
+
+// handleIdempotency compares the resolved target's commit hash against the
+// current HEAD commit. If they match, updates HEAD (to handle branch switches
+// at the same commit) and returns true to signal the caller to skip the
+// destructive checkout steps. Returns false when the hashes differ.
+func handleIdempotency(repoPath, target string, resolvedTarget ResolvedTarget) (bool, error) {
+	headTarget, err := resolveHEADCommit(repoPath)
+	if err != nil {
+		return false, err
+	}
+
+	if headTarget.Hash != resolvedTarget.Hash {
+		return false, nil
+	}
+
+	if err := handleHeadUpdate(repoPath, target, resolvedTarget); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// resolveHEADCommit reads the HEAD file and resolves it to a ResolvedTarget.
+// If HEAD contains a symbolic ref, follows it to the branch ref file and reads
+// the commit hash. If HEAD contains a raw hash (detached state), returns it
+// directly.
+func resolveHEADCommit(repoPath string) (*ResolvedTarget, error) {
+	headContent, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read HEAD file: %w", err)
+	}
+
+	trimmed := bytes.TrimSpace(headContent)
+	refPrefix := []byte("ref: ")
+	if !bytes.HasPrefix(trimmed, refPrefix) {
+		return &ResolvedTarget{
+			Hash:     string(trimmed),
+			IsBranch: false,
+		}, nil
+	}
+
+	refPath := filepath.Join(
+		repoPath,
+		constants.Gogit,
+		string(bytes.TrimPrefix(trimmed, refPrefix)),
+	)
+	hash, err := getRefCommitHash(refPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve commit hash from ref [%s]: %w", refPath, err)
+	}
+
+	return &ResolvedTarget{
+		Hash:     hash,
+		IsBranch: true,
+	}, nil
+}
+
 // OrchestrateCheckoutExecution orchestrates the full checkout workflow:
 // resolves the target to a commit hash, reads the commit to obtain its tree,
 // loads the current index, cleans the working tree, restores the target
@@ -392,7 +466,15 @@ func OrchestrateCheckoutExecution(repoPath, target string, force bool) error {
 		return fmt.Errorf("failed to read commit [%s]: %w", resolvedTarget.Hash, err)
 	}
 
-	// Fix idempotency -> fast return (update head)
+	// 2.5 Idempotency check
+	// If target points to the same commit as HEAD, update HEAD and fast return.
+	isMatching, err := handleIdempotency(repoPath, target, *resolvedTarget)
+	if err != nil {
+		return fmt.Errorf("failed during idempotency checks: %w", err)
+	}
+	if isMatching {
+		return nil
+	}
 
 	// 3. Check if working directory is dirty
 	idxManager := index.NewManager(repoPath)
@@ -419,16 +501,5 @@ func OrchestrateCheckoutExecution(repoPath, target string, force bool) error {
 	}
 
 	// 6. Update HEAD file reference
-	var headFileContent string
-	if resolvedTarget.IsBranch {
-		headFileContent = constants.DefaultRefPrefix + target + "\n"
-	} else {
-		headFileContent = resolvedTarget.Hash + "\n"
-	}
-
-	if err := updateHEAD(repoPath, headFileContent); err != nil {
-		return fmt.Errorf("failure during updating HEAD file: %w", err)
-	}
-
-	return nil
+	return handleHeadUpdate(repoPath, target, *resolvedTarget)
 }

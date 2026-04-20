@@ -218,3 +218,61 @@ func readCommitByHash(t *testing.T, repoPath, commitHash string) *objects.Commit
 	}
 	return commit
 }
+
+// commitWithFile creates a file with the given name and content, stages it via
+// the add binary command, and commits it with a random message via the commit
+// binary command. Fails the test if any step produces an error.
+func commitWithFile(t *testing.T, repoPath, fileName string, fileContent []byte) {
+	t.Helper()
+
+	testutils.CreateTestFile(t, repoPath, fileName, fileContent)
+
+	addCmd := exec.Command(sharedBinaryPath, constants.AddCmdName, fileName)
+	addCmd.Dir = repoPath
+	if output, err := addCmd.CombinedOutput(); err != nil {
+		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
+	}
+
+	commitMessage := testutils.RandomString(10)
+	commitCmd := exec.Command(sharedBinaryPath, constants.CommitCmdName, "-m", commitMessage)
+	commitCmd.Dir = repoPath
+	if output, err := commitCmd.CombinedOutput(); err != nil {
+		t.Fatalf("commit command failed: %v\nOutput: %s", err, output)
+	}
+}
+
+// writeRefFile writes a commit hash into the branch ref file at
+// .gogit/refs/heads/<branchName>.
+func writeRefFile(t *testing.T, repoPath, branchName, commitHash string) {
+	t.Helper()
+
+	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, branchName)
+	if err := os.WriteFile(refPath, []byte(commitHash+"\n"), constants.FilePerms); err != nil {
+		t.Fatalf("failed to write ref file for branch %s: %v", branchName, err)
+	}
+}
+
+// assertCheckoutOutput verifies that the checkout command output contains the
+// expected "checked out [<target>]" message.
+func assertCheckoutOutput(t *testing.T, output, target string) {
+	t.Helper()
+
+	expected := fmt.Sprintf("checked out [%s]\n", target)
+	if !strings.Contains(output, expected) {
+		t.Fatalf("Expected checkout output to contain [%s], got: [%s]", expected, output)
+	}
+}
+
+// assertHEADContent reads .gogit/HEAD and verifies its raw content matches
+// the expected string exactly.
+func assertHEADContent(t *testing.T, repoPath, expectedContent string) {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
+	if err != nil {
+		t.Fatalf("failed to read HEAD file: %v", err)
+	}
+	if string(content) != expectedContent {
+		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedContent, string(content))
+	}
+}
