@@ -58,7 +58,7 @@ func writeIndexHeader(writer io.Writer, index *Index) error {
 }
 
 // writeEntry serializes single index entry
-func writeEntry(writer io.Writer, entry *IndexEntry) error {
+func writeEntry(writer io.Writer, entry *Entry) error {
 	// File mode - 4 bytes
 	if err := binary.Write(writer, binary.BigEndian, entry.Mode()); err != nil {
 		return fmt.Errorf("failed to write file mode: %w", err)
@@ -153,13 +153,13 @@ func readHeader(reader io.Reader) (*Index, uint32, error) {
 	}
 
 	return &Index{
-		entries: make(map[string]*IndexEntry, entriesCount),
-		version: uint32(version),
+		entries: make(map[string]*Entry, entriesCount),
+		version: version,
 	}, entriesCount, nil
 }
 
 // readEntry deserializes single index entry.
-func readEntry(reader io.Reader) (*IndexEntry, error) {
+func readEntry(reader io.Reader) (*Entry, error) {
 	// Read File Mode
 	var fileMode FileMode
 	if err := binary.Read(reader, binary.BigEndian, &fileMode); err != nil {

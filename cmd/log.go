@@ -30,7 +30,7 @@ func init() {
 
 // runLog resolves the repository root, delegates to OrchestrateLogExecution
 // to collect and format the commit history, and prints the result to stdout.
-func runLog(cmd *cobra.Command, args []string) error {
+func runLog(cmd *cobra.Command, _ []string) error {
 	// Find repository root path
 	repoPath, err := utils.FindRepoRoot()
 	if err != nil {

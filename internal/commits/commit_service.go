@@ -1,3 +1,7 @@
+// Package commits orchestrates the high-level version control operations that
+// act on or produce commit objects. It bridges the cmd layer and the lower-level
+// internal packages (objects, index, utils) to implement commit creation,
+// history traversal and working-tree checkout.
 package commits
 
 import (
@@ -12,12 +16,11 @@ import (
 )
 
 // LoadIndexEntries returns all entries of staged files for repository's index
-func loadIndexEntries(repoPath string) ([]*index.IndexEntry, error) {
+func loadIndexEntries(repoPath string) ([]*index.Entry, error) {
 	indexManager := index.NewManager(repoPath)
 	idx, err := indexManager.Load()
-
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load index from path [%s]: %w", repoPath, err)
+		return nil, fmt.Errorf("failed to load index from path [%s]: %w", repoPath, err)
 	}
 
 	return idx.GetEntryList(), nil
@@ -39,7 +42,7 @@ type directoryNode struct {
 
 // buildDirectoryTree constructs an in-memory directory tree from flat index entries.
 // Each index path is split into segments and inserted into the tree at the correct depth.
-func buildDirectoryTree(entries []*index.IndexEntry) *directoryNode {
+func buildDirectoryTree(entries []*index.Entry) *directoryNode {
 	root := &directoryNode{children: make(map[string]*directoryNode)}
 
 	for _, entry := range entries {
@@ -144,7 +147,7 @@ func getRefCommitHash(refPath string) (string, error) {
 	return strings.TrimSpace(string(parentCommitHash)), nil
 }
 
-// createAndStoreCommit creates and stores commit in the file sytem and returns the commit hash
+// createAndStoreCommit creates and stores commit in the file system and returns the commit hash
 func createAndStoreCommit(treeHash, parentHash, message string, author objects.Author, store *objects.ObjectStore) (string, error) {
 	commit, err := objects.NewCommit(treeHash, parentHash, message, author)
 	if err != nil {
@@ -179,8 +182,8 @@ func updateRefFile(repoPath, commitHash string) error {
 	succeeded := false
 	defer func() {
 		if !succeeded {
-			tempFile.Close()
-			os.Remove(tempPath)
+			_ = tempFile.Close()
+			_ = os.Remove(tempPath)
 		}
 	}()
 

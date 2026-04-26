@@ -1,3 +1,6 @@
+// Package repository handles initialization and structural management
+// of the .gogit directory, including directory creation, HEAD setup, and
+// cleanup on failure.
 package repository
 
 import (

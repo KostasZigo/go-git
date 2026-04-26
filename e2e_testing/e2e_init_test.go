@@ -2,7 +2,6 @@ package e2etesting
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -22,10 +21,9 @@ func TestE2E_InitCommand(t *testing.T) {
 	repoPath := setupTestRepo(t)
 
 	// Test the binary like a real user
-	cmd := exec.Command(sharedBinaryPath, constants.InitCmdName)
+	cmd := newGogitCmd(t, constants.InitCmdName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Binary execution failed: %v\nOutput: %s", err, output)
 	}
@@ -43,7 +41,7 @@ func TestE2E_InitCommand(t *testing.T) {
 	testutils.AssertRepositoryStructure(t, repoPath)
 
 	// Test error case - init again
-	cmd = exec.Command(sharedBinaryPath, constants.InitCmdName)
+	cmd = newGogitCmd(t, constants.InitCmdName)
 	cmd.Dir = repoPath
 	output, err = cmd.CombinedOutput()
 
@@ -64,9 +62,8 @@ func TestE2E_HelpCommand(t *testing.T) {
 	}
 
 	// Test help
-	cmd := exec.Command(sharedBinaryPath, "--help")
+	cmd := newGogitCmd(t, "--help")
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Help command failed: %v", err)
 	}
@@ -95,7 +92,7 @@ func TestE2E_InvalidCommand(t *testing.T) {
 	}
 
 	// Test invalid command
-	cmd := exec.Command(sharedBinaryPath, "nonexistent")
+	cmd := newGogitCmd(t, "nonexistent")
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {

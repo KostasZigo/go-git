@@ -3,7 +3,6 @@ package e2etesting
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,10 +24,9 @@ func TestE2E_AddCommand_SingleFile(t *testing.T) {
 	testFileContent := []byte(testutils.RandomString(100))
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
 	}
@@ -63,15 +61,15 @@ func TestE2E_AddCommand_MultipleFiles(t *testing.T) {
 		testutils.CreateTestFile(t, repoPath, file.name, file.content)
 	}
 
-	args := []string{constants.AddCmdName}
+	args := make([]string, 0, len(files)+1)
+	args = append(args, constants.AddCmdName)
 	for _, file := range files {
 		args = append(args, file.name)
 	}
 
-	cmd := exec.Command(sharedBinaryPath, args...)
+	cmd := newGogitCmd(t, args...)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
 	}
@@ -97,7 +95,7 @@ func TestE2E_AddCommand_FileNotFound(t *testing.T) {
 	initializeRepository(t, repoPath)
 
 	testFileName := testutils.RandomString(10)
-	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 
@@ -124,7 +122,7 @@ func TestE2E_AddCommand_NotInRepository(t *testing.T) {
 	testFileContent := []byte(testutils.RandomString(100))
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 
@@ -152,10 +150,9 @@ func TestE2E_AddCommand_UpdateExistingFile(t *testing.T) {
 	testFileContent := []byte(testutils.RandomString(100))
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
 	}
@@ -171,10 +168,9 @@ func TestE2E_AddCommand_UpdateExistingFile(t *testing.T) {
 	testFileContentUpdated := []byte(testutils.RandomString(1000))
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContentUpdated)
 
-	cmd = exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd = newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd.Dir = repoPath
 	output, err = cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
 	}
@@ -196,7 +192,7 @@ func TestE2E_AddCommand_NoArguments(t *testing.T) {
 	repoPath := setupTestRepo(t)
 	initializeRepository(t, repoPath)
 
-	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName)
+	cmd := newGogitCmd(t, constants.AddCmdName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 
@@ -229,10 +225,9 @@ func TestE2E_AddCommand_FileInSubdirectory(t *testing.T) {
 	testFileContent := []byte(testutils.RandomString(100))
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
 	}
@@ -261,10 +256,9 @@ func TestE2E_AddCommand_SameContentDifferentFiles(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, file1, sharedContent)
 	testutils.CreateTestFile(t, repoPath, file2, sharedContent)
 
-	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, file1, file2)
+	cmd := newGogitCmd(t, constants.AddCmdName, file1, file2)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
 	}
@@ -294,13 +288,13 @@ func TestE2E_AddCommand_IdempotentAdd(t *testing.T) {
 	testFileContent := []byte(testutils.RandomString(1000))
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	cmd1 := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd1 := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd1.Dir = repoPath
 	if _, err := cmd1.CombinedOutput(); err != nil {
 		t.Fatalf("First add failed: %v", err)
 	}
 
-	cmd2 := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	cmd2 := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd2.Dir = repoPath
 	_, err := cmd2.CombinedOutput()
 	if err != nil {
@@ -338,17 +332,16 @@ func TestE2E_AddCommand_AddAll(t *testing.T) {
 	for _, file := range files {
 		dir := filepath.Dir(file.name)
 		if dir != "." {
-			if err := os.MkdirAll(filepath.Join(repoPath, dir), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Join(repoPath, dir), 0o755); err != nil {
 				t.Fatalf("Failed to create directory: %v", err)
 			}
 		}
 		testutils.CreateTestFile(t, repoPath, file.name, file.content)
 	}
 
-	cmd := exec.Command(sharedBinaryPath, constants.AddCmdName, ".")
+	cmd := newGogitCmd(t, constants.AddCmdName, ".")
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("add . failed: %v\nOutput: %s", err, output)
 	}

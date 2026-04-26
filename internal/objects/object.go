@@ -1,3 +1,6 @@
+// Package objects implements the content-addressable object store used by gogit.
+// It provides types and operations for blobs, trees, and commits, along with
+// SHA-1 hashing, zlib compression, and on-disk storage under .gogit/objects/.
 package objects
 
 // Object represents any GoGit object that can be stored

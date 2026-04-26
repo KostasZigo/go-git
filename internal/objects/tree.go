@@ -14,6 +14,8 @@ import (
 // FileMode represents Unix file permissions and type in Git objects.
 type FileMode string
 
+// FileMode constants define the standard Unix permission and type
+// values used in Git tree object entries.
 const (
 	ModeRegularFile FileMode = "100644" // Regular non-executable file
 	ModeExecutable  FileMode = "100755" // Executable file
@@ -32,13 +34,16 @@ func (m FileMode) isValid() bool {
 	}
 }
 
-// TreeEntry represents a single entry in a tree object
+// TreeEntry represents a single entry in a Git tree object,
+// holding the file mode, name, and SHA-1 hash of the referenced object.
 type TreeEntry struct {
 	mode FileMode
 	name string
-	hash string //This is the hex hash coming from the blob file hash
+	hash string // This is the hex hash coming from the blob file hash
 }
 
+// NewTreeEntry validates the provided mode, name, and hash, and returns
+// a new TreeEntry. Returns an error if any field is invalid.
 func NewTreeEntry(mode FileMode, name string, hash string) (*TreeEntry, error) {
 	if !mode.isValid() {
 		return nil, fmt.Errorf("invalid file mode: %s", mode)
@@ -57,20 +62,24 @@ func NewTreeEntry(mode FileMode, name string, hash string) (*TreeEntry, error) {
 	}, nil
 }
 
+// Mode returns the Unix file mode of this tree entry.
 func (e *TreeEntry) Mode() FileMode {
 	return e.mode
 }
 
+// Name returns the file or directory name of this tree entry.
 func (e *TreeEntry) Name() string {
 	return e.name
 }
 
+// Hash returns the hex-encoded SHA-1 hash of the referenced object.
 func (e *TreeEntry) Hash() string {
 	return e.hash
 }
 
-func (treeEntry *TreeEntry) IsDirectory() bool {
-	return treeEntry.mode == ModeDirectory
+// IsDirectory reports whether this entry references a subtree.
+func (e *TreeEntry) IsDirectory() bool {
+	return e.mode == ModeDirectory
 }
 
 // Tree represents a Git tree object (directory snapshot)
@@ -147,18 +156,22 @@ func buildTreeContent(entries []TreeEntry) []byte {
 	return buf.Bytes()
 }
 
+// Hash returns the hex-encoded SHA-1 hash of the tree object.
 func (t *Tree) Hash() string {
 	return t.hash
 }
 
+// Entries returns the sorted list of tree entries.
 func (t *Tree) Entries() []TreeEntry {
 	return t.entries
 }
 
+// Size returns the byte length of the raw tree content body.
 func (t *Tree) Size() int {
 	return len(buildTreeContent(t.entries))
 }
 
+// Content returns the raw tree content body without the header.
 func (t *Tree) Content() []byte {
 	return buildTreeContent(t.entries)
 }

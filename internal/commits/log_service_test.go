@@ -77,25 +77,25 @@ func TestCollectCommitHistory_CommitChain(t *testing.T) {
 	}
 	treeHash := testutils.RandomHash()
 
-	message_first := testutils.RandomString(10)
-	commitHash_first, err := createAndStoreCommit(treeHash, "", message_first, author, store)
+	messageFirst := testutils.RandomString(10)
+	commitHashFirst, err := createAndStoreCommit(treeHash, "", messageFirst, author, store)
 	if err != nil {
 		t.Fatalf("Failed to  create and store commit: %v", err)
 	}
 
-	message_second := testutils.RandomString(10)
-	commitHash_second, err := createAndStoreCommit(treeHash, commitHash_first, message_second, author, store)
+	messageSecond := testutils.RandomString(10)
+	commitHashSecond, err := createAndStoreCommit(treeHash, commitHashFirst, messageSecond, author, store)
 	if err != nil {
 		t.Fatalf("Failed to  create and store commit: %v", err)
 	}
 
-	message_third := testutils.RandomString(10)
-	commitHash_third, err := createAndStoreCommit(treeHash, commitHash_second, message_third, author, store)
+	messageThird := testutils.RandomString(10)
+	commitHashThird, err := createAndStoreCommit(treeHash, commitHashSecond, messageThird, author, store)
 	if err != nil {
 		t.Fatalf("Failed to  create and store commit: %v", err)
 	}
 
-	entries, err := collectCommitHistory(store, commitHash_third)
+	entries, err := collectCommitHistory(store, commitHashThird)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -105,9 +105,9 @@ func TestCollectCommitHistory_CommitChain(t *testing.T) {
 		hash    string
 		message string
 	}{
-		{commitHash_third, message_third},
-		{commitHash_second, message_second},
-		{commitHash_first, message_first},
+		{commitHashThird, messageThird},
+		{commitHashSecond, messageSecond},
+		{commitHashFirst, messageFirst},
 	}
 
 	if len(entries) != len(expectedEntryList) {
@@ -202,13 +202,13 @@ func TestFormatCommitHistory_ChainCommits(t *testing.T) {
 		Email:     testutils.RandomString(15),
 		Timestamp: time.Now(),
 	}
-	first_commit := newCommitLogEntry(testutils.RandomHash(), testutils.RandomString(20), author)
-	second_commit := newCommitLogEntry(testutils.RandomHash(), testutils.RandomString(20), author)
-	third_commit := newCommitLogEntry(testutils.RandomHash(), testutils.RandomString(20), author)
+	firstCommit := newCommitLogEntry(testutils.RandomHash(), testutils.RandomString(20), author)
+	secondCommit := newCommitLogEntry(testutils.RandomHash(), testutils.RandomString(20), author)
+	thirdCommit := newCommitLogEntry(testutils.RandomHash(), testutils.RandomString(20), author)
 	commitLogEntries := []CommitLogEntry{
-		third_commit,
-		second_commit,
-		first_commit,
+		thirdCommit,
+		secondCommit,
+		firstCommit,
 	}
 
 	historyOutput, err := formatCommitHistory(commitLogEntries)
@@ -262,20 +262,20 @@ func TestOrchestrateLogExecution(t *testing.T) {
 	}
 	treeHash := testutils.RandomHash()
 
-	message_first := testutils.RandomString(10)
-	commitHash_first, err := createAndStoreCommit(treeHash, "", message_first, author, store)
+	messageFirst := testutils.RandomString(10)
+	commitHashFirst, err := createAndStoreCommit(treeHash, "", messageFirst, author, store)
 	if err != nil {
 		t.Fatalf("Failed to  create and store commit: %v", err)
 	}
 
-	message_second := testutils.RandomString(10)
-	commitHash_second, err := createAndStoreCommit(treeHash, commitHash_first, message_second, author, store)
+	messageSecond := testutils.RandomString(10)
+	commitHashSecond, err := createAndStoreCommit(treeHash, commitHashFirst, messageSecond, author, store)
 	if err != nil {
 		t.Fatalf("Failed to  create and store commit: %v", err)
 	}
 
-	message_third := testutils.RandomString(10)
-	commitHash_third, err := createAndStoreCommit(treeHash, commitHash_second, message_third, author, store)
+	messageThird := testutils.RandomString(10)
+	commitHashThird, err := createAndStoreCommit(treeHash, commitHashSecond, messageThird, author, store)
 	if err != nil {
 		t.Fatalf("Failed to  create and store commit: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestOrchestrateLogExecution(t *testing.T) {
 	if err := os.MkdirAll(refPath, constants.DirPerms); err != nil {
 		t.Fatalf("Failed to create ref path directory: %v", err)
 	}
-	testutils.CreateTestFile(t, refPath, "main", []byte(commitHash_third+"\n"))
+	testutils.CreateTestFile(t, refPath, "main", []byte(commitHashThird+"\n"))
 
 	historyOutput, err := OrchestrateLogExecution(repoPath)
 	if err != nil {
@@ -292,9 +292,9 @@ func TestOrchestrateLogExecution(t *testing.T) {
 	}
 
 	logEntries := []CommitLogEntry{
-		newCommitLogEntry(commitHash_third, message_third, author),
-		newCommitLogEntry(commitHash_second, message_second, author),
-		newCommitLogEntry(commitHash_first, message_first, author),
+		newCommitLogEntry(commitHashThird, messageThird, author),
+		newCommitLogEntry(commitHashSecond, messageSecond, author),
+		newCommitLogEntry(commitHashFirst, messageFirst, author),
 	}
 
 	var expectedHistoryOutput strings.Builder

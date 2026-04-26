@@ -2,7 +2,6 @@ package e2etesting
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -33,7 +32,7 @@ func TestE2E_LogCommand_SingleCommit(t *testing.T) {
 	)
 
 	// Execute log command
-	logCmd := exec.Command(sharedBinaryPath, constants.LogCmdName)
+	logCmd := newGogitCmd(t, constants.LogCmdName)
 	logCmd.Dir = repoPath
 	output, err := logCmd.CombinedOutput()
 	if err != nil {
@@ -76,7 +75,7 @@ func TestE2E_LogCommand_CommitChain(t *testing.T) {
 	}
 
 	// Execute log command
-	logCmd := exec.Command(sharedBinaryPath, constants.LogCmdName)
+	logCmd := newGogitCmd(t, constants.LogCmdName)
 	logCmd.Dir = repoPath
 	output, err := logCmd.CombinedOutput()
 	if err != nil {
@@ -99,7 +98,7 @@ func TestE2E_LogCommand_NoRepository(t *testing.T) {
 	repoPath := setupTestRepo(t)
 
 	// Execute log command
-	logCmd := exec.Command(sharedBinaryPath, constants.LogCmdName)
+	logCmd := newGogitCmd(t, constants.LogCmdName)
 	logCmd.Dir = repoPath
 	output, err := logCmd.CombinedOutput()
 	if err == nil {
@@ -124,7 +123,7 @@ func TestE2E_LogCommand_NoCommits(t *testing.T) {
 	initializeRepository(t, repoPath)
 
 	// Execute log command
-	logCmd := exec.Command(sharedBinaryPath, constants.LogCmdName)
+	logCmd := newGogitCmd(t, constants.LogCmdName)
 	logCmd.Dir = repoPath
 	output, err := logCmd.CombinedOutput()
 	if err == nil {

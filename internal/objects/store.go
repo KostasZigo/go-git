@@ -22,6 +22,7 @@ type ObjectStore struct {
 	repoPath string // Path to repository root
 }
 
+// NewObjectStore creates a new object storage instance for interacting with object files
 func NewObjectStore(repoPath string) *ObjectStore {
 	return &ObjectStore{
 		repoPath: repoPath,
@@ -104,8 +105,8 @@ func (store *ObjectStore) Exists(hash string) bool {
 }
 
 // objectPath constructs filesystem path for object hash.
-func (s *ObjectStore) objectPath(hash string) string {
-	return filepath.Join(s.repoPath, constants.Gogit, constants.Objects, hash[:constants.HashDirPrefixLength], hash[constants.HashDirPrefixLength:])
+func (store *ObjectStore) objectPath(hash string) string {
+	return filepath.Join(store.repoPath, constants.Gogit, constants.Objects, hash[:constants.HashDirPrefixLength], hash[constants.HashDirPrefixLength:])
 }
 
 // compressData compresses byte slice using zlib.
@@ -116,7 +117,9 @@ func (store *ObjectStore) compressData(data []byte) ([]byte, error) {
 	writer := zlib.NewWriter(&buffer)
 
 	if _, err := writer.Write(data); err != nil {
-		writer.Close()
+		if writerError := writer.Close(); writerError != nil {
+			slog.Info("failed to close writer while compressing data", "error", err)
+		}
 		return nil, err
 	}
 
@@ -146,7 +149,11 @@ func decompressData(compressed []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zlib reader: %w", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			slog.Info("failed to close reader while decompressing data", "error", err)
+		}
+	}()
 
 	var buf bytes.Buffer
 	if _, err := buf.ReadFrom(reader); err != nil {
@@ -337,7 +344,7 @@ func parseCommitContent(content string) (*Commit, error) {
 	message := strings.Join(lines[messageIndex:], "\n")
 	message = strings.TrimRight(message, "\n")
 
-	//Compute Hash
+	// Compute Hash
 	builtContent := buildCommitContent(treeHash, parentHash, message, author)
 	hash, err := utils.ComputeHash(builtContent, utils.CommitObjectType)
 	if err != nil {

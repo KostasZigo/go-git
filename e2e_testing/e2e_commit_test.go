@@ -2,7 +2,6 @@ package e2etesting
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -30,7 +29,7 @@ func TestE2E_CommitCommand_FirstCommit(t *testing.T) {
 	testFileContent := []byte(testutils.RandomString(100))
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	addCmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	addCmd := newGogitCmd(t, constants.AddCmdName, testFileName)
 	addCmd.Dir = repoPath
 	if output, err := addCmd.CombinedOutput(); err != nil {
 		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
@@ -38,10 +37,9 @@ func TestE2E_CommitCommand_FirstCommit(t *testing.T) {
 
 	// Execute commit
 	commitMessage := "initial commit"
-	commitCmd := exec.Command(sharedBinaryPath, constants.CommitCmdName, "-m", commitMessage)
+	commitCmd := newGogitCmd(t, constants.CommitCmdName, "-m", commitMessage)
 	commitCmd.Dir = repoPath
 	output, err := commitCmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("commit command failed: %v\nOutput: %s", err, output)
 	}
@@ -120,13 +118,13 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 	// First: create, stage, commit
 	testutils.CreateTestFile(t, repoPath, testFileName, []byte("version 1"))
 
-	addCmd1 := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	addCmd1 := newGogitCmd(t, constants.AddCmdName, testFileName)
 	addCmd1.Dir = repoPath
 	if output, err := addCmd1.CombinedOutput(); err != nil {
 		t.Fatalf("first add failed: %v\nOutput: %s", err, output)
 	}
 
-	commitCmd1 := exec.Command(sharedBinaryPath, constants.CommitCmdName, "-m", "first")
+	commitCmd1 := newGogitCmd(t, constants.CommitCmdName, "-m", "first")
 	commitCmd1.Dir = repoPath
 	if output, err := commitCmd1.CombinedOutput(); err != nil {
 		t.Fatalf("first commit failed: %v\nOutput: %s", err, output)
@@ -141,13 +139,13 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 	// Second: modify, re-stage, commit
 	testutils.CreateTestFile(t, repoPath, testFileName, []byte("version 2"))
 
-	addCmd2 := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	addCmd2 := newGogitCmd(t, constants.AddCmdName, testFileName)
 	addCmd2.Dir = repoPath
 	if output, err := addCmd2.CombinedOutput(); err != nil {
 		t.Fatalf("second add failed: %v\nOutput: %s", err, output)
 	}
 
-	commitCmd2 := exec.Command(sharedBinaryPath, constants.CommitCmdName, "-m", "second")
+	commitCmd2 := newGogitCmd(t, constants.CommitCmdName, "-m", "second")
 	commitCmd2.Dir = repoPath
 	output, err := commitCmd2.CombinedOutput()
 	if err != nil {
@@ -205,7 +203,7 @@ func TestE2E_CommitCommand_NoStagedFiles(t *testing.T) {
 	repoPath := setupTestRepo(t)
 	initializeRepository(t, repoPath)
 
-	commitCmd := exec.Command(sharedBinaryPath, constants.CommitCmdName, "-m", "empty commit")
+	commitCmd := newGogitCmd(t, constants.CommitCmdName, "-m", "empty commit")
 	commitCmd.Dir = repoPath
 	output, err := commitCmd.CombinedOutput()
 

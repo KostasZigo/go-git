@@ -1,3 +1,5 @@
+// Package testutils provides shared test helpers for repository setup,
+// random data generation, file assertions, and HEAD/ref file manipulation.
 package testutils
 
 import (
@@ -29,8 +31,8 @@ func RandomByteSlice(n int) []byte {
 }
 
 // RandomInt generates a cryptographically random int64 in the range [0, max).
-func RandomInt(max int) int64 {
-	bigInt := big.NewInt(int64(max))
+func RandomInt(upperBound int) int64 {
+	bigInt := big.NewInt(int64(upperBound))
 	number, err := rand.Int(rand.Reader, bigInt)
 	if err != nil {
 		panic(err)
@@ -91,7 +93,7 @@ func SetupTestRepoWithInit(t *testing.T) string {
 
 // CreateTestFile creates a file with given content in the specified directory.
 // Returns the full path to the created file. If file already exists, it content is
-// udpated.
+// updated.
 func CreateTestFile(t *testing.T, dir, filename string, content []byte) string {
 	t.Helper()
 
@@ -154,7 +156,7 @@ func AssertDirNotExists(t *testing.T, path string) {
 	}
 }
 
-// assertRepositoryStructure validates complete .gogit directory structure.
+// AssertRepositoryStructure validates complete .gogit directory structure.
 // Verifies objects/, refs/heads/, refs/tags/ exist and HEAD contains correct branch reference.
 // Fatal error if any validation fails.
 func AssertRepositoryStructure(t *testing.T, repoPath string) {
@@ -187,7 +189,7 @@ func AssertRepositoryStructure(t *testing.T, repoPath string) {
 	}
 }
 
-// readRefFile reads the default branch ref file and returns the trimmed commit hash.
+// ReadDefaultRefFile reads the default branch ref file and returns the trimmed commit hash.
 // Fails the test if the file cannot be read.
 func ReadDefaultRefFile(t *testing.T, repoPath string) string {
 	t.Helper()

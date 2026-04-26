@@ -1,3 +1,5 @@
+// Package utils provides shared hashing, validation, path resolution,
+// and formatting utilities used across the gogit codebase.
 package utils
 
 import (
@@ -12,14 +14,17 @@ import (
 	"github.com/KostasZigo/gogit/internal/constants"
 )
 
+// ObjectType identifies the category of a Git object for header construction.
 type ObjectType string
 
+// ObjectType constants enumerate the supported Git object types.
 const (
 	BlobObjectType   ObjectType = "blob"
 	TreeObjectType   ObjectType = "tree"
 	CommitObjectType ObjectType = "commit"
 )
 
+// IsValid reports whether the ObjectType is a recognized Git object type.
 func (ot ObjectType) IsValid() bool {
 	switch ot {
 	case BlobObjectType, TreeObjectType, CommitObjectType:
@@ -61,7 +66,7 @@ func IsValidSHA1Hash(hash string) bool {
 	return err == nil
 }
 
-// BuildDirPath constructs os-agnostic display direcotry path with trailing separator preserving all components.
+// BuildDirPath constructs os-agnostic display directory path with trailing separator preserving all components.
 // Unlike filepath.Join, does not normalize "." or remove redundant separators.
 func BuildDirPath(dirs ...string) string {
 	return strings.Join(dirs, string(filepath.Separator)) + string(filepath.Separator)

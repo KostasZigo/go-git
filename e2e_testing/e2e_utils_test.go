@@ -2,6 +2,7 @@ package e2etesting
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
@@ -19,10 +21,32 @@ import (
 	"github.com/fatih/color"
 )
 
+// e2eCommandTimeout bounds the time any single invocation of the
+// gogit binary is allowed to take during E2E tests.
+// This value only exists to fail fast on hangs for example deadlocks, instead of waiting
+// for `go test -timeout` to terminate the whole package.
+const e2eCommandTimeout = 30 * time.Second
+
 // sharedBinaryPath stores compiled gogit binary path built once in TestMain.
 // All E2E tests execute this binary to verify end-to-end behavior.
 // Binary persists for test suite duration, cleaned up after all tests complete
 var sharedBinaryPath string
+
+// newGogitCmd builds an *exec.Cmd that invokes the shared gogit binary with the
+// given arguments. The command is wired to a context and bounded by e2eCommandTimeout,
+//
+//	so:
+//	 - The child process is automatically killed when the test ends.
+//	 - A hanging or deadlocked invocation fails the test after timeout.
+//
+// The cancel function is registered with t.Cleanup so callers do not need to
+// manage it.
+func newGogitCmd(t *testing.T, args ...string) *exec.Cmd {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), e2eCommandTimeout)
+	t.Cleanup(cancel)
+	return exec.CommandContext(ctx, sharedBinaryPath, args...)
+}
 
 // TestMain executes before all tests to build gogit binary once.
 // Binary stored in temporary directory, removed after test suite completes.
@@ -39,7 +63,6 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic("Failed to create temp directory: " + err.Error())
 	}
-	defer os.RemoveAll(tempDir)
 
 	binaryName := "gogit"
 	if runtime.GOOS == "windows" {
@@ -47,14 +70,19 @@ func TestMain(m *testing.M) {
 	}
 	sharedBinaryPath = filepath.Join(tempDir, binaryName)
 
-	buildCmd := exec.Command("go", "build", "-o", sharedBinaryPath, ".")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", sharedBinaryPath, ".")
 	buildCmd.Dir = ".." // execute command on root folder
 	if err := buildCmd.Run(); err != nil {
 		panic("Failed to build binary: " + err.Error())
 	}
+	cancel()
 
 	color.NoColor = true
-	os.Exit(m.Run())
+	exitCode := m.Run()
+
+	os.RemoveAll(tempDir)
+	os.Exit(exitCode)
 }
 
 // setupTestRepo creates test directory.
@@ -62,7 +90,7 @@ func setupTestRepo(t *testing.T) (repoPath string) {
 	t.Helper()
 
 	repoPath = filepath.Join(t.TempDir(), "test-repo")
-	if err := os.MkdirAll(repoPath, 0755); err != nil {
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
 		t.Fatalf("Failed to create test repo dir: %v", err)
 	}
 
@@ -73,7 +101,7 @@ func setupTestRepo(t *testing.T) (repoPath string) {
 func initializeRepository(t *testing.T, repoPath string) {
 	t.Helper()
 
-	cmd := exec.Command(sharedBinaryPath, constants.InitCmdName)
+	cmd := newGogitCmd(t, constants.InitCmdName)
 	cmd.Dir = repoPath
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to initialize repository: %v", err)
@@ -180,7 +208,7 @@ func commitWithSingleFile(t *testing.T, repoPath string) {
 	testFileContent := []byte(testutils.RandomString(100))
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	addCmd := exec.Command(sharedBinaryPath, constants.AddCmdName, testFileName)
+	addCmd := newGogitCmd(t, constants.AddCmdName, testFileName)
 	addCmd.Dir = repoPath
 	if output, err := addCmd.CombinedOutput(); err != nil {
 		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
@@ -188,10 +216,9 @@ func commitWithSingleFile(t *testing.T, repoPath string) {
 
 	// Execute commit
 	commitMessage := testutils.RandomString(10)
-	commitCmd := exec.Command(sharedBinaryPath, constants.CommitCmdName, "-m", commitMessage)
+	commitCmd := newGogitCmd(t, constants.CommitCmdName, "-m", commitMessage)
 	commitCmd.Dir = repoPath
 	output, err := commitCmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("commit command failed: %v\nOutput: %s", err, output)
 	}
@@ -227,14 +254,14 @@ func commitWithFile(t *testing.T, repoPath, fileName string, fileContent []byte)
 
 	testutils.CreateTestFile(t, repoPath, fileName, fileContent)
 
-	addCmd := exec.Command(sharedBinaryPath, constants.AddCmdName, fileName)
+	addCmd := newGogitCmd(t, constants.AddCmdName, fileName)
 	addCmd.Dir = repoPath
 	if output, err := addCmd.CombinedOutput(); err != nil {
 		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
 	}
 
 	commitMessage := testutils.RandomString(10)
-	commitCmd := exec.Command(sharedBinaryPath, constants.CommitCmdName, "-m", commitMessage)
+	commitCmd := newGogitCmd(t, constants.CommitCmdName, "-m", commitMessage)
 	commitCmd.Dir = repoPath
 	if output, err := commitCmd.CombinedOutput(); err != nil {
 		t.Fatalf("commit command failed: %v\nOutput: %s", err, output)

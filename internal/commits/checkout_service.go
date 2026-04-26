@@ -104,7 +104,7 @@ func searchForTargetInCommitObjects(repoPath, target string) (*ResolvedTarget, e
 // from the working directory. Operates in two passes: first deletes all tracked
 // files, then collects unique parent directories and prunes empty ones deepest-first
 // up to (but not including) repoPath. Files already missing on disk are silently skipped.
-func CleanWorkingTree(repoPath string, indexEntries []*index.IndexEntry) error {
+func CleanWorkingTree(repoPath string, indexEntries []*index.Entry) error {
 	uniqueDirs := map[string]struct{}{}
 	for _, entry := range indexEntries {
 		relPath, err := filepath.Localize(entry.Path())
@@ -169,7 +169,6 @@ func pruneEmptyDirectories(repoPath, dirPath string) error {
 			return nil
 		}
 	}
-
 }
 
 // isDirEmpty reports whether the directory at path contains no entries.
@@ -179,10 +178,10 @@ func isDirEmpty(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	_, err = f.Readdirnames(1)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	}
 	return false, err
@@ -290,7 +289,7 @@ func addFileToRebuiltIndex(absPath, relPath, hash string, idx *index.Index) erro
 // Uses a file-size + modified-time fast path to skip unchanged files, falling back to a
 // full content hash comparison when metadata differs. Collects all dirty
 // entries into a single error rather than failing on the first mismatch.
-func checkIfDirty(repoPath string, idxEntries []*index.IndexEntry) error {
+func checkIfDirty(repoPath string, idxEntries []*index.Entry) error {
 	var errorBuilder strings.Builder
 	for _, idxEntry := range idxEntries {
 		absPath := filepath.Join(repoPath, filepath.FromSlash(idxEntry.Path()))
@@ -341,8 +340,8 @@ func updateHEAD(repoPath string, content string) error {
 	succeeded := false
 	defer func() {
 		if !succeeded {
-			tempFile.Close()
-			os.Remove(tempPath)
+			_ = tempFile.Close()
+			_ = os.Remove(tempPath)
 		}
 	}()
 

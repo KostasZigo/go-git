@@ -16,7 +16,6 @@ func TestNewTreeEntry(t *testing.T) {
 	entryName := "test.txt"
 	hash := testutils.RandomHash()
 	entry, err := objects.NewTreeEntry(objects.ModeRegularFile, entryName, hash)
-
 	if err != nil {
 		t.Fatal("Expected New Tree Entry to be created")
 	}
@@ -116,7 +115,6 @@ func TestNewTree_SortsEntries(t *testing.T) {
 			t.Errorf("Expected entry %d to be '%s', got '%s'", i, expected, sortedEntries[i].Name())
 		}
 	}
-
 }
 
 // TestTree_NestedStructure verifies tree with nested directory structure.

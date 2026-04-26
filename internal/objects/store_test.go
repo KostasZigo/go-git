@@ -82,7 +82,6 @@ func TestObjectStore_Compression(t *testing.T) {
 		t.Errorf("Hash mismatch: expected [%s], got [%s]",
 			blob.Hash(), readBlob.Hash())
 	}
-
 }
 
 // TestObjectStore_StoreIdempotent verifies storing same blob twice is safe.
@@ -227,7 +226,6 @@ Initial commit message
 	if timezone != "+0000" {
 		t.Errorf("Expected timezone +0000, got %s", timezone)
 	}
-
 }
 
 // TestObjectStore_StoreAndReadInitialCommit verifies initial commit storage and retrieval.

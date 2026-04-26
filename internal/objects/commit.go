@@ -9,7 +9,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/utils"
 )
 
-// Represents commit author/committer
+// Author represents commit author/committer
 type Author struct {
 	Name      string
 	Email     string
@@ -23,6 +23,7 @@ func (a Author) String() string {
 		a.Email)
 }
 
+// Time returns the author's commit timestamp.
 func (a Author) Time() time.Time {
 	return a.Timestamp
 }
@@ -53,7 +54,7 @@ func NewCommit(treeHash, parentHash, message string, author Author) (*Commit, er
 	content := buildCommitContent(treeHash, parentHash, message, author)
 	hash, err := utils.ComputeHash(content, utils.CommitObjectType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute hash for commit: %v", err)
+		return nil, fmt.Errorf("failed to compute hash for commit: %w", err)
 	}
 
 	return &Commit{
@@ -128,34 +129,44 @@ func calculateTimezone(t time.Time) string {
 	return fmt.Sprintf("%+03d%02d", hours, minutes)
 }
 
+// Hash returns the hex-encoded SHA-1 hash of the commit object.
 func (c *Commit) Hash() string {
 	return c.hash
 }
 
+// TreeHash returns the SHA-1 hash of the root tree object for this commit.
 func (c *Commit) TreeHash() string {
 	return c.treeHash
 }
 
+// ParentHash returns the SHA-1 hash of the parent commit,
+// or an empty string for the initial commit.
 func (c *Commit) ParentHash() string {
 	return c.parentHash
 }
 
+// Message returns the commit message.
 func (c *Commit) Message() string {
 	return c.message
 }
 
+// Author returns the author metadata for this commit.
 func (c *Commit) Author() Author {
 	return c.author
 }
 
+// Content returns the raw commit object body without the header,
+// reconstructed from the commit's stored fields.
 func (c *Commit) Content() []byte {
 	return buildCommitContent(c.treeHash, c.parentHash, c.message, c.author)
 }
 
+// Size returns the byte length of the commit content body.
 func (c *Commit) Size() int {
 	return len(c.Content())
 }
 
+// Header returns the Git object header for this commit ("commit <size>\0").
 func (c *Commit) Header() string {
 	return fmt.Sprintf("%s%d%c", constants.CommitPrefix, c.Size(), constants.NullByte)
 }
@@ -165,6 +176,7 @@ func (c *Commit) Data() []byte {
 	return append([]byte(c.Header()), c.Content()...)
 }
 
+// IsInitialCommit checks whether this is the first commit of the repository
 func (c *Commit) IsInitialCommit() bool {
 	return c.parentHash == ""
 }

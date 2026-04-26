@@ -1,3 +1,5 @@
+// Package constants defines shared configuration values,
+// and default settings used across the gogit codebase.
 package constants
 
 import (
@@ -53,10 +55,10 @@ const (
 // File system permissions for created files and directories.
 const (
 	// DirPerms grants read/write/execute to owner, read/execute to others (rwxr-xr-x).
-	DirPerms os.FileMode = 0755
+	DirPerms os.FileMode = 0o755
 
 	// FilePerms grants read/write to owner, read-only to others (rw-r--r--).
-	FilePerms os.FileMode = 0644
+	FilePerms os.FileMode = 0o644
 )
 
 // Cryptographic hash properties.
@@ -107,6 +109,8 @@ const (
 // FileMode represents Unix file permissions and type in Git objects.
 type FileMode string
 
+// FileMode constants define the standard Unix permission and type
+// values used in Git tree object entries.
 const (
 	ModeRegularFile FileMode = "100644" // Regular non-executable file
 	ModeExecutable  FileMode = "100755" // Executable file
@@ -115,18 +119,20 @@ const (
 	ModeSubmodule   FileMode = "160000" // Git submodule
 )
 
-// Index format version
+// IndexVersion index format version
 const IndexVersion = 1
 
-// Index signature identifying GoGit index files (DIRectory Cache).
+// IndexSignature identifying GoGit index files (DIRectory Cache).
 const IndexSignature = "DIRC"
 
-// Commit Date format
+// CommitDateFormat following the convention DayName MonthName day time year timezone
 const CommitDateFormat = "Mon Jan 2 15:04:05 2006 -0700"
 
 // Author default values
-const DefaultAuthorName = "Ash Ketchum"
-const DefaultAuthorEmail = "pikachu_pallet@pokemon.com"
+const (
+	DefaultAuthorName  = "Ash Ketchum"
+	DefaultAuthorEmail = "pikachu_pallet@pokemon.com"
+)
 
 // Terminal output coloring
 var (

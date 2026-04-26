@@ -2,7 +2,6 @@ package e2etesting
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,7 +36,7 @@ func TestE2E_CheckoutCommand_IdempotentBranchSwitch(t *testing.T) {
 	writeRefFile(t, repoPath, featureBranch, commitHash)
 
 	// First checkout to feature branch
-	cmd := exec.Command(sharedBinaryPath, constants.CheckoutCmdName, featureBranch)
+	cmd := newGogitCmd(t, constants.CheckoutCmdName, featureBranch)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -49,7 +48,7 @@ func TestE2E_CheckoutCommand_IdempotentBranchSwitch(t *testing.T) {
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContent)
 
 	// Second checkout to the same feature branch (idempotent)
-	cmd = exec.Command(sharedBinaryPath, constants.CheckoutCmdName, featureBranch)
+	cmd = newGogitCmd(t, constants.CheckoutCmdName, featureBranch)
 	cmd.Dir = repoPath
 	output, err = cmd.CombinedOutput()
 	if err != nil {
@@ -93,7 +92,7 @@ func TestE2E_CheckoutCommand_DirtyWorkingTreeRejection(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, fileName, dirtyContent)
 
 	// Attempt checkout — should fail
-	cmd := exec.Command(sharedBinaryPath, constants.CheckoutCmdName, featureBranch)
+	cmd := newGogitCmd(t, constants.CheckoutCmdName, featureBranch)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err == nil {
@@ -125,7 +124,7 @@ func TestE2E_CheckoutCommand_NonexistentTarget(t *testing.T) {
 
 	nonexistentTarget := testutils.RandomString(10)
 
-	cmd := exec.Command(sharedBinaryPath, constants.CheckoutCmdName, nonexistentTarget)
+	cmd := newGogitCmd(t, constants.CheckoutCmdName, nonexistentTarget)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err == nil {
@@ -177,7 +176,7 @@ func TestE2E_CheckoutCommand_NestedDirectoryCleanupAndRestore(t *testing.T) {
 	writeRefFile(t, repoPath, flatBranch, firstCommitHash)
 
 	// Checkout flat branch — nested directories should be removed
-	cmd := exec.Command(sharedBinaryPath, constants.CheckoutCmdName, flatBranch)
+	cmd := newGogitCmd(t, constants.CheckoutCmdName, flatBranch)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -194,7 +193,7 @@ func TestE2E_CheckoutCommand_NestedDirectoryCleanupAndRestore(t *testing.T) {
 	writeRefFile(t, repoPath, nestedBranch, secondCommitHash)
 
 	// Checkout nested branch — nested directories should be restored
-	cmd = exec.Command(sharedBinaryPath, constants.CheckoutCmdName, nestedBranch)
+	cmd = newGogitCmd(t, constants.CheckoutCmdName, nestedBranch)
 	cmd.Dir = repoPath
 	output, err = cmd.CombinedOutput()
 	if err != nil {
@@ -231,7 +230,7 @@ func TestE2E_CheckoutCommand_DetachedHEADRoundTrip(t *testing.T) {
 	commitWithFile(t, repoPath, fileName, fileContentB)
 
 	// Checkout commit A by hash (detached HEAD)
-	cmd := exec.Command(sharedBinaryPath, constants.CheckoutCmdName, commitHashA)
+	cmd := newGogitCmd(t, constants.CheckoutCmdName, commitHashA)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -244,7 +243,7 @@ func TestE2E_CheckoutCommand_DetachedHEADRoundTrip(t *testing.T) {
 	indextestutils.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
 
 	// Checkout back to main (symbolic ref)
-	cmd = exec.Command(sharedBinaryPath, constants.CheckoutCmdName, constants.DefaultBranch)
+	cmd = newGogitCmd(t, constants.CheckoutCmdName, constants.DefaultBranch)
 	cmd.Dir = repoPath
 	output, err = cmd.CombinedOutput()
 	if err != nil {

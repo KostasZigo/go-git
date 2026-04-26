@@ -280,16 +280,16 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 
 	// Create two files with identical content
 	content := []byte("identical content\n")
-	file1_name := "file1.txt"
-	file2_name := "file2.txt"
+	fileName1 := "file1.txt"
+	fileName2 := "file2.txt"
 
-	testutils.CreateTestFile(t, repoPath, file1_name, content)
-	testutils.CreateTestFile(t, repoPath, file2_name, content)
+	testutils.CreateTestFile(t, repoPath, fileName1, content)
+	testutils.CreateTestFile(t, repoPath, fileName2, content)
 
 	// Hash file 1
 	testRootCmd1 := createTestRootCmd(hashObjectCmd)
 	stdout1 := captureStdout(testRootCmd1)
-	testRootCmd1.SetArgs([]string{constants.HashObjectCmdName, "-w", file1_name})
+	testRootCmd1.SetArgs([]string{constants.HashObjectCmdName, "-w", fileName1})
 	if err := testRootCmd1.Execute(); err != nil {
 		t.Fatalf("Failed to hash file1: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	// Hash file2
 	testRootCmd2 := createTestRootCmd(hashObjectCmd)
 	stdout2 := captureStdout(testRootCmd2)
-	testRootCmd2.SetArgs([]string{constants.HashObjectCmdName, "-w", file2_name})
+	testRootCmd2.SetArgs([]string{constants.HashObjectCmdName, "-w", fileName2})
 	if err := testRootCmd2.Execute(); err != nil {
 		t.Fatalf("Failed to hash file2: %v", err)
 	}

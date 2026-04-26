@@ -1,3 +1,5 @@
+// Package indexutils provides utility functions for mapping OS file metadata
+// to Git index file modes.
 package indexutils
 
 import (
@@ -7,9 +9,9 @@ import (
 )
 
 // ExecutableFileMask is used on bitwise opertations for identifying executable files
-const ExecutableFileMask = 0111
+const ExecutableFileMask = 0o111
 
-// detectFileMode converts os.FileInfo mode to Git index FileMode.
+// DetectIndexFileMode converts os.FileInfo mode to Git index FileMode.
 func DetectIndexFileMode(info os.FileInfo) index.FileMode {
 	mode := info.Mode()
 

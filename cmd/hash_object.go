@@ -44,7 +44,7 @@ func runHashObject(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print hash to stdout
-	fmt.Fprintln(cmd.OutOrStdout(), blob.Hash())
+	cmd.Printf("%s\n", blob.Hash())
 
 	if writeFlag {
 		repoPath, err := utils.FindRepoRoot()

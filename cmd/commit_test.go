@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -77,7 +78,6 @@ func TestCommitCommand_FirstCommitWithStagedFiles(t *testing.T) {
 // again. Verifies: second commit's parent points to first, tree hashes
 // differ, ref file updated to second commit.
 func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
-
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	changeToRepoDir(t, repoPath)
 
@@ -97,7 +97,7 @@ func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
 	firstHash := testutils.ReadDefaultRefFile(t, repoPath)
 
 	// Commit modified file
-	updatedFileContent := append(fileContent, []byte("-v2")...)
+	updatedFileContent := slices.Concat(fileContent, []byte("-v2"))
 	stageFile(t, fileName, repoPath, updatedFileContent)
 	if err := command.Execute(); err != nil {
 		t.Fatalf("commit command failed: %v", err)

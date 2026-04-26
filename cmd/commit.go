@@ -38,7 +38,7 @@ func init() {
 	commitCmd.Flags().StringVarP(&messageFlag, "message", "m", "", "Add message to commit")
 }
 
-func runCommit(cmd *cobra.Command, args []string) error {
+func runCommit(cmd *cobra.Command, _ []string) error {
 	if messageFlag == "" {
 		return fmt.Errorf("commit message required: use -m \"your message\"")
 	}

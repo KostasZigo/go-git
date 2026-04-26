@@ -1,3 +1,4 @@
+// gogit is a simplified Git implementation written in GO
 package main
 
 import (

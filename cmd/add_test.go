@@ -15,7 +15,6 @@ import (
 
 // TestAddCommand_Success verifies file staging creates blob and updates index.
 func TestAddCommand_Success(t *testing.T) {
-
 	// set up repository path
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	changeToRepoDir(t, repoPath)
@@ -165,7 +164,6 @@ func TestAddCommand_NotInRepository(t *testing.T) {
 
 // TestAddCommand_UpdateExistingFile verifies updating already-staged file.
 func TestAddCommand_UpdateExistingFile(t *testing.T) {
-
 	// set up repository path
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	changeToRepoDir(t, repoPath)

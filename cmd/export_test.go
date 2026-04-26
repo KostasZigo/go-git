@@ -54,6 +54,7 @@ func changeToRepoDir(t *testing.T, repoPath string) {
 // via the add command. Convenience wrapper around stageFile for tests that do
 // not need control over file identity.
 func stageRandomFile(t *testing.T, fileDir string) {
+	t.Helper()
 	stageFile(t, testutils.RandomString(10), fileDir, testutils.RandomByteSlice(100))
 }
 
@@ -61,6 +62,7 @@ func stageRandomFile(t *testing.T, fileDir string) {
 // stages it via the add command. Changes the working directory to fileDir for
 // the add invocation and restores it afterward.
 func stageFile(t *testing.T, fileName, fileDir string, fileContent []byte) {
+	t.Helper()
 	// Stage file with add command
 	command := createTestRootCmd(addCmd)
 	captureStdout(command)
@@ -94,6 +96,7 @@ func treeEntryNames(entries []objects.TreeEntry) []string {
 // commitWithSingleRandomFile stages a random file and commits it with the
 // given message. Fails the test if either the add or commit command fails.
 func commitWithSingleRandomFile(t *testing.T, fileDir, commitMessage string) {
+	t.Helper()
 	stageRandomFile(t, fileDir)
 	executeCommitCommand(t, commitMessage)
 }
@@ -101,6 +104,7 @@ func commitWithSingleRandomFile(t *testing.T, fileDir, commitMessage string) {
 // commitWithSingleFile stages a specific file with given content and commits
 // it with the provided message. Fails the test if either operation fails.
 func commitWithSingleFile(t *testing.T, fileName, fileDir string, fileContent []byte, commitMessage string) {
+	t.Helper()
 	stageFile(t, fileName, fileDir, fileContent)
 	executeCommitCommand(t, commitMessage)
 }
@@ -108,6 +112,7 @@ func commitWithSingleFile(t *testing.T, fileName, fileDir string, fileContent []
 // executeCommitCommand creates a fresh commit command and executes it with the
 // given message. Fails the test if the commit command returns an error.
 func executeCommitCommand(t *testing.T, commitMessage string) {
+	t.Helper()
 	command := createTestRootCmd(commitCmd)
 	captureStdout(command)
 

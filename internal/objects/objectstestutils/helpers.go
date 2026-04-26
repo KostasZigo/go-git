@@ -1,3 +1,5 @@
+// Package objectstestutils provides shared helpers for creating and
+// persisting blobs, trees, and commits in object-store-related tests.
 package objectstestutils
 
 import (
@@ -7,7 +9,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
-// createTreeEntry creates tree entry and fails test on error.
+// CreateTreeEntry creates tree entry and fails test on error.
 func CreateTreeEntry(t *testing.T, mode objects.FileMode, name, hash string) objects.TreeEntry {
 	t.Helper()
 
@@ -19,7 +21,7 @@ func CreateTreeEntry(t *testing.T, mode objects.FileMode, name, hash string) obj
 	return *entry
 }
 
-// createTree creates tree from entries and fails test on error.
+// CreateTree creates tree from entries and fails test on error.
 func CreateTree(t *testing.T, entries []objects.TreeEntry) *objects.Tree {
 	t.Helper()
 
@@ -31,7 +33,7 @@ func CreateTree(t *testing.T, entries []objects.TreeEntry) *objects.Tree {
 	return tree
 }
 
-// createAndStoreTree creates tree from entries, stores it, and returns tree.
+// CreateAndStoreTree creates tree from entries, stores it, and returns tree.
 func CreateAndStoreTree(t *testing.T, store *objects.ObjectStore, entries []objects.TreeEntry) *objects.Tree {
 	t.Helper()
 

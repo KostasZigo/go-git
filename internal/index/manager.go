@@ -2,6 +2,7 @@ package index
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -9,24 +10,24 @@ import (
 )
 
 // Manager handles index file operations.
-type IndexManager struct {
+type Manager struct {
 	repoPath string
 }
 
 // NewManager creates index manager for repository.
-func NewManager(repoPath string) *IndexManager {
-	return &IndexManager{
+func NewManager(repoPath string) *Manager {
+	return &Manager{
 		repoPath: repoPath,
 	}
 }
 
 // indexPath returns filesystem path to index file.
-func (manager *IndexManager) indexPath() string {
+func (manager *Manager) indexPath() string {
 	return filepath.Join(manager.repoPath, constants.Gogit, constants.Index)
 }
 
 // Save writes index to disk.
-func (manager *IndexManager) Save(index *Index) error {
+func (manager *Manager) Save(index *Index) error {
 	indexPath := manager.indexPath()
 
 	// Create temporary file to write the index
@@ -41,8 +42,12 @@ func (manager *IndexManager) Save(index *Index) error {
 	succeeded := false
 	defer func() {
 		if !succeeded {
-			tempFile.Close()
-			os.Remove(tempPath)
+			if err := tempFile.Close(); err != nil {
+				slog.Info("failed to close tempfile", "error", err)
+			}
+			if err := os.Remove(tempPath); err != nil {
+				slog.Info("failed to remove temp path", "path", tempPath, "error", err.Error())
+			}
 		}
 	}()
 
@@ -72,7 +77,7 @@ func (manager *IndexManager) Save(index *Index) error {
 }
 
 // Load reads index from disk, returns empty index if file doesn't exist.
-func (manager *IndexManager) Load() (*Index, error) {
+func (manager *Manager) Load() (*Index, error) {
 	indexPath := manager.indexPath()
 
 	// Open index file
@@ -84,7 +89,11 @@ func (manager *IndexManager) Load() (*Index, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open index file: %w", err)
 	}
-	defer indexFile.Close()
+	defer func() {
+		if err := indexFile.Close(); err != nil {
+			slog.Info("failed to close index file", "error", err)
+		}
+	}()
 
 	// Read index file
 	index, err := ReadIndex(indexFile)
@@ -96,7 +105,7 @@ func (manager *IndexManager) Load() (*Index, error) {
 }
 
 // Exists checks if index file exists.
-func (manager *IndexManager) Exists() bool {
+func (manager *Manager) Exists() bool {
 	_, err := os.Stat(manager.indexPath())
 	return err == nil
 }

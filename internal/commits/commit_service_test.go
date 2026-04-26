@@ -28,8 +28,8 @@ func Test_BuildDirectoryTree_MixedRootAndNestedFiles(t *testing.T) {
 		filepath.ToSlash(filepath.Join(folder, subfolder, testutils.RandomString(10))),
 	}
 
-	var entries []*index.IndexEntry
-	for _, filePath := range filePaths {
+	entries := make([]*index.Entry, len(filePaths))
+	for i, filePath := range filePaths {
 		indexEntry, err := index.NewEntry(
 			index.ModeExecutable,
 			testutils.RandomHash(),
@@ -40,7 +40,7 @@ func Test_BuildDirectoryTree_MixedRootAndNestedFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create index entry: %v", err)
 		}
-		entries = append(entries, indexEntry)
+		entries[i] = indexEntry
 	}
 
 	// Root should have exactly 1 child directory
@@ -103,7 +103,7 @@ func Test_BuildDirectoryTree_MixedRootAndNestedFiles(t *testing.T) {
 // verifies that an empty input produces a valid root node with no files
 // and no children, without panicking.
 func Test_BuildDirectoryTree_EmptyEntries(t *testing.T) {
-	var entries []*index.IndexEntry
+	var entries []*index.Entry
 	rootNode := buildDirectoryTree(entries)
 
 	if len(rootNode.files) != 0 {

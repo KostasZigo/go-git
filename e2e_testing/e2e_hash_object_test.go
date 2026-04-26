@@ -3,7 +3,6 @@ package e2etesting
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -29,10 +28,9 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
 	// Run hash-object without -w
-	cmd := exec.Command(sharedBinaryPath, constants.HashObjectCmdName, testFileName)
+	cmd := newGogitCmd(t, constants.HashObjectCmdName, testFileName)
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
 		t.Fatalf("Command failed: %v\nOutput: %s", err, output)
 	}
@@ -73,7 +71,7 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
 	// Run gogit hash-object file with write directive (-w)
-	hashObjectCmd := exec.Command(sharedBinaryPath, constants.HashObjectCmdName, testFileName, "-w")
+	hashObjectCmd := newGogitCmd(t, constants.HashObjectCmdName, testFileName, "-w")
 	hashObjectCmd.Dir = repoPath
 	output, err := hashObjectCmd.CombinedOutput()
 	if err != nil {
@@ -110,7 +108,7 @@ func TestE2E_HashObjectCommand_InvalidArgs(t *testing.T) {
 	}
 
 	// Test with no arguments
-	cmd := exec.Command(sharedBinaryPath, constants.HashObjectCmdName)
+	cmd := newGogitCmd(t, constants.HashObjectCmdName)
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {

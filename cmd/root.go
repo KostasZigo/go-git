@@ -1,3 +1,9 @@
+// Package cmd contains the gogit command-line interface.
+//
+// It defines the root cobra command and registers every gogit subcommand
+// against it. The repository semantics are implemented in the packages
+// under internal/; this package only handles argument parsing, validation
+// and output.
 package cmd
 
 import (
@@ -12,7 +18,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "gogit",
 	Short: "A simplified Git implementation in GO",
-	Long: `GoGit is a simplified Git Implementation developed in GO that offers the main capabilites
+	Long: `GoGit is a simplified Git Implementation developed in GO that offers the main capabilities
 	and features expected from a Git project like init, add, commit etc.`,
 }
 

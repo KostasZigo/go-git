@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -603,7 +604,6 @@ func TestCheckout_Orchestrate_CommitCheckout(t *testing.T) {
 	if entries[0].Path() != fileName {
 		t.Fatalf("Expected index entry path [%s], got [%s]", fileName, entries[0].Path())
 	}
-
 }
 
 func TestCheckout_Orchestrate_DirtyDir(t *testing.T) {
@@ -626,7 +626,7 @@ func TestCheckout_Orchestrate_DirtyDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read file: %v", err)
 	}
-	updatedContent := append(originalContent, []byte(" new content ")...)
+	updatedContent := slices.Concat(originalContent, []byte(" new content "))
 	if err := os.WriteFile(filePath, updatedContent, constants.FilePerms); err != nil {
 		t.Fatalf("Failed to write updated file: %v", err)
 	}

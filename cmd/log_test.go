@@ -13,10 +13,10 @@ import (
 	"github.com/KostasZigo/gogit/internal/utils"
 )
 
-// TestLog_SingleCommit_Sucess stages and commits a single file, then
+// TestLog_SingleCommit_Success stages and commits a single file, then
 // executes the log command. Verifies that stdout contains the commit
 // hash, message, author, and date in the expected format.
-func TestLog_SingleCommit_Sucess(t *testing.T) {
+func TestLog_SingleCommit_Success(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	changeToRepoDir(t, repoPath)
 
@@ -53,17 +53,17 @@ func TestLog_SingleCommit_Sucess(t *testing.T) {
 	}
 }
 
-// TestLog_CommitChain_Sucess creates three sequential commits, then
+// TestLog_CommitChain_Success creates three sequential commits, then
 // executes the log command. Verifies that stdout contains all three
 // entries in reverse chronological order (most recent first) with
 // correct hash, message, author, and date for each.
-func TestLog_CommitChain_Sucess(t *testing.T) {
+func TestLog_CommitChain_Success(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	changeToRepoDir(t, repoPath)
 
 	// Create commit history
 	store := objects.NewObjectStore(repoPath)
-	commitLogEntries := make([]string, 3)
+	commitLogEntries := make([]string, 0, 6)
 	for range 3 {
 		message := testutils.RandomString(100)
 		commitWithSingleRandomFile(t, repoPath, message)

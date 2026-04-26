@@ -8,11 +8,14 @@ import (
 	"github.com/KostasZigo/gogit/internal/utils"
 )
 
+// Blob represents a Git blob object storing raw file content
+// alongside its computed SHA-1 hash.
 type Blob struct {
 	content []byte
 	hash    string
 }
 
+// NewBlob creates a Blob from raw content and computes its SHA-1 hash.
 func NewBlob(content []byte) *Blob {
 	hash := utils.MustComputeHash(content, utils.BlobObjectType)
 	return &Blob{
@@ -21,6 +24,8 @@ func NewBlob(content []byte) *Blob {
 	}
 }
 
+// NewBlobFromFile reads the file at the given path and creates a Blob
+// from its content. Returns an error if the file cannot be read.
 func NewBlobFromFile(filepath string) (*Blob, error) {
 	content, err := os.ReadFile(filepath)
 	if err != nil {
@@ -29,14 +34,17 @@ func NewBlobFromFile(filepath string) (*Blob, error) {
 	return NewBlob(content), nil
 }
 
+// Hash returns the hex-encoded SHA-1 hash of the blob.
 func (b *Blob) Hash() string {
 	return b.hash
 }
 
+// Content returns the raw byte content of the blob.
 func (b *Blob) Content() []byte {
 	return b.content
 }
 
+// Size returns the byte length of the blob content.
 func (b *Blob) Size() int {
 	return len(b.content)
 }

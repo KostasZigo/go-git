@@ -1,3 +1,6 @@
+// Package index implements the gogit staging area, providing data structures
+// and operations for tracking file entries between the working tree and the
+// object store.
 package index
 
 import (
@@ -10,20 +13,20 @@ import (
 
 // Index represents the staging area containing file entries
 type Index struct {
-	entries map[string]*IndexEntry // Map [filepath : entry] for fast lookup
+	entries map[string]*Entry // Map [filepath : entry] for fast lookup
 	version uint32
 }
 
 // NewIndex creates an empty index with default version
 func NewIndex() *Index {
 	return &Index{
-		entries: make(map[string]*IndexEntry),
+		entries: make(map[string]*Entry),
 		version: constants.IndexVersion,
 	}
 }
 
 // AddEntry inserts or updates an entry in index
-func (index *Index) AddEntry(entry *IndexEntry) error {
+func (index *Index) AddEntry(entry *Entry) error {
 	if entry == nil {
 		return fmt.Errorf("cannot add empty entry to index")
 	}
@@ -34,7 +37,7 @@ func (index *Index) AddEntry(entry *IndexEntry) error {
 
 // GetEntry returns the index entry for the given path, or nil if no entry
 // exists.
-func (index *Index) GetEntry(path string) *IndexEntry {
+func (index *Index) GetEntry(path string) *Entry {
 	return index.entries[path]
 }
 
@@ -44,14 +47,14 @@ func (index *Index) RemoveEntry(path string) {
 }
 
 // GetEntryList returns sorted slice of all entries
-func (index *Index) GetEntryList() []*IndexEntry {
-	entries := make([]*IndexEntry, 0, len(index.entries))
+func (index *Index) GetEntryList() []*Entry {
+	entries := make([]*Entry, 0, len(index.entries))
 	for _, entry := range index.entries {
 		entries = append(entries, entry)
 	}
 
 	// Sort by path
-	slices.SortStableFunc(entries, func(a, b *IndexEntry) int {
+	slices.SortStableFunc(entries, func(a, b *Entry) int {
 		return strings.Compare(a.path, b.path)
 	})
 	return entries

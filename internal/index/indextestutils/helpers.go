@@ -1,3 +1,5 @@
+// Package indextestutils provides shared helpers for constructing index
+// entries and temporary repository structures in index-related tests.
 package indextestutils
 
 import (
@@ -17,6 +19,7 @@ import (
 // directory, computes its blob hash, and registers a corresponding index entry.
 // Delegates to CreateTrackedFileContent
 func CreateTrackedFile(t *testing.T, repoPath, dir, fileName string, idx *index.Index) string {
+	t.Helper()
 	return CreateTrackedFileContent(t, repoPath, dir, fileName, []byte(testutils.RandomString(100)), idx)
 }
 
