@@ -24,3 +24,24 @@ jobs:
 
     - name: Test application
       run: go test -v ./...
+  
+  lint: 
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Set up Go environment
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: 'go.mod'
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v9
+      with:
+        version: v2.11.4
+        args: --config=.golangci.yml
+
+    - name: Check formatting (gofumpt)
+      run: |
+        golangci-lint fmt --diff ./... && echo "Formatting OK" || (echo "::error::Files are not formatted. Run 'golangci-lint fmt ./...' locally." && exit 1)

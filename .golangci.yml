@@ -1,0 +1,55 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - errorlint
+    - ineffassign
+    - unused
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    - contextcheck
+    - noctx
+    - nilerr
+    - copyloopvar
+    - makezero
+    - durationcheck
+    - gosec
+    - revive
+    - gocritic
+    - misspell
+    - unconvert
+    - unparam
+    - prealloc
+    - nakedret
+    - nolintlint
+    - testifylint
+    - thelper
+    
+  exclusions:
+    rules:
+      - path: internal/
+        linters:
+          - gosec
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - unparam
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+
+issues:
+  max-same-issues: 0
+  max-issues-per-linter: 0
