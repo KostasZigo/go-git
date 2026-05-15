@@ -11,8 +11,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/internal/utils"
-	"github.com/KostasZigo/gogit/internal/utils/indexutils"
+	"github.com/KostasZigo/gogit/internal/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +42,7 @@ func init() {
 // runAdd stages files in index and creates blob objects.
 func runAdd(cmd *cobra.Command, args []string) error {
 	// Find repository root path
-	repoPath, err := utils.FindRepoRoot()
+	repoPath, err := repository.FindRoot()
 	if err != nil {
 		return err
 	}
@@ -175,7 +174,7 @@ func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, st
 	}
 
 	// Determine file mode
-	fileMode := indexutils.DetectIndexFileMode(fileInfo)
+	fileMode := index.DetectFileMode(fileInfo)
 
 	// create index entry
 	entry, err := index.NewEntry(

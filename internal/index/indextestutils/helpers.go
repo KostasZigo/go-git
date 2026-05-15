@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // CreateTrackedFile creates a file with random content on disk inside the given
@@ -42,7 +42,7 @@ func CreateTrackedFileContent(t *testing.T, repoPath, dir, fileName string, cont
 		t.Fatalf("failed to compute relative path for %s: %v", absPath, err)
 	}
 
-	hash, _ := utils.ComputeHash(content, utils.BlobObjectType)
+	hash, _ := hasher.ComputeHash(content, hasher.Blob)
 	entry, err := index.NewEntry(index.ModeRegularFile, hash, filepath.ToSlash(relPath), int64(len(content)), time.Now())
 	if err != nil {
 		t.Fatalf("failed to create index entry for %s: %v", relPath, err)

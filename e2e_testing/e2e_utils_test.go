@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 	"github.com/fatih/color"
 )
 
@@ -128,7 +128,7 @@ func assertAddCommandOutputAndObjectCreation(t *testing.T, testFileName string, 
 func assertAddCommandObjectCreation(t *testing.T, testFileName string, testFileContent []byte, repoPath string) {
 	t.Helper()
 
-	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Failed to compute hash: %v", err)
 	}
@@ -182,7 +182,7 @@ func assertIndexCreationAndContent(t *testing.T, repoPath string, expectedFiles 
 		}
 
 		// Verify hash matches expected content
-		expectedHash, err := utils.ComputeHash(content, utils.BlobObjectType)
+		expectedHash, err := hasher.ComputeHash(content, hasher.Blob)
 		if err != nil {
 			t.Fatalf("Failed to compute expected hash for [%s]: %v", entry.Path(), err)
 		}

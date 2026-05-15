@@ -4,15 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // assertBlobHash verifies blob hash matches expected value for given content.
 func assertBlobHash(t *testing.T, blob *Blob, content []byte) {
 	t.Helper()
 
-	expectedHash, err := utils.ComputeHash(content, utils.BlobObjectType)
+	expectedHash, err := hasher.ComputeHash(content, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Hash computation failed: %v", err)
 	}

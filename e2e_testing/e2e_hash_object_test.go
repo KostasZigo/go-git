@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // TestE2E_HashObjectCommand_NoStorage verifies hash computation without storage.
@@ -37,7 +37,7 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 
 	// Verify hash is printed (40 hex chars + newline)
 	outputHash := strings.TrimSpace(string(output))
-	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Failed to compute hash: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 
 	// Verify hash was printed
 	printedHash := strings.TrimSpace(string(output))
-	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Failed to compute hash: %v", err)
 	}

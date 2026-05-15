@@ -15,10 +15,9 @@ import (
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/internal/utils"
-	"github.com/KostasZigo/gogit/internal/utils/indexutils"
 )
 
 // ResolvedTarget holds the result of resolving a checkout target string.
@@ -81,7 +80,7 @@ func searchForTargetInRefs(repoPath, target string) (*ResolvedTarget, error) {
 // Returns nil, nil if the target is not a valid hash or the object does not exist.
 // Returns an error only if the object exists but cannot be read as a commit.
 func searchForTargetInCommitObjects(repoPath, target string) (*ResolvedTarget, error) {
-	if !utils.IsValidSHA1Hash(target) {
+	if !hasher.IsValidSHA1(target) {
 		return nil, nil
 	}
 
@@ -265,7 +264,7 @@ func addFileToRebuiltIndex(absPath, relPath, hash string, idx *index.Index) erro
 		return fmt.Errorf("failed to stat file %s: %w", absPath, err)
 	}
 
-	fileMode := indexutils.DetectIndexFileMode(fileInfo)
+	fileMode := index.DetectFileMode(fileInfo)
 
 	entry, err := index.NewEntry(
 		fileMode,
@@ -312,7 +311,7 @@ func checkIfDirty(repoPath string, idxEntries []*index.Entry) error {
 			fmt.Fprintf(&errorBuilder, "dirty: [%s] failed to read file: %s\n\n", idxEntry.Path(), err.Error())
 			continue
 		}
-		hash := utils.MustComputeHash(content, utils.BlobObjectType)
+		hash := hasher.MustComputeHash(content, hasher.Blob)
 		if hash != idxEntry.Hash() {
 			fmt.Fprintf(&errorBuilder, "dirty: [%s] file was modified \n\n", idxEntry.Path())
 		}

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/commits"
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // TestE2E_LogCommand_SingleCommit verifies the log command output after a
@@ -24,7 +24,7 @@ func TestE2E_LogCommand_SingleCommit(t *testing.T) {
 	commitWithSingleFile(t, repoPath)
 	commit := readCommitFromDefaultRef(t, repoPath)
 
-	expectedOutput := utils.FormatCommitLogEntry(
+	expectedOutput := commits.FormatLogEntry(
 		commit.Hash(),
 		commit.Message(),
 		commit.Author().String(),
@@ -60,7 +60,7 @@ func TestE2E_LogCommand_CommitChain(t *testing.T) {
 		commitWithSingleFile(t, repoPath)
 		commit := readCommitFromDefaultRef(t, repoPath)
 
-		commitEntryLogs = append(commitEntryLogs, utils.FormatCommitLogEntry(
+		commitEntryLogs = append(commitEntryLogs, commits.FormatLogEntry(
 			commit.Hash(),
 			commit.Message(),
 			commit.Author().String(),

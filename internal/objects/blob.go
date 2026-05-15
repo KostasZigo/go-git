@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/hasher"
 )
 
 // Blob represents a Git blob object storing raw file content
@@ -17,7 +17,7 @@ type Blob struct {
 
 // NewBlob creates a Blob from raw content and computes its SHA-1 hash.
 func NewBlob(content []byte) *Blob {
-	hash := utils.MustComputeHash(content, utils.BlobObjectType)
+	hash := hasher.MustComputeHash(content, hasher.Blob)
 	return &Blob{
 		content: content,
 		hash:    hash,

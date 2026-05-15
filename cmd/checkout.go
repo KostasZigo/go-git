@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/KostasZigo/gogit/internal/commits"
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +44,7 @@ func init() {
 // runCheckout resolves the target and delegates to the checkout orchestrator,
 func runCheckout(cmd *cobra.Command, args []string) error {
 	// Find repository root path
-	repoPath, err := utils.FindRepoRoot()
+	repoPath, err := repository.FindRoot()
 	if err != nil {
 		return err
 	}

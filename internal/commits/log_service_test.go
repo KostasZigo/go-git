@@ -10,7 +10,6 @@ import (
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 	"github.com/fatih/color"
 )
 
@@ -180,7 +179,7 @@ func TestFormatCommitHistory_SingleCommit(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	expectedHistoryOutput := utils.FormatCommitLogEntry(
+	expectedHistoryOutput := FormatLogEntry(
 		commit.Hash,
 		commit.Message,
 		commit.Author.String(),
@@ -218,7 +217,7 @@ func TestFormatCommitHistory_ChainCommits(t *testing.T) {
 
 	var expectedHistoryOutput strings.Builder
 	for _, commit := range commitLogEntries {
-		expectedHistoryOutput.WriteString(utils.FormatCommitLogEntry(
+		expectedHistoryOutput.WriteString(FormatLogEntry(
 			commit.Hash,
 			commit.Message,
 			commit.Author.String(),
@@ -299,7 +298,7 @@ func TestOrchestrateLogExecution(t *testing.T) {
 
 	var expectedHistoryOutput strings.Builder
 	for _, commit := range logEntries {
-		expectedHistoryOutput.WriteString(utils.FormatCommitLogEntry(
+		expectedHistoryOutput.WriteString(FormatLogEntry(
 			commit.Hash,
 			commit.Message,
 			commit.Author.String(),

@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 	"github.com/agiledragon/gomonkey/v2"
 )
 
@@ -42,7 +42,7 @@ func TestHashObjectCommand_Success_NoStorage(t *testing.T) {
 
 	// Verify hash output
 	outputHash := strings.TrimSpace(stdout.String())
-	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Failed to compute hash: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	}
 
 	// Verify hash output
-	expectedHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Failed to compute hash: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestHashObjectCommand_EmptyFile(t *testing.T) {
 
 	// Verify hash for empty
 	outputHash := strings.TrimSpace(stdout.String())
-	expectedHash, err := utils.ComputeHash([]byte{}, utils.BlobObjectType)
+	expectedHash, err := hasher.ComputeHash([]byte{}, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Failed to compute hash: %v", err)
 	}
@@ -365,7 +365,7 @@ func TestHashObjectCommand_LargeFile(t *testing.T) {
 
 	// Verify hash was printed
 	outputHash := strings.TrimSpace(stdout.String())
-	expectedHash, err := utils.ComputeHash(largeContent, utils.BlobObjectType)
+	expectedHash, err := hasher.ComputeHash(largeContent, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Failed to compute hash: %v", err)
 	}

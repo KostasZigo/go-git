@@ -8,7 +8,6 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // TestE2E_InitCommand verifies repository initialization creates correct structure.
@@ -30,7 +29,7 @@ func TestE2E_InitCommand(t *testing.T) {
 
 	// Verify output
 	outputStr := string(output)
-	expectedMsg := fmt.Sprintf("Initialized empty GoGit repository in %s\n", utils.BuildDirPath(".", constants.Gogit))
+	expectedMsg := fmt.Sprintf("Initialized empty GoGit repository in %s\n", "."+string(filepath.Separator)+constants.Gogit+string(filepath.Separator))
 	if !strings.Contains(outputStr, expectedMsg) {
 		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, outputStr)
 	}

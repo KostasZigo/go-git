@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/repository"
-	"github.com/KostasZigo/gogit/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +36,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize repository - %w", err)
 	}
 
-	cmd.Printf("Initialized empty GoGit repository in %s\n", utils.BuildDirPath(dirPath, constants.Gogit))
+	cmd.Printf("Initialized empty GoGit repository in %s\n", buildDirPath(dirPath, constants.Gogit))
 	return nil
+}
+
+// buildDirPath constructs an os-agnostic display path with a trailing separator.
+func buildDirPath(dirs ...string) string {
+	return strings.Join(dirs, string(filepath.Separator)) + string(filepath.Separator)
 }

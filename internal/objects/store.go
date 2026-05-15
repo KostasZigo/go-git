@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/hasher"
 )
 
 // ObjectStore manages storage of Git objects
@@ -346,7 +346,7 @@ func parseCommitContent(content string) (*Commit, error) {
 
 	// Compute Hash
 	builtContent := buildCommitContent(treeHash, parentHash, message, author)
-	hash, err := utils.ComputeHash(builtContent, utils.CommitObjectType)
+	hash, err := hasher.ComputeHash(builtContent, hasher.Commit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute commit hash: %w", err)
 	}

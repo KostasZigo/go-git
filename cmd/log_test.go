@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/KostasZigo/gogit/internal/commits"
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // TestLog_SingleCommit_Success stages and commits a single file, then
@@ -41,7 +41,7 @@ func TestLog_SingleCommit_Success(t *testing.T) {
 	}
 
 	output := stdout.String()
-	expectedOutput := utils.FormatCommitLogEntry(
+	expectedOutput := commits.FormatLogEntry(
 		commit.Hash(),
 		commit.Message(),
 		commit.Author().String(),
@@ -73,7 +73,7 @@ func TestLog_CommitChain_Success(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to read commit object: %v", err)
 		}
-		commitLogEntries = append(commitLogEntries, utils.FormatCommitLogEntry(
+		commitLogEntries = append(commitLogEntries, commits.FormatLogEntry(
 			commit.Hash(),
 			commit.Message(),
 			commit.Author().String(),

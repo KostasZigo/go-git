@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // TestE2E_CommitCommand_FirstCommit verifies the full init → add → commit workflow.
@@ -91,7 +91,7 @@ func TestE2E_CommitCommand_FirstCommit(t *testing.T) {
 	}
 
 	// Verify blob object for the staged file exists
-	expectedBlobHash, err := utils.ComputeHash(testFileContent, utils.BlobObjectType)
+	expectedBlobHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
 		t.Fatalf("Failed to compute expected blob hash: %v", err)
 	}

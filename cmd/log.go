@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/KostasZigo/gogit/internal/commits"
-	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +32,7 @@ func init() {
 // to collect and format the commit history, and prints the result to stdout.
 func runLog(cmd *cobra.Command, _ []string) error {
 	// Find repository root path
-	repoPath, err := utils.FindRepoRoot()
+	repoPath, err := repository.FindRoot()
 	if err != nil {
 		return err
 	}

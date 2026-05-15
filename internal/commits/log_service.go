@@ -3,10 +3,10 @@ package commits
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/internal/utils"
 )
 
 // CommitLogEntry acts as a DTO holding the metadata of a single commit used for
@@ -72,7 +72,7 @@ func formatCommitHistory(commitLogEntries []CommitLogEntry) (string, error) {
 
 	var outputCommitHistory strings.Builder
 	for _, commit := range commitLogEntries {
-		outputCommitHistory.WriteString(utils.FormatCommitLogEntry(
+		outputCommitHistory.WriteString(FormatLogEntry(
 			commit.Hash,
 			commit.Message,
 			commit.Author.String(),
@@ -112,4 +112,14 @@ func OrchestrateLogExecution(repoPath string) (string, error) {
 	}
 
 	return commitHistoryOutput, nil
+}
+
+// FormatLogEntry renders a single commit log line with colored hash,
+// author, and date fields.
+func FormatLogEntry(hash, message, author string, t time.Time) string {
+	return fmt.Sprintf("%s %s %s %s\n",
+		constants.HashColor(hash),
+		message,
+		constants.AuthorColor("Author: "+author),
+		constants.DateColor("Date: "+t.Format(constants.CommitDateFormat)))
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/hasher"
 )
 
 // FileMode represents Unix file permissions and type in Git objects.
@@ -101,7 +101,7 @@ func NewTree(treeEntries []TreeEntry) (*Tree, error) {
 	slices.SortStableFunc(entries, compareTreeEntries)
 
 	treeContent := buildTreeContent(entries)
-	hash, err := utils.ComputeHash(treeContent, utils.TreeObjectType)
+	hash, err := hasher.ComputeHash(treeContent, hasher.Tree)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute tree hash: %w", err)
 	}

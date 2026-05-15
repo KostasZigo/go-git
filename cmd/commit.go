@@ -5,7 +5,7 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/commits"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +44,7 @@ func runCommit(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Find repository root path
-	repoPath, err := utils.FindRepoRoot()
+	repoPath, err := repository.FindRoot()
 	if err != nil {
 		return err
 	}

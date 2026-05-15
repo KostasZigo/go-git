@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/hasher"
 )
 
 // Author represents commit author/committer
@@ -52,7 +52,7 @@ type Commit struct {
 // NewCommit creates commit with parent reference.
 func NewCommit(treeHash, parentHash, message string, author Author) (*Commit, error) {
 	content := buildCommitContent(treeHash, parentHash, message, author)
-	hash, err := utils.ComputeHash(content, utils.CommitObjectType)
+	hash, err := hasher.ComputeHash(content, hasher.Commit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute hash for commit: %w", err)
 	}

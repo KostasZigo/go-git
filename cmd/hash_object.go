@@ -5,7 +5,7 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/internal/utils"
+	"github.com/KostasZigo/gogit/internal/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +47,7 @@ func runHashObject(cmd *cobra.Command, args []string) error {
 	cmd.Printf("%s\n", blob.Hash())
 
 	if writeFlag {
-		repoPath, err := utils.FindRepoRoot()
+		repoPath, err := repository.FindRoot()
 		if err != nil {
 			return err
 		}

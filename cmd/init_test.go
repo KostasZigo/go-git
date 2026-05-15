@@ -10,7 +10,6 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/testutils"
-	"github.com/KostasZigo/gogit/internal/utils"
 	"github.com/agiledragon/gomonkey/v2"
 )
 
@@ -39,7 +38,7 @@ func TestInitCommand_Success(t *testing.T) {
 	}
 
 	// Verify output message
-	expectedMsg := fmt.Sprintf("Initialized empty GoGit repository in %s\n", utils.BuildDirPath(".", constants.Gogit))
+	expectedMsg := fmt.Sprintf("Initialized empty GoGit repository in %s\n", buildDirPath(".", constants.Gogit))
 	if !strings.Contains(stdout.String(), expectedMsg) {
 		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, stdout.String())
 	}
