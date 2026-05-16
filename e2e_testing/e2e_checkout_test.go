@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/index/indextestutils"
+	"github.com/KostasZigo/gogit/internal/index/indextest"
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
@@ -186,7 +186,7 @@ func TestE2E_CheckoutCommand_NestedDirectoryCleanupAndRestore(t *testing.T) {
 	assertCheckoutOutput(t, string(output), flatBranch)
 	testutils.AssertFileContent(t, filepath.Join(repoPath, rootFileName), rootFileContent)
 	testutils.AssertDirNotExists(t, filepath.Join(repoPath, dirA))
-	indextestutils.AssertIndexEntryPaths(t, repoPath, 1, []string{rootFileName})
+	indextest.AssertIndexEntryPaths(t, repoPath, 1, []string{rootFileName})
 
 	// Create branch pointing to second commit (nested structure)
 	nestedBranch := testutils.RandomString(10)
@@ -204,7 +204,7 @@ func TestE2E_CheckoutCommand_NestedDirectoryCleanupAndRestore(t *testing.T) {
 	testutils.AssertFileContent(t, filepath.Join(repoPath, rootFileName), rootFileContent)
 	testutils.AssertFileContent(t, filepath.Join(repoPath, nestedFileName), nestedFileContent)
 	testutils.AssertDirExists(t, filepath.Join(repoPath, dirA, dirB, dirC))
-	indextestutils.AssertIndexEntryPaths(t, repoPath, 2, []string{rootFileName, filepath.ToSlash(nestedFileName)})
+	indextest.AssertIndexEntryPaths(t, repoPath, 2, []string{rootFileName, filepath.ToSlash(nestedFileName)})
 }
 
 // TestE2E_CheckoutCommand_DetachedHEADRoundTrip creates two commits on main
@@ -240,7 +240,7 @@ func TestE2E_CheckoutCommand_DetachedHEADRoundTrip(t *testing.T) {
 	assertCheckoutOutput(t, string(output), commitHashA)
 	assertHEADContent(t, repoPath, commitHashA+"\n")
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContentA)
-	indextestutils.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
+	indextest.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
 
 	// Checkout back to main (symbolic ref)
 	cmd = newGogitCmd(t, constants.CheckoutCmdName, constants.DefaultBranch)
@@ -253,5 +253,5 @@ func TestE2E_CheckoutCommand_DetachedHEADRoundTrip(t *testing.T) {
 	assertCheckoutOutput(t, string(output), constants.DefaultBranch)
 	assertHEADContent(t, repoPath, constants.DefaultRefPrefix+constants.DefaultBranch+"\n")
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContentB)
-	indextestutils.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
+	indextest.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
 }

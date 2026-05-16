@@ -11,9 +11,9 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
-	"github.com/KostasZigo/gogit/internal/index/indextestutils"
+	"github.com/KostasZigo/gogit/internal/index/indextest"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/internal/objects/objectstestutils"
+	"github.com/KostasZigo/gogit/internal/objects/objectstest"
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
@@ -177,7 +177,7 @@ func TestCheckout_RestoreTree_SingleRootFile(t *testing.T) {
 	store := objects.NewObjectStore(repoPath)
 
 	fileName := testutils.RandomString(10)
-	tree, blobs := objectstestutils.StoreBlobTree(t, store, fileName)
+	tree, blobs := objectstest.StoreBlobTree(t, store, fileName)
 
 	err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash())
 	if err != nil {
@@ -208,14 +208,14 @@ func TestCheckout_RestoreTree_NestedDirectory(t *testing.T) {
 
 	dirName := testutils.RandomString(10)
 	fileName := testutils.RandomString(10)
-	subtree, blobs := objectstestutils.StoreBlobTree(t, store, fileName)
+	subtree, blobs := objectstest.StoreBlobTree(t, store, fileName)
 
 	// Root Tree
-	rootTreeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, dirName, subtree.Hash())
+	rootTreeEntry := objectstest.CreateTreeEntry(t, objects.ModeDirectory, dirName, subtree.Hash())
 	entries := []objects.TreeEntry{
 		rootTreeEntry,
 	}
-	rootTree := objectstestutils.CreateAndStoreTree(t, store, entries)
+	rootTree := objectstest.CreateAndStoreTree(t, store, entries)
 
 	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
@@ -236,16 +236,16 @@ func TestCheckout_RestoreTree_ManyFiles_DifferentLevels(t *testing.T) {
 	dirName := testutils.RandomString(10)
 	subFile1 := testutils.RandomString(10)
 	subFile2 := testutils.RandomString(10)
-	subTree, subBlobs := objectstestutils.StoreBlobTree(t, store, subFile1, subFile2)
+	subTree, subBlobs := objectstest.StoreBlobTree(t, store, subFile1, subFile2)
 
 	// Create a root-level file
 	rootFileName := testutils.RandomString(10)
-	rootBlob := objectstestutils.CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
+	rootBlob := objectstest.CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
 
 	// Build root tree combining the subdirectory and root-level file
-	dirEntry := objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, dirName, subTree.Hash())
-	fileEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
-	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
+	dirEntry := objectstest.CreateTreeEntry(t, objects.ModeDirectory, dirName, subTree.Hash())
+	fileEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
+	rootTree := objectstest.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
 
 	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
@@ -283,8 +283,8 @@ func TestCheckout_RestoreTree_UnknowBlobHash_ReferencedByTree(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	store := objects.NewObjectStore(repoPath)
 
-	treeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), testutils.RandomHash())
-	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{treeEntry})
+	treeEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), testutils.RandomHash())
+	rootTree := objectstest.CreateAndStoreTree(t, store, []objects.TreeEntry{treeEntry})
 
 	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err == nil {
@@ -303,7 +303,7 @@ func TestCheckout_DeleteIndexFiles_SingleFile(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 
 	idx := index.NewIndex()
-	filePath := indextestutils.CreateTrackedFile(t, repoPath, repoPath, testutils.RandomString(10), idx)
+	filePath := indextest.CreateTrackedFile(t, repoPath, repoPath, testutils.RandomString(10), idx)
 
 	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
 		t.Fatalf("Failed to clean working directory: %v", err)
@@ -322,7 +322,7 @@ func TestCheckout_DeleteIndexFiles_NestedFiles(t *testing.T) {
 
 	filePaths := make([]string, 2)
 	for i := range filePaths {
-		filePaths[i] = indextestutils.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx)
+		filePaths[i] = indextest.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx)
 	}
 
 	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
@@ -346,8 +346,8 @@ func TestCheckout_DeleteIndexFiles_UntrackedFilesRemain(t *testing.T) {
 
 	// Tracked files: registered in the index, expected to be deleted
 	trackedPaths := []string{
-		indextestutils.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx),
-		indextestutils.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx),
+		indextest.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx),
+		indextest.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx),
 	}
 
 	// Untracked files: NOT in the index, expected to survive cleanup
@@ -413,7 +413,7 @@ func TestCheckout_RebuildIndex_SingleFile(t *testing.T) {
 	store := objects.NewObjectStore(repoPath)
 
 	fileName := testutils.RandomString(10)
-	tree, blobs := objectstestutils.StoreBlobTree(t, store, fileName)
+	tree, blobs := objectstest.StoreBlobTree(t, store, fileName)
 
 	err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash())
 	if err != nil {
@@ -451,16 +451,16 @@ func TestCheckout_RebuildIndex_ManyFiles_DifferentLevels(t *testing.T) {
 	dirName := testutils.RandomString(10)
 	subFile1 := testutils.RandomString(10)
 	subFile2 := testutils.RandomString(10)
-	subTree, subBlobs := objectstestutils.StoreBlobTree(t, store, subFile1, subFile2)
+	subTree, subBlobs := objectstest.StoreBlobTree(t, store, subFile1, subFile2)
 
 	// Create a root-level file
 	rootFileName := testutils.RandomString(10)
-	rootBlob := objectstestutils.CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
+	rootBlob := objectstest.CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
 
 	// Build root tree combining the subdirectory and root-level file
-	dirEntry := objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, dirName, subTree.Hash())
-	fileEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
-	rootTree := objectstestutils.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
+	dirEntry := objectstest.CreateTreeEntry(t, objects.ModeDirectory, dirName, subTree.Hash())
+	fileEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
+	rootTree := objectstest.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
 
 	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
@@ -511,11 +511,11 @@ func TestCheckout_Orchestrate_BranchCheckout(t *testing.T) {
 	originalContent := []byte(testutils.RandomString(50))
 	updatedContent := []byte(testutils.RandomString(50))
 
-	firstTree, firstBlobs := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: originalContent})
-	firstCommit := objectstestutils.CreateAndStoreCommit(t, store, firstTree.Hash(), "", testutils.RandomString(20))
+	firstTree, firstBlobs := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: originalContent})
+	firstCommit := objectstest.CreateAndStoreCommit(t, store, firstTree.Hash(), "", testutils.RandomString(20))
 
-	secondTree, _ := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: updatedContent})
-	secondCommit := objectstestutils.CreateAndStoreCommit(t, store, secondTree.Hash(), firstCommit.Hash(), testutils.RandomString(20))
+	secondTree, _ := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: updatedContent})
+	secondCommit := objectstest.CreateAndStoreCommit(t, store, secondTree.Hash(), firstCommit.Hash(), testutils.RandomString(20))
 
 	// Point main at secondCommit and populate working tree + index to match
 	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, secondCommit.Hash())
@@ -564,11 +564,11 @@ func TestCheckout_Orchestrate_CommitCheckout(t *testing.T) {
 	originalContent := []byte(testutils.RandomString(50))
 	updatedContent := []byte(testutils.RandomString(50))
 
-	firstTree, firstBlob := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: originalContent})
-	firstCommit := objectstestutils.CreateAndStoreCommit(t, store, firstTree.Hash(), "", testutils.RandomString(20))
+	firstTree, firstBlob := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: originalContent})
+	firstCommit := objectstest.CreateAndStoreCommit(t, store, firstTree.Hash(), "", testutils.RandomString(20))
 
-	secondTree, _ := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: updatedContent})
-	secondCommit := objectstestutils.CreateAndStoreCommit(t, store, secondTree.Hash(), firstCommit.Hash(), testutils.RandomString(20))
+	secondTree, _ := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: updatedContent})
+	secondCommit := objectstest.CreateAndStoreCommit(t, store, secondTree.Hash(), firstCommit.Hash(), testutils.RandomString(20))
 
 	// Point main at secondCommit and populate working tree + index to match
 	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, secondCommit.Hash())
@@ -611,11 +611,11 @@ func TestCheckout_Orchestrate_DirtyDir(t *testing.T) {
 	store := objects.NewObjectStore(repoPath)
 
 	fileName := testutils.RandomString(10)
-	tree, blob := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: []byte(testutils.RandomString(10))})
-	commit := objectstestutils.CreateAndStoreCommit(t, store, tree.Hash(), "", testutils.RandomString(20))
+	tree, blob := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: []byte(testutils.RandomString(10))})
+	commit := objectstest.CreateAndStoreCommit(t, store, tree.Hash(), "", testutils.RandomString(20))
 
 	idx := index.NewIndex()
-	filePath := indextestutils.CreateTrackedFileContent(t, repoPath, repoPath, fileName, blob[fileName].Content(), idx)
+	filePath := indextest.CreateTrackedFileContent(t, repoPath, repoPath, fileName, blob[fileName].Content(), idx)
 
 	idxManager := index.NewManager(repoPath)
 	if err := idxManager.Save(idx); err != nil {
@@ -665,8 +665,8 @@ func TestCheckout_Orchestrate_CurrentBranchNoop(t *testing.T) {
 	fileName := testutils.RandomString(10)
 	content := []byte(testutils.RandomString(50))
 
-	tree, blobs := objectstestutils.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: content})
-	commit := objectstestutils.CreateAndStoreCommit(t, store, tree.Hash(), "", testutils.RandomString(20))
+	tree, blobs := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: content})
+	commit := objectstest.CreateAndStoreCommit(t, store, tree.Hash(), "", testutils.RandomString(20))
 
 	// Point main at commit and populate working tree + index to match
 	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, commit.Hash())

@@ -6,7 +6,7 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
-	"github.com/KostasZigo/gogit/internal/objects/objectstestutils"
+	"github.com/KostasZigo/gogit/internal/objects/objectstest"
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
@@ -24,11 +24,11 @@ func TestObjectStore_StoreAndReadTree(t *testing.T) {
 	}
 
 	// Create Tree with blob entry
-	treeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), blob.Hash())
+	treeEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), blob.Hash())
 	entries := []objects.TreeEntry{
 		treeEntry,
 	}
-	tree := objectstestutils.CreateAndStoreTree(t, store, entries)
+	tree := objectstest.CreateAndStoreTree(t, store, entries)
 
 	// Verify file was created
 	hash := tree.Hash()
@@ -54,7 +54,7 @@ func TestObjectStore_StoreAndReadTree(t *testing.T) {
 	}
 
 	// Verify entry details
-	objectstestutils.AssertTreeEntryEqual(t, retrievedTree.Entries()[0], treeEntry)
+	objectstest.AssertTreeEntryEqual(t, retrievedTree.Entries()[0], treeEntry)
 }
 
 // TestObjectStore_ReadTree_MultipleEntries verifies tree with multiple files.
@@ -70,12 +70,12 @@ func TestObjectStore_ReadTree_MultipleEntries(t *testing.T) {
 
 	// Create tree with multiple entries
 	entries := []objects.TreeEntry{
-		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "file1.txt", blob1.Hash()),
-		objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "file2.txt", blob2.Hash()),
+		objectstest.CreateTreeEntry(t, objects.ModeRegularFile, "file1.txt", blob1.Hash()),
+		objectstest.CreateTreeEntry(t, objects.ModeRegularFile, "file2.txt", blob2.Hash()),
 	}
 
 	// Create and store tree
-	tree := objectstestutils.CreateAndStoreTree(t, store, entries)
+	tree := objectstest.CreateAndStoreTree(t, store, entries)
 
 	// Read tree back
 	retrievedTree, err := store.ReadTree(tree.Hash())
@@ -115,11 +115,11 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 	}
 
 	// Create subtree
-	subTreeEntry := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "nested.txt", blob.Hash())
+	subTreeEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, "nested.txt", blob.Hash())
 	subTreeEntries := []objects.TreeEntry{
 		subTreeEntry,
 	}
-	subTree := objectstestutils.CreateAndStoreTree(t, store, subTreeEntries)
+	subTree := objectstest.CreateAndStoreTree(t, store, subTreeEntries)
 
 	// Create root tree with directory entry
 	rootBlob := objects.NewBlob([]byte("root content\n"))
@@ -127,13 +127,13 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 		t.Fatalf("Failed to strore root blob:%x", err)
 	}
 
-	rootEntryFile := objectstestutils.CreateTreeEntry(t, objects.ModeRegularFile, "root.txt", rootBlob.Hash())
-	rootEntryDir := objectstestutils.CreateTreeEntry(t, objects.ModeDirectory, "subdir", subTree.Hash())
+	rootEntryFile := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, "root.txt", rootBlob.Hash())
+	rootEntryDir := objectstest.CreateTreeEntry(t, objects.ModeDirectory, "subdir", subTree.Hash())
 	rootEntries := []objects.TreeEntry{
 		rootEntryFile,
 		rootEntryDir,
 	}
-	rootTree := objectstestutils.CreateAndStoreTree(t, store, rootEntries)
+	rootTree := objectstest.CreateAndStoreTree(t, store, rootEntries)
 
 	// Read root tree back
 	retrievedRootTree, err := store.ReadTree(rootTree.Hash())
@@ -149,11 +149,11 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 
 	// Verify file entry details
 	fileEntry := retrievedRootTree.Entries()[0]
-	objectstestutils.AssertTreeEntryEqual(t, fileEntry, rootEntryFile)
+	objectstest.AssertTreeEntryEqual(t, fileEntry, rootEntryFile)
 
 	// Verify directory entry
 	dirEntry := retrievedRootTree.Entries()[1]
-	objectstestutils.AssertTreeEntryEqual(t, dirEntry, rootEntryDir)
+	objectstest.AssertTreeEntryEqual(t, dirEntry, rootEntryDir)
 
 	// Read subtree
 	retrievedSubTree, err := store.ReadTree(dirEntry.Hash())
@@ -167,5 +167,5 @@ func TestObjectStore_ReadTree_NestedTree(t *testing.T) {
 
 	// Verify nested File tree entry
 	nestedEntry := retrievedSubTree.Entries()[0]
-	objectstestutils.AssertTreeEntryEqual(t, nestedEntry, subTreeEntry)
+	objectstest.AssertTreeEntryEqual(t, nestedEntry, subTreeEntry)
 }

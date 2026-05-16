@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/index/indextestutils"
+	"github.com/KostasZigo/gogit/internal/index/indextest"
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
@@ -52,7 +52,7 @@ func TestCheckoutCommand_BranchCheckout(t *testing.T) {
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContent)
 	testutils.AssertHEADContent(t, repoPath, constants.DefaultRefPrefix+branch+"\n")
-	indextestutils.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
+	indextest.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
 }
 
 // TestCheckoutCommand_NoArguments executes checkout without a target argument.
@@ -116,7 +116,7 @@ func TestCheckoutCommand_Force(t *testing.T) {
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContent)
 	testutils.AssertHEADContent(t, repoPath, firstCommitHash+"\n")
-	indextestutils.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
+	indextest.AssertIndexEntryPaths(t, repoPath, 1, []string{fileName})
 }
 
 // TestCheckoutCommand_RoundTripBetweenBranches creates two commits on main (each
@@ -160,7 +160,7 @@ func TestCheckoutCommand_RoundTripBetweenBranches(t *testing.T) {
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, firstFileName), firstFileContent)
 	testutils.AssertHEADContent(t, repoPath, constants.DefaultRefPrefix+featureBranch+"\n")
-	indextestutils.AssertIndexEntryPaths(t, repoPath, 1, []string{firstFileName})
+	indextest.AssertIndexEntryPaths(t, repoPath, 1, []string{firstFileName})
 
 	_, err := os.Stat(secondFileName)
 	if err == nil || !errors.Is(err, fs.ErrNotExist) {
@@ -183,5 +183,5 @@ func TestCheckoutCommand_RoundTripBetweenBranches(t *testing.T) {
 	testutils.AssertFileContent(t, filepath.Join(repoPath, firstFileName), firstFileContent)
 	testutils.AssertFileContent(t, filepath.Join(repoPath, secondFileName), secondFileContent)
 	testutils.AssertHEADContent(t, repoPath, constants.DefaultRefPrefix+constants.DefaultBranch+"\n")
-	indextestutils.AssertIndexEntryPaths(t, repoPath, 2, []string{firstFileName, secondFileName})
+	indextest.AssertIndexEntryPaths(t, repoPath, 2, []string{firstFileName, secondFileName})
 }

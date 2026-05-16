@@ -1,6 +1,6 @@
-// Package indextestutils provides shared helpers for constructing index
+// Package indextest provides shared helpers for constructing index
 // entries and temporary repository structures in index-related tests.
-package indextestutils
+package indextest
 
 import (
 	"os"

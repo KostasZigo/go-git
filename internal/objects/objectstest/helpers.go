@@ -1,6 +1,6 @@
-// Package objectstestutils provides shared helpers for creating and
+// Package objectstest provides shared helpers for creating and
 // persisting blobs, trees, and commits in object-store-related tests.
-package objectstestutils
+package objectstest
 
 import (
 	"testing"
