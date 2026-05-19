@@ -1,149 +1,18 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
-
-// TestAddCommand_Success verifies file staging creates blob and updates index.
-func TestAddCommand_Success(t *testing.T) {
-	// set up repository path
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
-
-	// Create test file
-	testFileName := testutils.RandomString(10)
-	testFileContent := []byte(testutils.RandomString(500))
-	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
-
-	testRootCommand := createTestRootCmd(addCmd)
-	stdout := captureStdout(testRootCommand)
-
-	// Execute add command
-	testRootCommand.SetArgs([]string{constants.AddCmdName, testFileName})
-	if err := testRootCommand.Execute(); err != nil {
-		t.Fatalf("add command failed: %v", err)
-	}
-
-	// Verify Output
-	output := stdout.String()
-	expectedOutput := "add '" + testFileName + "'"
-	if !strings.Contains(output, expectedOutput) {
-		t.Fatalf("Expected output to contain %s, got: %s", expectedOutput, output)
-	}
-
-	// Verify index was updated
-	indexManager := index.NewManager(repoPath)
-	index, err := indexManager.Load()
-	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
-	}
-
-	entryList := index.GetEntryList()
-	if len(entryList) != 1 {
-		t.Fatal("Expected a single entry to exist in the index")
-	}
-
-	entry := entryList[0]
-	if entry.Path() != testFileName {
-		t.Errorf("Expected path %s, got %s", testFileName, entry.Path())
-	}
-}
-
-// TestAddCommand_MultipleFiles verifies staging multiple files.
-func TestAddCommand_MultipleFiles(t *testing.T) {
-	// set up repository path
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
-
-	// Create test files
-	testFileNames := []string{testutils.RandomString(10), testutils.RandomString(10), testutils.RandomString(10)}
-	testFileContents := []string{testutils.RandomString(100), testutils.RandomString(150), testutils.RandomString(200)}
-
-	for i := range testFileNames {
-		testutils.CreateTestFile(t, repoPath, testFileNames[i], []byte(testFileContents[i]))
-	}
-
-	testRootCommand := createTestRootCmd(addCmd)
-	stdout := captureStdout(testRootCommand)
-
-	// Execute add command
-	testRootCommand.SetArgs(append([]string{constants.AddCmdName}, testFileNames...))
-	if err := testRootCommand.Execute(); err != nil {
-		t.Fatalf("add command failed: %v", err)
-	}
-
-	// Verify Output
-	output := stdout.String()
-
-	orderedTestFileNames := slices.Clone(testFileNames)
-	slices.Sort(orderedTestFileNames)
-
-	var sb strings.Builder
-	for _, testFileName := range orderedTestFileNames {
-		fmt.Fprintf(&sb, "add '%s'\n", testFileName)
-	}
-	expectedOutput := sb.String()
-
-	if !strings.Contains(output, expectedOutput) {
-		t.Fatalf("Expected output to contain %s, got: %s", expectedOutput, output)
-	}
-
-	// Verify all files appear as index entries
-	indexManager := index.NewManager(repoPath)
-	index, err := indexManager.Load()
-	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
-	}
-
-	indexEntryList := index.GetEntryList()
-	if len(indexEntryList) != len(testFileNames) {
-		t.Fatalf("Expected %d entries, got %d", len(testFileNames), index.CountEntries())
-	}
-
-	for i, indexEntry := range indexEntryList {
-		if indexEntry.Path() != orderedTestFileNames[i] {
-			t.Fatalf("File %s is missing from index or is in the right order, got [%s]", orderedTestFileNames[i], indexEntry.Path())
-		}
-	}
-}
-
-// TestAddCommand_FileNotFound verifies error for missing file.
-func TestAddCommand_FileNotFound(t *testing.T) {
-	// set up repository path
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
-
-	// Create test file
-	testFileName := testutils.RandomString(10)
-
-	testRootCommand := createTestRootCmd(addCmd)
-	stderr := captureStderr(testRootCommand)
-
-	// Execute add command
-	testRootCommand.SetArgs([]string{constants.AddCmdName, testFileName})
-	if err := testRootCommand.Execute(); err == nil {
-		t.Fatalf("Expected add command to fail with error for non-existent file but it succeeded: %v", err)
-	}
-
-	expectedErrorMessage := "Error: failed to add file " + testFileName + ": failed to stat file "
-	if !strings.Contains(stderr.String(), expectedErrorMessage) {
-		t.Errorf("Expected [%s] error, got: %v", expectedErrorMessage, stderr.String())
-	}
-}
 
 // TestAddCommand_NotInRepository verifies error when outside repository.
 func TestAddCommand_NotInRepository(t *testing.T) {
 	tempDir := t.TempDir()
-	changeToRepoDir(t, tempDir)
+	testutils.ChangeToDir(t, tempDir)
 
 	testFileName := testutils.RandomString(10)
 	testutils.CreateTestFile(t, tempDir, testFileName, []byte(testutils.RandomString(100)))
@@ -162,159 +31,54 @@ func TestAddCommand_NotInRepository(t *testing.T) {
 	}
 }
 
-// TestAddCommand_UpdateExistingFile verifies updating already-staged file.
-func TestAddCommand_UpdateExistingFile(t *testing.T) {
-	// set up repository path
+// TestAddCommand_OutputFormat verifies the CLI prints staged file paths.
+func TestAddCommand_OutputFormat(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
-	// Create test file
 	testFileName := testutils.RandomString(10)
-	testFileContent := []byte(testutils.RandomString(500))
-	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
-
-	testRootCommand := createTestRootCmd(addCmd)
-	captureStdout(testRootCommand)
-
-	// Execute add command
-	testRootCommand.SetArgs([]string{constants.AddCmdName, testFileName})
-	if err := testRootCommand.Execute(); err != nil {
-		t.Fatalf("add command failed: %v", err)
-	}
-
-	// Load hash from index
-	indexManager := index.NewManager(repoPath)
-	loadedIndex, err := indexManager.Load()
-	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
-	}
-	if loadedIndex.CountEntries() != 1 {
-		t.Fatalf("Expected a single entry inside the index but got %d", loadedIndex.CountEntries())
-	}
-	entry := loadedIndex.GetEntryList()[0]
-	originalHash := entry.Hash()
-	originalFileSize := entry.FileSize()
-
-	// Modify file
-	modifiedFileContent := testutils.RandomString(1000)
-	testutils.CreateTestFile(t, repoPath, testFileName, []byte(modifiedFileContent))
-
-	// Run command again to add the modified dile
-	if err := testRootCommand.Execute(); err != nil {
-		t.Fatalf("add command failed: %v", err)
-	}
-
-	// Load modified hash from index
-	indexManager = index.NewManager(repoPath)
-	loadedIndex, err = indexManager.Load()
-	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
-	}
-	if loadedIndex.CountEntries() != 1 {
-		t.Fatalf("Expected a single entry inside the index but got %d", loadedIndex.CountEntries())
-	}
-	entry = loadedIndex.GetEntryList()[0]
-	modifiedHash := entry.Hash()
-	modifiedFileSize := entry.FileSize()
-
-	if originalHash == modifiedHash {
-		t.Error("Expected hash to change after file modification")
-	}
-
-	if originalFileSize == modifiedFileSize {
-		t.Error("Expected file size to change after file modification")
-	}
-}
-
-// TestAddCommand_AddAll verifies staging all repository files with "."
-func TestAddCommand_AddAll(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
-
-	// Create multiple files in repository
-	files := map[string][]byte{
-		testutils.RandomString(10): []byte(testutils.RandomString(100)),
-		testutils.RandomString(10): []byte(testutils.RandomString(100)),
-		filepath.Join(testutils.RandomString(10), testutils.RandomString(10)): []byte(testutils.RandomString(100)),
-	}
-
-	for path, content := range files {
-		dir := filepath.Dir(path)
-		if dir != "." {
-			if err := os.MkdirAll(filepath.Join(repoPath, dir), constants.DirPerms); err != nil {
-				t.Fatalf("Failed to create directory %s: %v", dir, err)
-			}
-		}
-		testutils.CreateTestFile(t, repoPath, path, content)
-	}
+	testutils.CreateTestFile(t, repoPath, testFileName, []byte(testutils.RandomString(100)))
 
 	testRootCmd := createTestRootCmd(addCmd)
 	stdout := captureStdout(testRootCmd)
 
-	// Execute "add ."
-	testRootCmd.SetArgs([]string{constants.AddCmdName, "."})
+	testRootCmd.SetArgs([]string{constants.AddCmdName, testFileName})
 	if err := testRootCmd.Execute(); err != nil {
-		t.Fatalf("add . command failed: %v", err)
+		t.Fatalf("add command failed: %v", err)
 	}
 
-	// Verify Output
-	output := stdout.String()
-
-	testFileNames := make([]string, 0, len(files))
-	for key := range files {
-		fileName := filepath.ToSlash(key)
-		testFileNames = append(testFileNames, fileName)
-	}
-
-	orderedTestFileNames := slices.Clone(testFileNames)
-	slices.Sort(orderedTestFileNames)
-
-	var sb strings.Builder
-	for _, testFileName := range orderedTestFileNames {
-		fmt.Fprintf(&sb, "add '%s'\n", testFileName)
-	}
-	expectedOutput := sb.String()
-
-	if !strings.Contains(output, expectedOutput) {
-		t.Fatalf("Expected output to contain %s, got: %s", expectedOutput, output)
-	}
-
-	// Verify all files staged
-	indexManager := index.NewManager(repoPath)
-	index, err := indexManager.Load()
-	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
-	}
-
-	indexEntryList := index.GetEntryList()
-	if len(indexEntryList) != len(testFileNames) {
-		t.Fatalf("Expected %d entries, got %d", len(testFileNames), index.CountEntries())
-	}
-
-	for i, indexEntry := range indexEntryList {
-		if indexEntry.Path() != orderedTestFileNames[i] {
-			t.Fatalf("File %s is missing from index or is in the right order, got [%s]", orderedTestFileNames[i], indexEntry.Path())
-		}
+	expectedOutput := "add '" + testFileName + "'"
+	if !strings.Contains(stdout.String(), expectedOutput) {
+		t.Errorf("Expected output to contain %q, got: %q", expectedOutput, stdout.String())
 	}
 }
 
-// TestAddCommand_AddAll_EmptyRepository verifies handling of empty working tree
-func TestAddCommand_AddAll_EmptyRepository(t *testing.T) {
+// TestAddCommand_OutputFormat_MulitpleFiles verifies the CLI prints staged file paths correctly.
+func TestAddCommand_OutputFormat_MulitpleFiles(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
+
+	fileNames := make([]string, 0, 3)
+	for range 3 {
+		testFileName := testutils.RandomString(10)
+		testutils.CreateTestFile(t, repoPath, testFileName, []byte(testutils.RandomString(100)))
+		fileNames = append(fileNames, testFileName)
+	}
+	slices.Sort(fileNames)
 
 	testRootCmd := createTestRootCmd(addCmd)
-	captureStdout(testRootCmd)
+	stdout := captureStdout(testRootCmd)
 
 	testRootCmd.SetArgs([]string{constants.AddCmdName, "."})
 	if err := testRootCmd.Execute(); err != nil {
-		t.Fatalf("add . command should succeed on empty repo: %v", err)
+		t.Fatalf("add command failed: %v", err)
 	}
 
-	indexManager := index.NewManager(repoPath)
-	index, _ := indexManager.Load()
-
-	if index.CountEntries() != 0 {
-		t.Errorf("Expected 0 entries for empty repo, got %d", index.CountEntries())
+	var expectedOutput strings.Builder
+	for _, fileName := range fileNames {
+		expectedOutput.WriteString("add '" + fileName + "'\n")
+	}
+	if !strings.Contains(stdout.String(), expectedOutput.String()) {
+		t.Errorf("Expected output to contain %q, got: %q", expectedOutput.String(), stdout.String())
 	}
 }

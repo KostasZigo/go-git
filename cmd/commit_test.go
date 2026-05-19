@@ -19,7 +19,7 @@ import (
 // matching hash, commit object readable with correct tree and message.
 func TestCommitCommand_FirstCommitWithStagedFiles(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	command := createTestRootCmd(commitCmd)
 	stdout := captureStdout(command)
@@ -79,7 +79,7 @@ func TestCommitCommand_FirstCommitWithStagedFiles(t *testing.T) {
 // differ, ref file updated to second commit.
 func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	fileName := testutils.RandomString(10)
 	fileContent := testutils.RandomByteSlice(100)
@@ -134,7 +134,7 @@ func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
 // "nothing to commit".
 func TestCommitCommand_EmptyIndex(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	command := createTestRootCmd(commitCmd)
 	outErr := captureStderr(command)
@@ -155,7 +155,7 @@ func TestCommitCommand_EmptyIndex(t *testing.T) {
 // modifications. Verifies error output contains "nothing to commit".
 func TestCommitCommand_DuplicateCommitNoChanges(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	fileName := testutils.RandomString(10)
 	fileContent := testutils.RandomByteSlice(100)
@@ -213,7 +213,7 @@ func TestCommitCommand_MissingMessageFlag(t *testing.T) {
 // objects are stored and each parent tree references its child correctly.
 func TestCommitCommand_DeeplyNestedDirectoryStructure(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create deeply nested file and stage via add command
 	firstLevel := testutils.RandomString(10)
@@ -300,7 +300,7 @@ func TestCommitCommand_DeeplyNestedDirectoryStructure(t *testing.T) {
 // no parent.
 func TestCommitCommand_ThreeSequentialCommits_ParentChain(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	fileName := testutils.RandomString(10)
 	firstMessage := testutils.RandomString(10)

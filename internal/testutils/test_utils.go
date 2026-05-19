@@ -45,6 +45,25 @@ func RandomHash() string {
 	return RandomString(constants.HashByteLength)
 }
 
+// ChangeToDir changes the working directory to dir and registers a cleanup
+// to restore the original directory when the test finishes.
+func ChangeToDir(t *testing.T, dir string) {
+	t.Helper()
+
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to change to directory %s: %v", dir, err)
+	}
+
+	t.Cleanup(func() {
+		_ = os.Chdir(oldDir)
+	})
+}
+
 // SetupTestRepoWithGogitDir creates a temporary directory with .gogit/objects structure.
 // This is useful for tests that need the repository structure but not full initialization.
 func SetupTestRepoWithGogitDir(t *testing.T) string {

@@ -20,7 +20,7 @@ import (
 // commit's snapshot, HEAD points to the branch, and the index contains one entry.
 func TestCheckoutCommand_BranchCheckout(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	checkoutCommand := createTestRootCmd(checkoutCmd)
 	stdout := captureStdout(checkoutCommand)
@@ -84,7 +84,7 @@ func TestCheckoutCommand_NoArguments(t *testing.T) {
 // commit, HEAD is detached to the commit hash, and the index has one entry.
 func TestCheckoutCommand_Force(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	checkoutCommand := createTestRootCmd(checkoutCmd)
 	stdout := captureStdout(checkoutCommand)
@@ -126,7 +126,7 @@ func TestCheckoutCommand_Force(t *testing.T) {
 // index entry count matches the target commit's tree.
 func TestCheckoutCommand_RoundTripBetweenBranches(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	checkoutCommand := createTestRootCmd(checkoutCmd)
 	stdout := captureStdout(checkoutCommand)

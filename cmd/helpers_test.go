@@ -32,24 +32,6 @@ func captureStderr(cmd *cobra.Command) *bytes.Buffer {
 	return &stderr
 }
 
-// changeToRepoDir changes working directory to repo path and registers cleanup.
-func changeToRepoDir(t *testing.T, repoPath string) {
-	t.Helper()
-
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-
-	if err := os.Chdir(repoPath); err != nil {
-		t.Fatalf("Failed to change to directory %s: %v", repoPath, err)
-	}
-
-	t.Cleanup(func() {
-		os.Chdir(oldDir)
-	})
-}
-
 // stageRandomFile creates a file with random name and content, then stages it
 // via the add command. Convenience wrapper around stageFile for tests that do
 // not need control over file identity.

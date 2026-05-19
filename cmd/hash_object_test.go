@@ -22,7 +22,7 @@ func TestHashObjectCommand_Success_NoStorage(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithGogitDir(t)
 
 	// Change to repo directory
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create test file
 	testFileName := "test.txt"
@@ -66,7 +66,7 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	testFileContent := []byte("hello world\nHave a nice day")
 	testutils.CreateTestFile(t, repoPath, testFileName, testFileContent)
 
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	testRootCmd := createTestRootCmd(hashObjectCmd)
 	stdout := captureStdout(testRootCmd)
@@ -110,7 +110,7 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 // TestHashObject_FileNotFound verifies error for non-existent file.
 func TestHashObject_FileNotFound(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithGogitDir(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	dummyFileName := "dummy.txt"
 
@@ -176,7 +176,7 @@ func TestHashObjectCommand_TooManyArguments(t *testing.T) {
 // TestHashObjectCommand_FileNotInRepository verifies error when file outside repository.
 func TestHashObjectCommand_FileNotInRepository(t *testing.T) {
 	repoPath := t.TempDir()
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	testFileName := "test.txt"
 	testFileContent := []byte("Pikachu I choose you !")
@@ -204,7 +204,7 @@ func TestHashObjectCommand_FileNotInRepository(t *testing.T) {
 // TestHashObjectCommand_StoreFailure verifies error handling when storage fails.
 func TestHashObjectCommand_StoreFailure(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithGogitDir(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create file
 	testFileName := "test.txt"
@@ -241,7 +241,7 @@ func TestHashObjectCommand_StoreFailure(t *testing.T) {
 // TestHashObjectCommand_NewBlobFromFileFailure verifies error handling when blob creation fails.
 func TestHashObjectCommand_NewBlobFromFileFailure(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithGogitDir(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create file
 	testFileName := "test.txt"
@@ -276,7 +276,7 @@ func TestHashObjectCommand_NewBlobFromFileFailure(t *testing.T) {
 // TestHashObjectCommand_MultipleFiles_SameContent verifies content-addressable storage.
 func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithGogitDir(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create two files with identical content
 	content := []byte("identical content\n")
@@ -317,7 +317,7 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 // TestHashObjectCommand_EmptyFile verifies hash computation for empty file.
 func TestHashObjectCommand_EmptyFile(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithGogitDir(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create empty file
 	emptyFile := "empty.txt"
@@ -347,7 +347,7 @@ func TestHashObjectCommand_EmptyFile(t *testing.T) {
 // TestHashObjectCommand_LargeFile verifies hash computation for large file.
 func TestHashObjectCommand_LargeFile(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithGogitDir(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create large file (1MB)
 	largeFileName := "large.bin"

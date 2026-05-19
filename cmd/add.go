@@ -1,17 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"slices"
-	"time"
-
 	"github.com/KostasZigo/gogit/internal/constants"
-	"github.com/KostasZigo/gogit/internal/index"
-	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/repository"
+	"github.com/KostasZigo/gogit/internal/staging"
 	"github.com/spf13/cobra"
 )
 
@@ -47,152 +39,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Load existing index
-	indexManager := index.NewManager(repoPath)
-	idx, err := indexManager.Load()
+	addedFiles, err := staging.OrchestrateAddExecution(repoPath, args)
 	if err != nil {
-		return fmt.Errorf("failed to load index: %w", err)
-	}
-	// Create object store
-	store := objects.NewObjectStore(repoPath)
-
-	var filePaths []string
-	// Check if all files should be added
-	if len(args) == 1 && args[0] == "." {
-		filePaths, err = collectAllRepoFiles(repoPath)
-		if err != nil {
-			return fmt.Errorf("failed to collect repository files: %w", err)
-		}
-	} else {
-		// Individual file arguments
-		filePaths = slices.Clone(args)
+		return err
 	}
 
-	// Sort paths for deterministic processing
-	slices.Sort(filePaths)
-
-	// Process each file
-	for _, filePath := range filePaths {
-		if err := addFile(cmd, repoPath, filePath, idx, store); err != nil {
-			return fmt.Errorf("failed to add file %s: %w", filePath, err)
-		}
+	for _, file := range addedFiles {
+		cmd.Printf("add '%s'\n", file)
 	}
-
-	// Save updated index
-	if err := indexManager.Save(idx); err != nil {
-		return fmt.Errorf("failed to save index: %w", err)
-	}
-
-	return nil
-}
-
-// collectAllRepoFiles recursively walks repository collecting non-ignored files.
-// Returns relative paths from repository root suitable for staging.
-func collectAllRepoFiles(repoPath string) ([]string, error) {
-	var filePaths []string
-	goGitDir := filepath.Join(repoPath, constants.Gogit)
-
-	err := filepath.WalkDir(repoPath, func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return fmt.Errorf("failed to access path %s: %w", path, err)
-		}
-
-		// Skip .gogit directory entirely
-		if dirEntry.IsDir() && path == goGitDir {
-			return filepath.SkipDir
-		}
-
-		// Skip hidden directories (starting with .)
-		if dirEntry.IsDir() && filepath.Base(path)[0] == '.' && path != repoPath {
-			return filepath.SkipDir
-		}
-
-		// Collect regular files only
-		if dirEntry.Type().IsRegular() {
-			relPath, err := filepath.Rel(repoPath, path)
-			if err != nil {
-				return fmt.Errorf("failed to compute relative path for %s: %w", path, err)
-			}
-			filePaths = append(filePaths, relPath)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to walk repository: %w", err)
-	}
-
-	return filePaths, nil
-}
-
-// addFile stages single file by creating blob and updating index.
-func addFile(cmd *cobra.Command, repoPath, filePath string, idx *index.Index, store *objects.ObjectStore) error {
-	// Get absolute path
-	absolutePath, err := filepath.Abs(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve absolute path: %w", err)
-	}
-
-	// Verify file exists
-	fileInfo, err := os.Stat(absolutePath)
-	if err != nil {
-		return fmt.Errorf("failed to stat file %s: %w", absolutePath, err)
-	}
-	if fileInfo.IsDir() {
-		return fmt.Errorf("cannot add directory (not yet implemented)")
-	}
-
-	// Compute relative path from repository root
-	absoluteRepoPath, err := filepath.Abs(repoPath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve absolute repo path: %w", err)
-	}
-
-	relativeFilePath, err := filepath.Rel(absoluteRepoPath, absolutePath)
-	if err != nil {
-		return fmt.Errorf("file is not inside the repository: %w", err)
-	}
-
-	// Normalize to forward slashes so index and tree entries are OS-independent.
-	relativeFilePath = filepath.ToSlash(relativeFilePath)
-
-	// Create blob from file
-	blob, err := objects.NewBlobFromFile(absolutePath)
-	if err != nil {
-		return fmt.Errorf("failed to create blob from file %s: %w", absolutePath, err)
-	}
-
-	// Skip unchanged files: if an index entry already exists with the same
-	// content hash, the file has not been modified.
-	if existing := idx.GetEntry(relativeFilePath); existing != nil && existing.Hash() == blob.Hash() {
-		return nil
-	}
-
-	// Store Blob in objects/
-	if err := store.Store(blob); err != nil {
-		return fmt.Errorf("failed to strore file blob: %w", err)
-	}
-
-	// Determine file mode
-	fileMode := index.DetectFileMode(fileInfo)
-
-	// create index entry
-	entry, err := index.NewEntry(
-		fileMode,
-		blob.Hash(),
-		relativeFilePath,
-		fileInfo.Size(),
-		fileInfo.ModTime().Truncate(time.Second),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create index entry for %s: %w", absolutePath, err)
-	}
-
-	// Add to index
-	if err := idx.AddEntry(entry); err != nil {
-		return fmt.Errorf("failed to add [%s] entry to index: %w", absolutePath, err)
-	}
-
-	cmd.Printf("add '%s'\n", relativeFilePath)
 	return nil
 }

@@ -18,7 +18,7 @@ import (
 // hash, message, author, and date in the expected format.
 func TestLog_SingleCommit_Success(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create commit history
 	message := testutils.RandomString(100)
@@ -59,7 +59,7 @@ func TestLog_SingleCommit_Success(t *testing.T) {
 // correct hash, message, author, and date for each.
 func TestLog_CommitChain_Success(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	// Create commit history
 	store := objects.NewObjectStore(repoPath)
@@ -107,7 +107,7 @@ func TestLog_CommitChain_Success(t *testing.T) {
 // command fails with an error indicating the ref file could not be read.
 func TestLog_EmptyRepository_NoCommits(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	changeToRepoDir(t, repoPath)
+	testutils.ChangeToDir(t, repoPath)
 
 	command := createTestRootCmd(logCmd)
 	captureStdout(command)
@@ -130,7 +130,7 @@ func TestLog_EmptyRepository_NoCommits(t *testing.T) {
 // fails with an error indicating the repository was not found.
 func TestLog_OutsideRepository(t *testing.T) {
 	tempDir := t.TempDir()
-	changeToRepoDir(t, tempDir)
+	testutils.ChangeToDir(t, tempDir)
 
 	command := createTestRootCmd(logCmd)
 	captureStdout(command)
