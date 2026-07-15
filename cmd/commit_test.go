@@ -36,40 +36,40 @@ func TestCommitCommand_FirstCommitWithStagedFiles(t *testing.T) {
 	// Verify stdout contains short hash and message
 	output := stdout.String()
 	if !strings.Contains(output, message) {
-		t.Fatalf("Expected output to contain message [%s], got: [%s]", message, output)
+		t.Fatalf("expected output to contain message [%s], got: [%s]", message, output)
 	}
 
 	// Extract commit hash from ref file
 	commitHash := testutils.ReadDefaultRefFile(t, repoPath)
 	if len(commitHash) != constants.HashStringLength {
-		t.Fatalf("Expected %d-char hash in ref file, got [%d]: %s", constants.HashStringLength, len(commitHash), commitHash)
+		t.Fatalf("expected %d-char hash in ref file, got [%d]: %s", constants.HashStringLength, len(commitHash), commitHash)
 	}
 
 	// Verify stdout contains the short hash from ref file
 	expectedOutputHash := commitHash[:7]
 	if !strings.Contains(output, expectedOutputHash) {
-		t.Fatalf("Expected output to contain short hash [%s], got [%s]", expectedOutputHash, output)
+		t.Fatalf("expected output to contain short hash [%s], got [%s]", expectedOutputHash, output)
 	}
 
 	// Verify commit object is readable with correct fields
 	store := objects.NewObjectStore(repoPath)
 	commit, err := store.ReadCommit(commitHash)
 	if err != nil {
-		t.Fatalf("Failed to read commit object: %v", err)
+		t.Fatalf("failed to read commit object: %v", err)
 	}
 
 	if commit.Message() != message {
-		t.Fatalf("Expected commit message [%s], got [%s]", message, commit.Message())
+		t.Fatalf("expected commit message [%s], got [%s]", message, commit.Message())
 	}
 
 	if commit.ParentHash() != "" {
-		t.Fatalf("Expected empty parent hash for first commit, got [%s]", commit.ParentHash())
+		t.Fatalf("expected empty parent hash for first commit, got [%s]", commit.ParentHash())
 	}
 
 	// Verify tree referenced by commit is readable
 	_, err = store.ReadTree(commit.TreeHash())
 	if err != nil {
-		t.Fatalf("Failed to read tree referenced by commit: %v", err)
+		t.Fatalf("failed to read tree referenced by commit: %v", err)
 	}
 }
 
@@ -105,27 +105,27 @@ func TestCommitCommand_SecondCommitAfterModification(t *testing.T) {
 
 	secondHash := testutils.ReadDefaultRefFile(t, repoPath)
 	if firstHash == secondHash {
-		t.Fatal("First and second commit hashes must differ")
+		t.Fatal("first and second commit hashes must differ")
 	}
 
 	// Verify parent chain and tree difference
 	store := objects.NewObjectStore(repoPath)
 	firstCommit, err := store.ReadCommit(firstHash)
 	if err != nil {
-		t.Fatalf("Failed to read first commit: %v", err)
+		t.Fatalf("failed to read first commit: %v", err)
 	}
 
 	secondCommit, err := store.ReadCommit(secondHash)
 	if err != nil {
-		t.Fatalf("Failed to read second commit: %v", err)
+		t.Fatalf("failed to read second commit: %v", err)
 	}
 
 	if secondCommit.ParentHash() != firstHash {
-		t.Fatalf("Second commit parent [%s] does not match first commit [%s]", secondCommit.ParentHash(), firstHash)
+		t.Fatalf("second commit parent [%s] does not match first commit [%s]", secondCommit.ParentHash(), firstHash)
 	}
 
 	if firstCommit.TreeHash() == secondCommit.TreeHash() {
-		t.Fatalf("Tree hashes must differ after file modification - they are both [%s]", firstCommit.TreeHash())
+		t.Fatalf("tree hashes must differ after file modification - they are both [%s]", firstCommit.TreeHash())
 	}
 }
 
@@ -140,13 +140,13 @@ func TestCommitCommand_EmptyIndex(t *testing.T) {
 	outErr := captureStderr(command)
 	command.SetArgs([]string{constants.CommitCmdName, "-m", testutils.RandomString(10)})
 	if err := command.Execute(); err == nil {
-		t.Fatalf("Expected commit with no staged files to fail with 'nothing to cmmit'")
+		t.Fatalf("expected commit with no staged files to fail with 'nothing to cmmit'")
 	}
 
 	expectedErrorMessage := "nothing to commit"
 	errorOutput := outErr.String()
 	if !strings.Contains(errorOutput, expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], but got [%s]", expectedErrorMessage, errorOutput)
+		t.Fatalf("expected error message to contain [%s], but got [%s]", expectedErrorMessage, errorOutput)
 	}
 }
 
@@ -173,13 +173,13 @@ func TestCommitCommand_DuplicateCommitNoChanges(t *testing.T) {
 
 	// Execute commit command again without any staged files
 	if err := command.Execute(); err == nil {
-		t.Fatalf("Expected commit with no staged files to fail with 'nothing to cmmit'")
+		t.Fatalf("expected commit with no staged files to fail with 'nothing to cmmit'")
 	}
 
 	errorOutput := errOut.String()
 	expectedErrorMessage := "nothing to commit: working tree clean"
 	if !strings.Contains(errorOutput, expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], but got [%s]", expectedErrorMessage, errorOutput)
+		t.Fatalf("expected error message to contain [%s], but got [%s]", expectedErrorMessage, errorOutput)
 	}
 }
 
@@ -196,13 +196,13 @@ func TestCommitCommand_MissingMessageFlag(t *testing.T) {
 	outErr := captureStderr(command)
 	command.SetArgs([]string{constants.CommitCmdName})
 	if err := command.Execute(); err == nil {
-		t.Fatalf("Expected commit with no message flag to fail")
+		t.Fatalf("expected commit with no message flag to fail")
 	}
 
 	expectedErrorMessage := "commit message required: use -m \"your message\""
 	errorOutput := outErr.String()
 	if !strings.Contains(errorOutput, expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], but got [%s]", expectedErrorMessage, errorOutput)
+		t.Fatalf("expected error message to contain [%s], but got [%s]", expectedErrorMessage, errorOutput)
 	}
 }
 
@@ -224,7 +224,7 @@ func TestCommitCommand_DeeplyNestedDirectoryStructure(t *testing.T) {
 	nestedContent := testutils.RandomByteSlice(100)
 
 	if err := os.MkdirAll(nestedPath, constants.DirPerms); err != nil {
-		t.Fatalf("Failed to create directory %s: %v", nestedPath, err)
+		t.Fatalf("failed to create directory %s: %v", nestedPath, err)
 	}
 
 	stageFile(t, nestedFileName, nestedPath, nestedContent)
@@ -243,53 +243,53 @@ func TestCommitCommand_DeeplyNestedDirectoryStructure(t *testing.T) {
 
 	commit, err := store.ReadCommit(commitHash)
 	if err != nil {
-		t.Fatalf("Failed to read commit: %v", err)
+		t.Fatalf("failed to read commit: %v", err)
 	}
 
 	// root tree → must have single entry
 	rootTree, err := store.ReadTree(commit.TreeHash())
 	if err != nil {
-		t.Fatalf("Failed to read root tree: %v", err)
+		t.Fatalf("failed to read root tree: %v", err)
 	}
 	rootEntries := rootTree.Entries()
 	if len(rootEntries) != 1 || rootEntries[0].Name() != firstLevel {
-		t.Fatalf("Expected single root entry [%s], got %v", firstLevel, treeEntryNames(rootEntries))
+		t.Fatalf("expected single root entry [%s], got %v", firstLevel, treeEntryNames(rootEntries))
 	}
 
 	treeA, err := store.ReadTree(rootEntries[0].Hash())
 	if err != nil {
-		t.Fatalf("Failed to read 1st level tree: %v", err)
+		t.Fatalf("failed to read 1st level tree: %v", err)
 	}
 	entriesA := treeA.Entries()
 	if len(entriesA) != 1 || entriesA[0].Name() != secondLevel {
-		t.Fatalf("Expected single entry [%s] in first level tree, got %v", secondLevel, treeEntryNames(entriesA))
+		t.Fatalf("expected single entry [%s] in first level tree, got %v", secondLevel, treeEntryNames(entriesA))
 	}
 
 	treeB, err := store.ReadTree(entriesA[0].Hash())
 	if err != nil {
-		t.Fatalf("Failed to read second level tree: %v", err)
+		t.Fatalf("failed to read second level tree: %v", err)
 	}
 	entriesB := treeB.Entries()
 	if len(entriesB) != 1 || entriesB[0].Name() != thirdLevel {
-		t.Fatalf("Expected single entry [%s] in second level tree, got %v", thirdLevel, treeEntryNames(entriesB))
+		t.Fatalf("expected single entry [%s] in second level tree, got %v", thirdLevel, treeEntryNames(entriesB))
 	}
 
 	treeC, err := store.ReadTree(entriesB[0].Hash())
 	if err != nil {
-		t.Fatalf("Failed to read third level tree: %v", err)
+		t.Fatalf("failed to read third level tree: %v", err)
 	}
 	entriesC := treeC.Entries()
 	if len(entriesC) != 1 || entriesC[0].Name() != nestedFileName {
-		t.Fatalf("Expected single entry [%s] in tree 'c', got %v", nestedFileName, treeEntryNames(entriesC))
+		t.Fatalf("expected single entry [%s] in tree 'c', got %v", nestedFileName, treeEntryNames(entriesC))
 	}
 
 	// Verify blob content
 	blob, err := store.ReadBlob(entriesC[0].Hash())
 	if err != nil {
-		t.Fatalf("Failed to read blob 'd.go': %v", err)
+		t.Fatalf("failed to read blob 'd.go': %v", err)
 	}
 	if !bytes.Equal(blob.Content(), nestedContent) {
-		t.Fatalf("Expected blob content [%s], got [%s]", nestedContent, blob.Content())
+		t.Fatalf("expected blob content [%s], got [%s]", nestedContent, blob.Content())
 	}
 }
 
@@ -327,7 +327,7 @@ func TestCommitCommand_ThreeSequentialCommits_ParentChain(t *testing.T) {
 	// Ref file must point to the latest commit
 	latestCommitHash := testutils.ReadDefaultRefFile(t, repoPath)
 	if hashes[2] != latestCommitHash {
-		t.Fatalf("Ref file expected to point to commit [%s], got [%s]", hashes[2], latestCommitHash)
+		t.Fatalf("ref file expected to point to commit [%s], got [%s]", hashes[2], latestCommitHash)
 	}
 
 	// Walk parent chain: third → second → first → empty
@@ -335,34 +335,34 @@ func TestCommitCommand_ThreeSequentialCommits_ParentChain(t *testing.T) {
 
 	thirdCommit, err := store.ReadCommit(hashes[2])
 	if err != nil {
-		t.Fatalf("Failed to read third commit: %v", err)
+		t.Fatalf("failed to read third commit: %v", err)
 	}
 	if thirdCommit.ParentHash() != hashes[1] {
-		t.Fatalf("Third commit parent [%s] != second commit [%s]", thirdCommit.ParentHash(), hashes[1])
+		t.Fatalf("third commit parent [%s] != second commit [%s]", thirdCommit.ParentHash(), hashes[1])
 	}
 	if thirdCommit.Message() != thirdMessage {
-		t.Fatalf("Third commit message: expected [%s], got [%s]", thirdMessage, thirdCommit.Message())
+		t.Fatalf("third commit message: expected [%s], got [%s]", thirdMessage, thirdCommit.Message())
 	}
 
 	secondCommit, err := store.ReadCommit(hashes[1])
 	if err != nil {
-		t.Fatalf("Failed to read second commit: %v", err)
+		t.Fatalf("failed to read second commit: %v", err)
 	}
 	if secondCommit.ParentHash() != hashes[0] {
-		t.Fatalf("Second commit parent [%s] != first commit [%s]", secondCommit.ParentHash(), hashes[0])
+		t.Fatalf("second commit parent [%s] != first commit [%s]", secondCommit.ParentHash(), hashes[0])
 	}
 	if secondCommit.Message() != secondMessage {
-		t.Fatalf("Second commit message: expected [%s], got [%s]", secondMessage, secondCommit.Message())
+		t.Fatalf("second commit message: expected [%s], got [%s]", secondMessage, secondCommit.Message())
 	}
 
 	firstCommit, err := store.ReadCommit(hashes[0])
 	if err != nil {
-		t.Fatalf("Failed to read first commit: %v", err)
+		t.Fatalf("failed to read first commit: %v", err)
 	}
 	if firstCommit.ParentHash() != "" {
-		t.Fatalf("First commit must have empty parent, got [%s]", firstCommit.ParentHash())
+		t.Fatalf("first commit must have empty parent, got [%s]", firstCommit.ParentHash())
 	}
 	if firstCommit.Message() != firstMessage {
-		t.Fatalf("First commit message: expected [%s], got [%s]", firstMessage, firstCommit.Message())
+		t.Fatalf("first commit message: expected [%s], got [%s]", firstMessage, firstCommit.Message())
 	}
 }

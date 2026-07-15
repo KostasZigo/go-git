@@ -22,12 +22,12 @@ func TestAddCommand_NotInRepository(t *testing.T) {
 
 	testRootCmd.SetArgs([]string{constants.AddCmdName, testFileName})
 	if err := testRootCmd.Execute(); err == nil {
-		t.Fatal("Expected error when file not in a repository")
+		t.Fatal("expected error when file not in a repository")
 	}
 
 	expectedErrorMessage := constants.Gogit + " directory not found"
 	if !strings.Contains(stderr.String(), expectedErrorMessage) {
-		t.Errorf("Expected [%s] error, got: %v", expectedErrorMessage, stderr.String())
+		t.Errorf("expected [%s] error, got: %v", expectedErrorMessage, stderr.String())
 	}
 }
 
@@ -49,7 +49,7 @@ func TestAddCommand_OutputFormat(t *testing.T) {
 
 	expectedOutput := "add '" + testFileName + "'"
 	if !strings.Contains(stdout.String(), expectedOutput) {
-		t.Errorf("Expected output to contain %q, got: %q", expectedOutput, stdout.String())
+		t.Errorf("expected output to contain %q, got: %q", expectedOutput, stdout.String())
 	}
 }
 
@@ -79,6 +79,6 @@ func TestAddCommand_OutputFormat_MulitpleFiles(t *testing.T) {
 		expectedOutput.WriteString("add '" + fileName + "'\n")
 	}
 	if !strings.Contains(stdout.String(), expectedOutput.String()) {
-		t.Errorf("Expected output to contain %q, got: %q", expectedOutput.String(), stdout.String())
+		t.Errorf("expected output to contain %q, got: %q", expectedOutput.String(), stdout.String())
 	}
 }

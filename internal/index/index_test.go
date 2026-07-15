@@ -14,11 +14,11 @@ func TestNewIndex(t *testing.T) {
 	index := NewIndex()
 
 	if index.CountEntries() != 0 {
-		t.Fatalf("Expected empty index, got %d entries", index.CountEntries())
+		t.Fatalf("expected empty index, got %d entries", index.CountEntries())
 	}
 
 	if index.Version() != constants.IndexVersion {
-		t.Fatalf("Expected index versions [%d], got [%d] entries", constants.IndexVersion, index.Version())
+		t.Fatalf("expected index versions [%d], got [%d] entries", constants.IndexVersion, index.Version())
 	}
 }
 
@@ -28,20 +28,20 @@ func TestIndex_AddEntry(t *testing.T) {
 
 	entry, err := NewEntry(ModeRegularFile, testutils.RandomHash(), testutils.RandomString(10), testutils.RandomInt(100), time.Now())
 	if err != nil {
-		t.Fatalf("Failed to create entry: %v", err)
+		t.Fatalf("failed to create entry: %v", err)
 	}
 
 	if err := index.AddEntry(entry); err != nil {
-		t.Fatalf("Failed to add entry: %v", err)
+		t.Fatalf("failed to add entry: %v", err)
 	}
 
 	if index.CountEntries() != 1 {
-		t.Errorf("Expected 1 entry, got %d", index.CountEntries())
+		t.Errorf("expected 1 entry, got %d", index.CountEntries())
 	}
 
 	retrievedEntry := index.GetEntryList()[0]
 	if retrievedEntry.Hash() != entry.Hash() {
-		t.Errorf("Hash mismatch: expected [%s], got [%s]", entry.Hash(), retrievedEntry.Hash())
+		t.Errorf("hash mismatch: expected [%s], got [%s]", entry.Hash(), retrievedEntry.Hash())
 	}
 }
 
@@ -52,32 +52,32 @@ func TestIndex_UpdateEntry(t *testing.T) {
 	filePath := testutils.RandomString(10)
 	originalEntry, err := NewEntry(ModeRegularFile, testutils.RandomHash(), filePath, testutils.RandomInt(100), time.Now())
 	if err != nil {
-		t.Fatalf("Failed to create entry: %v", err)
+		t.Fatalf("failed to create entry: %v", err)
 	}
 
 	if err := index.AddEntry(originalEntry); err != nil {
-		t.Fatalf("Failed to add entry: %v", err)
+		t.Fatalf("failed to add entry: %v", err)
 	}
 
 	updatedEntry, err := NewEntry(ModeRegularFile, testutils.RandomHash(), filePath, testutils.RandomInt(100), time.Now())
 	if err != nil {
-		t.Fatalf("Failed to create entry: %v", err)
+		t.Fatalf("failed to create entry: %v", err)
 	}
 
 	if err := index.AddEntry(updatedEntry); err != nil {
-		t.Fatalf("Failed to add entry: %v", err)
+		t.Fatalf("failed to add entry: %v", err)
 	}
 
 	if index.CountEntries() != 1 {
-		t.Fatalf("Expected 1 entry after update, got %d", index.CountEntries())
+		t.Fatalf("expected 1 entry after update, got %d", index.CountEntries())
 	}
 
 	retrievedEntry := index.GetEntryList()[0]
 	if retrievedEntry.Hash() != updatedEntry.Hash() {
-		t.Fatalf("Entry's hash is [%v], should be [%v]", retrievedEntry.Hash(), updatedEntry.Hash())
+		t.Fatalf("entry's hash is [%v], should be [%v]", retrievedEntry.Hash(), updatedEntry.Hash())
 	}
 	if retrievedEntry.FileSize() != updatedEntry.FileSize() {
-		t.Fatalf("Entry's hash is [%v], should be [%v]", retrievedEntry.FileSize(), updatedEntry.FileSize())
+		t.Fatalf("entry's hash is [%v], should be [%v]", retrievedEntry.FileSize(), updatedEntry.FileSize())
 	}
 }
 
@@ -87,20 +87,20 @@ func TestIndex_RemoveEntry(t *testing.T) {
 
 	entry, err := NewEntry(ModeRegularFile, testutils.RandomHash(), testutils.RandomString(10), testutils.RandomInt(100), time.Now())
 	if err != nil {
-		t.Fatalf("Failed to create entry: %v", err)
+		t.Fatalf("failed to create entry: %v", err)
 	}
 
 	if err := index.AddEntry(entry); err != nil {
-		t.Fatalf("Failed to add entry: %v", err)
+		t.Fatalf("failed to add entry: %v", err)
 	}
 
 	if index.CountEntries() != 1 {
-		t.Errorf("Expected 1 entry, got %d", index.CountEntries())
+		t.Errorf("expected 1 entry, got %d", index.CountEntries())
 	}
 
 	index.RemoveEntry(entry.Path())
 	if index.CountEntries() != 0 {
-		t.Fatalf("Expected 0 entries in the index after deletetion but got [%v]", index.CountEntries())
+		t.Fatalf("expected 0 entries in the index after deletetion but got [%v]", index.CountEntries())
 	}
 }
 
@@ -122,7 +122,7 @@ func TestIndex_Entries(t *testing.T) {
 	slices.Sort(expectedOrder)
 	for i, expected := range expectedOrder {
 		if entries[i].Path() != expected {
-			t.Errorf("Expected entry %d to be %s, got %s", i, expected, entries[i].Path())
+			t.Errorf("expected entry %d to be %s, got %s", i, expected, entries[i].Path())
 		}
 	}
 }
@@ -139,16 +139,16 @@ func TestIndex_Clear(t *testing.T) {
 	for _, entryFilePath := range entriesFilePaths {
 		entry, err := NewEntry(ModeRegularFile, testutils.RandomHash(), entryFilePath, testutils.RandomInt(100), time.Now())
 		if err != nil {
-			t.Fatalf("Failed to create entry: %v", err)
+			t.Fatalf("failed to create entry: %v", err)
 		}
 
 		if err := index.AddEntry(entry); err != nil {
-			t.Fatalf("Failed to add entry: %v", err)
+			t.Fatalf("failed to add entry: %v", err)
 		}
 	}
 
 	index.Clear()
 	if index.CountEntries() != 0 {
-		t.Fatalf("Expected 0 entries after clearing the index")
+		t.Fatalf("expected 0 entries after clearing the index")
 	}
 }

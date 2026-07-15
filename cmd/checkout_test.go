@@ -48,7 +48,7 @@ func TestCheckoutCommand_BranchCheckout(t *testing.T) {
 	output := stdout.String()
 	expectedOutput := fmt.Sprintf("checked out [%s]\n", branch)
 	if !strings.Contains(output, expectedOutput) {
-		t.Fatalf("Expected output to contain branch [%s], got: [%s]", expectedOutput, output)
+		t.Fatalf("expected output to contain branch [%s], got: [%s]", expectedOutput, output)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContent)
 	testutils.AssertHEADContent(t, repoPath, constants.DefaultRefPrefix+branch+"\n")
@@ -68,13 +68,13 @@ func TestCheckoutCommand_NoArguments(t *testing.T) {
 	err := checkoutCommand.Execute()
 
 	if err == nil {
-		t.Fatal("Expected error when no arguments provided")
+		t.Fatal("expected error when no arguments provided")
 	}
 
 	// Verify error message matches argument validation error
 	expectedErrorMessage := fmt.Sprintf("%s command requires exactly 1 argument, received 0", constants.CheckoutCmdName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -105,14 +105,14 @@ func TestCheckoutCommand_Force(t *testing.T) {
 	// Checkout to the first commit with "force" option
 	checkoutCommand.SetArgs([]string{constants.CheckoutCmdName, firstCommitHash, "-f"})
 	if err := checkoutCommand.Execute(); err != nil {
-		t.Fatalf("Expected checkout to succeed with -f on dirty working directory, got: %v", err)
+		t.Fatalf("expected checkout to succeed with -f on dirty working directory, got: %v", err)
 	}
 
 	// Verify stdout message
 	output := stdout.String()
 	expectedOutput := fmt.Sprintf("checked out [%s]\n", firstCommitHash)
 	if !strings.Contains(output, expectedOutput) {
-		t.Fatalf("Expected stdout to contain [%s], got: [%s]", expectedOutput, output)
+		t.Fatalf("expected stdout to contain [%s], got: [%s]", expectedOutput, output)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), fileContent)
 	testutils.AssertHEADContent(t, repoPath, firstCommitHash+"\n")
@@ -156,7 +156,7 @@ func TestCheckoutCommand_RoundTripBetweenBranches(t *testing.T) {
 	output := stdout.String()
 	expectedOutput := fmt.Sprintf("checked out [%s]\n", featureBranch)
 	if !strings.Contains(output, expectedOutput) {
-		t.Fatalf("Expected stdout to contain [%s], got: [%s]", expectedOutput, output)
+		t.Fatalf("expected stdout to contain [%s], got: [%s]", expectedOutput, output)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, firstFileName), firstFileContent)
 	testutils.AssertHEADContent(t, repoPath, constants.DefaultRefPrefix+featureBranch+"\n")
@@ -164,7 +164,7 @@ func TestCheckoutCommand_RoundTripBetweenBranches(t *testing.T) {
 
 	_, err := os.Stat(secondFileName)
 	if err == nil || !errors.Is(err, fs.ErrNotExist) {
-		t.Fatal("Epexcted file from second commit to not exist")
+		t.Fatal("expected file from second commit to not exist")
 	}
 
 	// checkout back to main branch
@@ -178,7 +178,7 @@ func TestCheckoutCommand_RoundTripBetweenBranches(t *testing.T) {
 	output = stdout.String()
 	expectedOutput = fmt.Sprintf("checked out [%s]\n", constants.DefaultBranch)
 	if !strings.Contains(output, expectedOutput) {
-		t.Fatalf("Expected stdout to contain [%s], got: [%s]", expectedOutput, output)
+		t.Fatalf("expected stdout to contain [%s], got: [%s]", expectedOutput, output)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, firstFileName), firstFileContent)
 	testutils.AssertFileContent(t, filepath.Join(repoPath, secondFileName), secondFileContent)

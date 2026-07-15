@@ -41,7 +41,7 @@ func TestE2E_LogCommand_SingleCommit(t *testing.T) {
 
 	outputStr := string(output)
 	if outputStr != expectedOutput {
-		t.Fatalf("Expected output to be [%s], got [%s]", expectedOutput, outputStr)
+		t.Fatalf("expected output to be [%s], got [%s]", expectedOutput, outputStr)
 	}
 }
 
@@ -84,7 +84,7 @@ func TestE2E_LogCommand_CommitChain(t *testing.T) {
 
 	outputStr := string(output)
 	if outputStr != expectedOutput.String() {
-		t.Fatalf("Expected output to be [%s], got [%s]", expectedOutput.String(), outputStr)
+		t.Fatalf("expected output to be [%s], got [%s]", expectedOutput.String(), outputStr)
 	}
 }
 
@@ -108,7 +108,7 @@ func TestE2E_LogCommand_NoRepository(t *testing.T) {
 	outputStr := string(output)
 	expectedOutput := constants.Gogit + " directory not found"
 	if !strings.Contains(outputStr, expectedOutput) {
-		t.Fatalf("Expected output to contain [%s], got [%s]", expectedOutput, outputStr)
+		t.Fatalf("expected output to contain [%s], got [%s]", expectedOutput, outputStr)
 	}
 }
 
@@ -134,6 +134,6 @@ func TestE2E_LogCommand_NoCommits(t *testing.T) {
 	expectedErrorMessage := fmt.Sprintf("failed to read commit hash from [%s]",
 		filepath.Join(repoPath, constants.Gogit, "refs", "heads", "main"))
 	if !strings.Contains(outputStr, expectedErrorMessage) {
-		t.Fatalf("Expected output to contain [%s], got [%s]", expectedErrorMessage, outputStr)
+		t.Fatalf("expected output to contain [%s], got [%s]", expectedErrorMessage, outputStr)
 	}
 }

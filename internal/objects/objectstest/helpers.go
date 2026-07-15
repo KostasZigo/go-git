@@ -15,7 +15,7 @@ func CreateTreeEntry(t *testing.T, mode objects.FileMode, name, hash string) obj
 
 	entry, err := objects.NewTreeEntry(mode, name, hash)
 	if err != nil {
-		t.Fatalf("Failed to create tree entry: %v", err)
+		t.Fatalf("failed to create tree entry: %v", err)
 	}
 
 	return *entry
@@ -27,7 +27,7 @@ func CreateTree(t *testing.T, entries []objects.TreeEntry) *objects.Tree {
 
 	tree, err := objects.NewTree(entries)
 	if err != nil {
-		t.Fatalf("Failed to create tree: %v", err)
+		t.Fatalf("failed to create tree: %v", err)
 	}
 
 	return tree
@@ -39,7 +39,7 @@ func CreateAndStoreTree(t *testing.T, store *objects.ObjectStore, entries []obje
 
 	tree := CreateTree(t, entries)
 	if err := store.Store(tree); err != nil {
-		t.Fatalf("Failed to store tree: %v", err)
+		t.Fatalf("failed to store tree: %v", err)
 	}
 
 	return tree
@@ -50,13 +50,13 @@ func AssertTreeEntryEqual(t *testing.T, actual, expected objects.TreeEntry) {
 	t.Helper()
 
 	if actual.Name() != expected.Name() {
-		t.Errorf("Entry name mismatch: expected %s, got %s", expected.Name(), actual.Name())
+		t.Errorf("entry name mismatch: expected %s, got %s", expected.Name(), actual.Name())
 	}
 	if actual.Hash() != expected.Hash() {
-		t.Errorf("Entry hash mismatch: expected %s, got %s", expected.Hash(), actual.Hash())
+		t.Errorf("entry hash mismatch: expected %s, got %s", expected.Hash(), actual.Hash())
 	}
 	if actual.Mode() != expected.Mode() {
-		t.Errorf("Entry mode mismatch: expected %s, got %s", expected.Mode(), actual.Mode())
+		t.Errorf("entry mode mismatch: expected %s, got %s", expected.Mode(), actual.Mode())
 	}
 }
 
@@ -67,7 +67,7 @@ func CreateAndStoreBlob(t *testing.T, store *objects.ObjectStore, content []byte
 
 	blob := objects.NewBlob(content)
 	if err := store.Store(blob); err != nil {
-		t.Fatalf("Failed to store blob: %v", err)
+		t.Fatalf("failed to store blob: %v", err)
 	}
 
 	return blob
@@ -117,11 +117,11 @@ func CreateAndStoreCommit(t *testing.T, store *objects.ObjectStore, treeHash, pa
 
 	commit, err := objects.NewCommit(treeHash, parentHash, message, objects.DefaultAuthor())
 	if err != nil {
-		t.Fatalf("Failed to create commit: %v", err)
+		t.Fatalf("failed to create commit: %v", err)
 	}
 
 	if err := store.Store(commit); err != nil {
-		t.Fatalf("Failed to store commit: %v", err)
+		t.Fatalf("failed to store commit: %v", err)
 	}
 
 	return commit

@@ -29,7 +29,7 @@ func TestLog_SingleCommit_Success(t *testing.T) {
 	store := objects.NewObjectStore(repoPath)
 	commit, err := store.ReadCommit(commitHash)
 	if err != nil {
-		t.Fatalf("Failed to read commit object: %v", err)
+		t.Fatalf("failed to read commit object: %v", err)
 	}
 
 	// Execute Log command
@@ -49,7 +49,7 @@ func TestLog_SingleCommit_Success(t *testing.T) {
 	)
 
 	if output != expectedOutput {
-		t.Fatalf("Expected commit history output to be [%s], got [%s]", expectedOutput, output)
+		t.Fatalf("expected commit history output to be [%s], got [%s]", expectedOutput, output)
 	}
 }
 
@@ -71,7 +71,7 @@ func TestLog_CommitChain_Success(t *testing.T) {
 		commitHash := testutils.ReadDefaultRefFile(t, repoPath)
 		commit, err := store.ReadCommit(commitHash)
 		if err != nil {
-			t.Fatalf("Failed to read commit object: %v", err)
+			t.Fatalf("failed to read commit object: %v", err)
 		}
 		commitLogEntries = append(commitLogEntries, commits.FormatLogEntry(
 			commit.Hash(),
@@ -98,7 +98,7 @@ func TestLog_CommitChain_Success(t *testing.T) {
 
 	output := stdout.String()
 	if output != expectedOutput.String() {
-		t.Fatalf("Expected commit history output to be [%s], got [%s]", expectedOutput.String(), output)
+		t.Fatalf("expected commit history output to be [%s], got [%s]", expectedOutput.String(), output)
 	}
 }
 
@@ -114,14 +114,14 @@ func TestLog_EmptyRepository_NoCommits(t *testing.T) {
 	errOut := captureStderr(command)
 	command.SetArgs([]string{constants.LogCmdName})
 	if err := command.Execute(); err == nil {
-		t.Fatal("Expected log command to fail on empty repository with no commits")
+		t.Fatal("expected log command to fail on empty repository with no commits")
 	}
 
 	errorOutput := errOut.String()
 	expectedErrorMessage := fmt.Sprintf("failed to read commit hash from [%s]",
 		filepath.Join(repoPath, constants.Gogit, "refs", "heads", "main"))
 	if !strings.Contains(errorOutput, expectedErrorMessage) {
-		t.Fatalf("Expected error output to contain [%s], got [%s]", expectedErrorMessage, errorOutput)
+		t.Fatalf("expected error output to contain [%s], got [%s]", expectedErrorMessage, errorOutput)
 	}
 }
 
@@ -137,12 +137,12 @@ func TestLog_OutsideRepository(t *testing.T) {
 	errOut := captureStderr(command)
 	command.SetArgs([]string{constants.LogCmdName})
 	if err := command.Execute(); err == nil {
-		t.Fatal("Expected log command to fail when executed outside a repository")
+		t.Fatal("expected log command to fail when executed outside a repository")
 	}
 
 	expectedErrorMessage := constants.Gogit + " directory not found"
 	errorOutput := errOut.String()
 	if !strings.Contains(errorOutput, expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, errorOutput)
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, errorOutput)
 	}
 }

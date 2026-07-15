@@ -63,12 +63,12 @@ func AssertIndexEntryPaths(t *testing.T, repoPath string, expectedCount int, exp
 	idxManager := index.NewManager(repoPath)
 	idx, err := idxManager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
+		t.Fatalf("failed to load index: %v", err)
 	}
 
 	entries := idx.GetEntryList()
 	if len(entries) != expectedCount {
-		t.Fatalf("Expected index to have %d entries, got %d", expectedCount, len(entries))
+		t.Fatalf("expected index to have %d entries, got %d", expectedCount, len(entries))
 	}
 
 	actualPaths := make([]string, len(entries))
@@ -78,7 +78,7 @@ func AssertIndexEntryPaths(t *testing.T, repoPath string, expectedCount int, exp
 
 	for _, expected := range expectedPaths {
 		if !slices.Contains(actualPaths, expected) {
-			t.Fatalf("Expected index entry path [%s] to exist in %v", expected, actualPaths)
+			t.Fatalf("expected index entry path [%s] to exist in %v", expected, actualPaths)
 		}
 	}
 }

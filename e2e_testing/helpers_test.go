@@ -91,7 +91,7 @@ func setupTestRepo(t *testing.T) (repoPath string) {
 
 	repoPath = filepath.Join(t.TempDir(), "test-repo")
 	if err := os.MkdirAll(repoPath, 0o755); err != nil {
-		t.Fatalf("Failed to create test repo dir: %v", err)
+		t.Fatalf("failed to create test repo dir: %v", err)
 	}
 
 	return repoPath
@@ -104,7 +104,7 @@ func initializeRepository(t *testing.T, repoPath string) {
 	cmd := newGogitCmd(t, constants.InitCmdName)
 	cmd.Dir = repoPath
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("Failed to initialize repository: %v", err)
+		t.Fatalf("failed to initialize repository: %v", err)
 	}
 }
 
@@ -116,7 +116,7 @@ func assertAddCommandOutputAndObjectCreation(t *testing.T, testFileName string, 
 
 	expectedOutput := fmt.Sprintf("add '%s'", filepath.ToSlash(testFileName))
 	if !strings.Contains(string(output), expectedOutput) {
-		t.Errorf("Expected output to contain %q, got: %s", expectedOutput, string(output))
+		t.Errorf("expected output to contain %q, got: %s", expectedOutput, string(output))
 	}
 
 	assertAddCommandObjectCreation(t, testFileName, testFileContent, repoPath)
@@ -130,17 +130,17 @@ func assertAddCommandObjectCreation(t *testing.T, testFileName string, testFileC
 
 	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
-		t.Fatalf("Failed to compute hash: %v", err)
+		t.Fatalf("failed to compute hash: %v", err)
 	}
 
 	store := objects.NewObjectStore(repoPath)
 	blob, err := store.ReadBlob(expectedHash)
 	if err != nil {
-		t.Fatalf("Failed to read blob object [%s]: %v", expectedHash, err)
+		t.Fatalf("failed to read blob object [%s]: %v", expectedHash, err)
 	}
 
 	if !bytes.Equal(blob.Content(), testFileContent) {
-		t.Errorf("Blob content mismatch for [%s]: expected [%s], got [%s]", testFileName, testFileContent, blob.Content())
+		t.Errorf("blob content mismatch for [%s]: expected [%s], got [%s]", testFileName, testFileContent, blob.Content())
 	}
 }
 
@@ -151,11 +151,11 @@ func assertIndexCreationAndContent(t *testing.T, repoPath string, expectedFiles 
 	manager := index.NewManager(repoPath)
 	idx, err := manager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
+		t.Fatalf("failed to load index: %v", err)
 	}
 
 	if idx.CountEntries() != len(expectedFiles) {
-		t.Fatalf("Index entry count mismatch: expected [%d], got [%d]", len(expectedFiles), idx.CountEntries())
+		t.Fatalf("index entry count mismatch: expected [%d], got [%d]", len(expectedFiles), idx.CountEntries())
 	}
 
 	// Sort expected keys with forward-slash normalization to match index ordering
@@ -169,7 +169,7 @@ func assertIndexCreationAndContent(t *testing.T, repoPath string, expectedFiles 
 	for i, entry := range entries {
 		expectedPath := sortedKeys[i]
 		if entry.Path() != expectedPath {
-			t.Fatalf("Index entry [%d] path mismatch: expected [%s], got [%s]", i, expectedPath, entry.Path())
+			t.Fatalf("index entry [%d] path mismatch: expected [%s], got [%s]", i, expectedPath, entry.Path())
 		}
 
 		// Look up content using the original key (before normalization may differ on Windows)
@@ -184,15 +184,15 @@ func assertIndexCreationAndContent(t *testing.T, repoPath string, expectedFiles 
 		// Verify hash matches expected content
 		expectedHash, err := hasher.ComputeHash(content, hasher.Blob)
 		if err != nil {
-			t.Fatalf("Failed to compute expected hash for [%s]: %v", entry.Path(), err)
+			t.Fatalf("failed to compute expected hash for [%s]: %v", entry.Path(), err)
 		}
 		if entry.Hash() != expectedHash {
-			t.Fatalf("Hash mismatch for [%s]: expected [%s], got [%s]", entry.Path(), expectedHash, entry.Hash())
+			t.Fatalf("hash mismatch for [%s]: expected [%s], got [%s]", entry.Path(), expectedHash, entry.Hash())
 		}
 
 		// Verify file size
 		if entry.FileSize() != int64(len(content)) {
-			t.Fatalf("Size mismatch for [%s]: expected %d, got %d", entry.Path(), len(content), entry.FileSize())
+			t.Fatalf("size mismatch for [%s]: expected %d, got %d", entry.Path(), len(content), entry.FileSize())
 		}
 	}
 }
@@ -241,7 +241,7 @@ func readCommitByHash(t *testing.T, repoPath, commitHash string) *objects.Commit
 	store := objects.NewObjectStore(repoPath)
 	commit, err := store.ReadCommit(commitHash)
 	if err != nil {
-		t.Fatalf("Failed to read commit object [%s]: %v", commitHash, err)
+		t.Fatalf("failed to read commit object [%s]: %v", commitHash, err)
 	}
 	return commit
 }
@@ -286,7 +286,7 @@ func assertCheckoutOutput(t *testing.T, output, target string) {
 
 	expected := fmt.Sprintf("checked out [%s]\n", target)
 	if !strings.Contains(output, expected) {
-		t.Fatalf("Expected checkout output to contain [%s], got: [%s]", expected, output)
+		t.Fatalf("expected checkout output to contain [%s], got: [%s]", expected, output)
 	}
 }
 
@@ -300,7 +300,7 @@ func assertHEADContent(t *testing.T, repoPath, expectedContent string) {
 		t.Fatalf("failed to read HEAD file: %v", err)
 	}
 	if string(content) != expectedContent {
-		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedContent, string(content))
+		t.Fatalf("expected HEAD to be [%s], got [%s]", expectedContent, string(content))
 	}
 }
 
@@ -321,7 +321,7 @@ func assertBranchOutput(t *testing.T, output, branchName string) {
 
 	expected := fmt.Sprintf("created branch [%s]\n", branchName)
 	if !strings.Contains(output, expected) {
-		t.Fatalf("Expected branch output to contain [%s], got: [%s]", expected, output)
+		t.Fatalf("expected branch output to contain [%s], got: [%s]", expected, output)
 	}
 }
 
@@ -332,7 +332,7 @@ func readBranchRefHash(t *testing.T, repoPath, branchName string) string {
 	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, filepath.FromSlash(branchName))
 	content, err := os.ReadFile(refPath)
 	if err != nil {
-		t.Fatalf("Failed to read branch ref file for [%s]: %v", branchName, err)
+		t.Fatalf("failed to read branch ref file for [%s]: %v", branchName, err)
 	}
 
 	return string(bytes.TrimSpace(content))

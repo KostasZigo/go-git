@@ -29,21 +29,21 @@ func TestCheckout_ResolveTarget_Branch(t *testing.T) {
 
 	resolvedTarget, err := ResolveTarget(repoPath, target)
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if !resolvedTarget.IsBranch {
-		t.Fatal("Expected target to be found from branches")
+		t.Fatal("expected target to be found from branches")
 	}
 
 	commitHash := resolvedTarget.Hash
 	if len(commitHash) != constants.HashStringLength {
-		t.Fatalf("Hash is malformed, expected length [%d], got [%d]", constants.HashStringLength, len(commitHash))
+		t.Fatalf("hash is malformed, expected length [%d], got [%d]", constants.HashStringLength, len(commitHash))
 	}
 
 	expectedCommitHash := strings.TrimSpace(string(branchRefContent))
 	if commitHash != expectedCommitHash {
-		t.Fatalf("Exepcted commit hash to be [%s], got [%s]", expectedCommitHash, commitHash)
+		t.Fatalf("exepcted commit hash to be [%s], got [%s]", expectedCommitHash, commitHash)
 	}
 }
 
@@ -58,30 +58,30 @@ func TestCheckout_ResolveTarget_CommitHash(t *testing.T) {
 		testutils.RandomString(10),
 		objects.DefaultAuthor())
 	if err != nil {
-		t.Fatalf("Failed to create commit: %v", err)
+		t.Fatalf("failed to create commit: %v", err)
 	}
 	store := objects.NewObjectStore(repoPath)
 	if err := store.Store(commit); err != nil {
-		t.Fatalf("Failed to store commit: %v", err)
+		t.Fatalf("failed to store commit: %v", err)
 	}
 
 	target := commit.Hash()
 	resolvedTarget, err := ResolveTarget(repoPath, target)
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if resolvedTarget.IsBranch {
-		t.Fatal("Expected commit hash to be resolved from commit objects.")
+		t.Fatal("expected commit hash to be resolved from commit objects")
 	}
 
 	commitHash := resolvedTarget.Hash
 	if len(commitHash) != constants.HashStringLength {
-		t.Fatalf("Hash is malformed, expected length [%d], got [%d]", constants.HashStringLength, len(commitHash))
+		t.Fatalf("hash is malformed, expected length [%d], got [%d]", constants.HashStringLength, len(commitHash))
 	}
 
 	if commitHash != target {
-		t.Fatalf("Exepcted commit hash to be [%s], got [%s]", target, commitHash)
+		t.Fatalf("exepcted commit hash to be [%s], got [%s]", target, commitHash)
 	}
 }
 
@@ -93,12 +93,12 @@ func TestCheckout_ResolveTarget_BranchNonExist_TargetNoSHA1(t *testing.T) {
 
 	_, err := ResolveTarget(repoPath, target)
 	if err == nil {
-		t.Fatal("Expected error when branch is not existent")
+		t.Fatal("expected error when branch is not existent")
 	}
 
 	expectedErrorMessage := fmt.Sprintf("checkout target [%s] not found as branch or commit", target)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -110,12 +110,12 @@ func TestCheckout_ResolveTarget_BranchNonExist_CommitNonExist(t *testing.T) {
 
 	_, err := ResolveTarget(repoPath, target)
 	if err == nil {
-		t.Fatal("Expected error when commit is not existent")
+		t.Fatal("expected error when commit is not existent")
 	}
 
 	expectedErrorMessage := fmt.Sprintf("checkout target [%s] not found as branch or commit", target)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -124,12 +124,12 @@ func TestCheckout_ResolveTarget_EmptyString(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	_, err := ResolveTarget(repoPath, "")
 	if err == nil {
-		t.Fatal("Expected error when target is empty")
+		t.Fatal("expected error when target is empty")
 	}
 
 	expectedErrorMessage := "checkout target cannot be empty"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -144,11 +144,11 @@ func TestCheckout_ResolveTarget_BranchTakesPriorityOverCommitHash(t *testing.T) 
 		testutils.RandomString(10),
 		objects.DefaultAuthor())
 	if err != nil {
-		t.Fatalf("Failed to create commit: %v", err)
+		t.Fatalf("failed to create commit: %v", err)
 	}
 	store := objects.NewObjectStore(repoPath)
 	if err := store.Store(commit); err != nil {
-		t.Fatalf("Failed to store commit: %v", err)
+		t.Fatalf("failed to store commit: %v", err)
 	}
 
 	// Create a branch ref file with the same name as the commit hash
@@ -158,15 +158,15 @@ func TestCheckout_ResolveTarget_BranchTakesPriorityOverCommitHash(t *testing.T) 
 
 	resolvedTarget, err := ResolveTarget(repoPath, commit.Hash())
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if !resolvedTarget.IsBranch {
-		t.Fatal("Expected branch resolution to take priority over commit hash")
+		t.Fatal("expected branch resolution to take priority over commit hash")
 	}
 
 	if resolvedTarget.Hash != branchCommitHash {
-		t.Fatalf("Expected commit hash to be [%s], got [%s]", branchCommitHash, resolvedTarget.Hash)
+		t.Fatalf("expected commit hash to be [%s], got [%s]", branchCommitHash, resolvedTarget.Hash)
 	}
 }
 
@@ -181,7 +181,7 @@ func TestCheckout_RestoreTree_SingleRootFile(t *testing.T) {
 
 	err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash())
 	if err != nil {
-		t.Fatalf("Failed to restore tree: %v", err)
+		t.Fatalf("failed to restore tree: %v", err)
 	}
 
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), blobs[fileName].Content())
@@ -189,14 +189,14 @@ func TestCheckout_RestoreTree_SingleRootFile(t *testing.T) {
 	// Verify no extra files were created in repo root (only .gogit dir and restored file)
 	dirEntries, err := os.ReadDir(repoPath)
 	if err != nil {
-		t.Fatalf("Failed to read repo directory: %v", err)
+		t.Fatalf("failed to read repo directory: %v", err)
 	}
 
 	for _, entry := range dirEntries {
 		if entry.Name() == constants.Gogit || entry.Name() == fileName {
 			continue
 		}
-		t.Fatalf("Unexpected restored file [%s]", entry.Name())
+		t.Fatalf("unexpected restored file [%s]", entry.Name())
 	}
 }
 
@@ -219,7 +219,7 @@ func TestCheckout_RestoreTree_NestedDirectory(t *testing.T) {
 
 	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
-		t.Fatalf("Failed to restore tree: %v", err)
+		t.Fatalf("failed to restore tree: %v", err)
 	}
 
 	testutils.AssertDirExists(t, filepath.Join(repoPath, dirName))
@@ -249,7 +249,7 @@ func TestCheckout_RestoreTree_ManyFiles_DifferentLevels(t *testing.T) {
 
 	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
-		t.Fatalf("Failed to restore tree: %v", err)
+		t.Fatalf("failed to restore tree: %v", err)
 	}
 
 	// Verify root-level file
@@ -268,12 +268,12 @@ func TestCheckout_RestoreTree_UnknowTreeHash(t *testing.T) {
 
 	err := RestoreTreeAndRebuildIndex(repoPath, testutils.RandomHash())
 	if err == nil {
-		t.Fatal("Expected error when tree hash to restore doesn't exist")
+		t.Fatal("expected error when tree hash to restore doesn't exist")
 	}
 
 	expectedErrorMessage := "TBD"
 	if strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -288,12 +288,12 @@ func TestCheckout_RestoreTree_UnknowBlobHash_ReferencedByTree(t *testing.T) {
 
 	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err == nil {
-		t.Fatal("Expected error when tree a references non existent blob")
+		t.Fatal("expected error when tree a references non existent blob")
 	}
 
 	expectedErrorMessage := "TBD"
 	if strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -306,7 +306,7 @@ func TestCheckout_DeleteIndexFiles_SingleFile(t *testing.T) {
 	filePath := indextest.CreateTrackedFile(t, repoPath, repoPath, testutils.RandomString(10), idx)
 
 	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("Failed to clean working directory: %v", err)
+		t.Fatalf("failed to clean working directory: %v", err)
 	}
 
 	testutils.AssertFileNotExists(t, filePath)
@@ -326,7 +326,7 @@ func TestCheckout_DeleteIndexFiles_NestedFiles(t *testing.T) {
 	}
 
 	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("Failed to clean working directory: %v", err)
+		t.Fatalf("failed to clean working directory: %v", err)
 	}
 
 	for _, filePath := range filePaths {
@@ -357,7 +357,7 @@ func TestCheckout_DeleteIndexFiles_UntrackedFilesRemain(t *testing.T) {
 	}
 
 	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("Failed to clean working directory: %v", err)
+		t.Fatalf("failed to clean working directory: %v", err)
 	}
 
 	for _, filePath := range trackedPaths {
@@ -378,7 +378,7 @@ func TestCheckout_DeleteIndexFiles_EmptyIndex(t *testing.T) {
 	idx := index.NewIndex()
 
 	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("Failed to clean working directory: %v", err)
+		t.Fatalf("failed to clean working directory: %v", err)
 	}
 	testutils.AssertFileExists(t, filePath)
 }
@@ -401,7 +401,7 @@ func TestCheckout_DeleteIndexFiles_FileAlreadyMissing(t *testing.T) {
 	}
 
 	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("Failed to clean working directory: %v", err)
+		t.Fatalf("failed to clean working directory: %v", err)
 	}
 
 	testutils.AssertFileNotExists(t, filepath.Join(repoPath, fileName))
@@ -417,29 +417,29 @@ func TestCheckout_RebuildIndex_SingleFile(t *testing.T) {
 
 	err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash())
 	if err != nil {
-		t.Fatalf("Failed to restore tree: %v", err)
+		t.Fatalf("failed to restore tree: %v", err)
 	}
 
 	idxManager := index.NewManager(repoPath)
 	idx, err := idxManager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
+		t.Fatalf("failed to load index: %v", err)
 	}
 
 	if len(idx.GetEntryList()) != len(blobs) {
-		t.Fatalf("Expected index entries length to be [%d], got [%d]", len(blobs), len(idx.GetEntryList()))
+		t.Fatalf("expected index entries length to be [%d], got [%d]", len(blobs), len(idx.GetEntryList()))
 	}
 
 	blob := blobs[fileName]
 	indexEntry := idx.GetEntryList()[0]
 	if indexEntry.Hash() != blob.Hash() {
-		t.Fatalf("Expected index entry's hash to be [%s], got [%s]", blob.Hash(), indexEntry.Hash())
+		t.Fatalf("expected index entry's hash to be [%s], got [%s]", blob.Hash(), indexEntry.Hash())
 	}
 	if indexEntry.Path() != fileName {
-		t.Fatalf("Expected index entry's rel path to be [%s], got [%s]", fileName, indexEntry.Path())
+		t.Fatalf("expected index entry's rel path to be [%s], got [%s]", fileName, indexEntry.Path())
 	}
 	if indexEntry.Mode() != index.ModeRegularFile {
-		t.Fatalf("Expected file mode to be [%v], got [%v]", index.ModeRegularFile, indexEntry.Mode())
+		t.Fatalf("expected file mode to be [%v], got [%v]", index.ModeRegularFile, indexEntry.Mode())
 	}
 }
 
@@ -464,13 +464,13 @@ func TestCheckout_RebuildIndex_ManyFiles_DifferentLevels(t *testing.T) {
 
 	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
 	if err != nil {
-		t.Fatalf("Failed to restore tree: %v", err)
+		t.Fatalf("failed to restore tree: %v", err)
 	}
 
 	idxManager := index.NewManager(repoPath)
 	idx, err := idxManager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
+		t.Fatalf("failed to load index: %v", err)
 	}
 
 	// collect all blobs
@@ -483,16 +483,16 @@ func TestCheckout_RebuildIndex_ManyFiles_DifferentLevels(t *testing.T) {
 
 	// Assertions
 	if len(idx.GetEntryList()) != len(blobMap) {
-		t.Fatalf("Expected index entries length to be [%d], got [%d]", len(blobMap), len(idx.GetEntryList()))
+		t.Fatalf("expected index entries length to be [%d], got [%d]", len(blobMap), len(idx.GetEntryList()))
 	}
 
 	for _, entry := range idx.GetEntryList() {
 		blob, exist := blobMap[entry.Path()]
 		if !exist {
-			t.Fatalf("Expected index entry with relative path [%s] to exist in the list of created blobs [%v]", entry.Path(), blobMap)
+			t.Fatalf("expected index entry with relative path [%s] to exist in the list of created blobs [%v]", entry.Path(), blobMap)
 		}
 		if entry.Hash() != blob.Hash() {
-			t.Fatalf("Expected index entry's hash to be [%s], got [%s]", blob.Hash(), entry.Hash())
+			t.Fatalf("expected index entry's hash to be [%s], got [%s]", blob.Hash(), entry.Hash())
 		}
 	}
 }
@@ -528,31 +528,31 @@ func TestCheckout_Orchestrate_BranchCheckout(t *testing.T) {
 	testutils.WriteRefFile(t, repoPath, featureBranch, firstCommit.Hash())
 
 	if err := OrchestrateCheckoutExecution(repoPath, featureBranch, false); err != nil {
-		t.Fatalf("Failed to checkout branch [%s]: %v", featureBranch, err)
+		t.Fatalf("failed to checkout branch [%s]: %v", featureBranch, err)
 	}
 
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), originalContent)
 
 	expectedHEAD := constants.DefaultRefPrefix + featureBranch + "\n"
 	if head := testutils.ReadHEADFile(t, repoPath); head != expectedHEAD {
-		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedHEAD, head)
+		t.Fatalf("expected HEAD to be [%s], got [%s]", expectedHEAD, head)
 	}
 
 	idxManager := index.NewManager(repoPath)
 	idx, err := idxManager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
+		t.Fatalf("failed to load index: %v", err)
 	}
 
 	entries := idx.GetEntryList()
 	if len(entries) != len(firstBlobs) {
-		t.Fatalf("Expected index to have [%d] entry, got %d", len(firstBlobs), len(entries))
+		t.Fatalf("expected index to have [%d] entry, got %d", len(firstBlobs), len(entries))
 	}
 	if entries[0].Hash() != firstBlobs[fileName].Hash() {
-		t.Fatalf("Expected index entry hash [%s], got [%s]", firstBlobs[fileName].Hash(), entries[0].Hash())
+		t.Fatalf("expected index entry hash [%s], got [%s]", firstBlobs[fileName].Hash(), entries[0].Hash())
 	}
 	if entries[0].Path() != fileName {
-		t.Fatalf("Expected index entry path [%s], got [%s]", fileName, entries[0].Path())
+		t.Fatalf("expected index entry path [%s], got [%s]", fileName, entries[0].Path())
 	}
 }
 
@@ -579,30 +579,30 @@ func TestCheckout_Orchestrate_CommitCheckout(t *testing.T) {
 
 	firstCommitHash := firstCommit.Hash()
 	if err := OrchestrateCheckoutExecution(repoPath, firstCommitHash, false); err != nil {
-		t.Fatalf("Failed to checkout commit [%s]: %v", firstCommit.Hash(), err)
+		t.Fatalf("failed to checkout commit [%s]: %v", firstCommit.Hash(), err)
 	}
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), originalContent)
 
 	expectedHEAD := firstCommitHash + "\n"
 	if head := testutils.ReadHEADFile(t, repoPath); head != expectedHEAD {
-		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedHEAD, head)
+		t.Fatalf("expected HEAD to be [%s], got [%s]", expectedHEAD, head)
 	}
 
 	idxManager := index.NewManager(repoPath)
 	idx, err := idxManager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
+		t.Fatalf("failed to load index: %v", err)
 	}
 
 	entries := idx.GetEntryList()
 	if len(entries) != len(firstBlob) {
-		t.Fatalf("Expected index to have [%d] entry, got %d", len(firstBlob), len(entries))
+		t.Fatalf("expected index to have [%d] entry, got %d", len(firstBlob), len(entries))
 	}
 	if entries[0].Hash() != firstBlob[fileName].Hash() {
-		t.Fatalf("Expected index entry hash [%s], got [%s]", firstBlob[fileName].Hash(), entries[0].Hash())
+		t.Fatalf("expected index entry hash [%s], got [%s]", firstBlob[fileName].Hash(), entries[0].Hash())
 	}
 	if entries[0].Path() != fileName {
-		t.Fatalf("Expected index entry path [%s], got [%s]", fileName, entries[0].Path())
+		t.Fatalf("expected index entry path [%s], got [%s]", fileName, entries[0].Path())
 	}
 }
 
@@ -619,26 +619,26 @@ func TestCheckout_Orchestrate_DirtyDir(t *testing.T) {
 
 	idxManager := index.NewManager(repoPath)
 	if err := idxManager.Save(idx); err != nil {
-		t.Fatalf("Failed to save index: %v", err)
+		t.Fatalf("failed to save index: %v", err)
 	}
 
 	originalContent, err := os.ReadFile(filePath)
 	if err != nil {
-		t.Fatalf("Failed to read file: %v", err)
+		t.Fatalf("failed to read file: %v", err)
 	}
 	updatedContent := slices.Concat(originalContent, []byte(" new content "))
 	if err := os.WriteFile(filePath, updatedContent, constants.FilePerms); err != nil {
-		t.Fatalf("Failed to write updated file: %v", err)
+		t.Fatalf("failed to write updated file: %v", err)
 	}
 
 	err = OrchestrateCheckoutExecution(repoPath, commit.Hash(), false)
 	if err == nil {
-		t.Fatal("Expected error when directory is dirty")
+		t.Fatal("expected error when directory is dirty")
 	}
 
 	expectedErrorMessage := fmt.Sprintf("working directory contains dirty files:\n\ndirty: [%s] file was modified", fileName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -647,12 +647,12 @@ func TestCheckout_Orchestrate_NonExistingTarget(t *testing.T) {
 	hash := testutils.RandomHash()
 	err := OrchestrateCheckoutExecution(repoPath, hash, false)
 	if err == nil {
-		t.Fatal("Expected error target reference does not exist.")
+		t.Fatal("expected error target reference does not exist")
 	}
 
 	expectedErrorMessage := fmt.Sprintf("failure while resolving target: checkout target [%s] not found as branch or commit", hash)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -677,32 +677,32 @@ func TestCheckout_Orchestrate_CurrentBranchNoop(t *testing.T) {
 	idxManager := index.NewManager(repoPath)
 	idxBefore, err := idxManager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index before checkout: %v", err)
+		t.Fatalf("failed to load index before checkout: %v", err)
 	}
 	entriesBefore := idxBefore.GetEntryList()
 
 	if err := OrchestrateCheckoutExecution(repoPath, constants.DefaultBranch, false); err != nil {
-		t.Fatalf("Failed to checkout current branch: %v", err)
+		t.Fatalf("failed to checkout current branch: %v", err)
 	}
 
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), content)
 	expectedHEAD := constants.DefaultRefPrefix + constants.DefaultBranch + "\n"
 	if head := testutils.ReadHEADFile(t, repoPath); head != expectedHEAD {
-		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedHEAD, head)
+		t.Fatalf("expected HEAD to be [%s], got [%s]", expectedHEAD, head)
 	}
 
 	idxAfter, err := idxManager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index after checkout: %v", err)
+		t.Fatalf("failed to load index after checkout: %v", err)
 	}
 	entriesAfter := idxAfter.GetEntryList()
 	if len(entriesAfter) != len(entriesBefore) {
-		t.Fatalf("Expected index to have [%d] entries, got %d", len(entriesBefore), len(entriesAfter))
+		t.Fatalf("expected index to have [%d] entries, got %d", len(entriesBefore), len(entriesAfter))
 	}
 	if entriesAfter[0].Hash() != blobs[fileName].Hash() {
-		t.Fatalf("Expected index entry hash [%s], got [%s]", blobs[fileName].Hash(), entriesAfter[0].Hash())
+		t.Fatalf("expected index entry hash [%s], got [%s]", blobs[fileName].Hash(), entriesAfter[0].Hash())
 	}
 	if entriesAfter[0].Path() != fileName {
-		t.Fatalf("Expected index entry path [%s], got [%s]", fileName, entriesAfter[0].Path())
+		t.Fatalf("expected index entry path [%s], got [%s]", fileName, entriesAfter[0].Path())
 	}
 }

@@ -52,12 +52,12 @@ func stageFile(t *testing.T, fileName, fileDir string, fileContent []byte) {
 
 	oldDir, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
+		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(oldDir)
 
 	if err := os.Chdir(fileDir); err != nil {
-		t.Fatalf("Failed to change to directory %s: %v", fileDir, err)
+		t.Fatalf("failed to change to directory %s: %v", fileDir, err)
 	}
 
 	command.SetArgs([]string{constants.AddCmdName, fileName})

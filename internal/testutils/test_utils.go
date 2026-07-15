@@ -64,11 +64,11 @@ func ChangeToDir(t *testing.T, dir string) {
 
 	oldDir, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
+		t.Fatalf("failed to get current directory: %v", err)
 	}
 
 	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("Failed to change to directory %s: %v", dir, err)
+		t.Fatalf("failed to change to directory %s: %v", dir, err)
 	}
 
 	t.Cleanup(func() {
@@ -85,7 +85,7 @@ func SetupTestRepoWithGogitDir(t *testing.T) string {
 	gogitDir := filepath.Join(repoPath, constants.Gogit, constants.Objects)
 
 	if err := os.MkdirAll(gogitDir, constants.DirPerms); err != nil {
-		t.Fatalf("Failed to create %s/%s: %v", constants.Gogit, constants.Objects, err)
+		t.Fatalf("failed to create %s/%s: %v", constants.Gogit, constants.Objects, err)
 	}
 
 	return repoPath
@@ -108,7 +108,7 @@ func SetupTestRepoWithInit(t *testing.T) string {
 
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, constants.DirPerms); err != nil {
-			t.Fatalf("Failed to create directory %s: %v", dir, err)
+			t.Fatalf("failed to create directory %s: %v", dir, err)
 		}
 	}
 
@@ -116,7 +116,7 @@ func SetupTestRepoWithInit(t *testing.T) string {
 	headPath := filepath.Join(gogitDir, constants.Head)
 	headContent := []byte(constants.DefaultRefPrefix + constants.DefaultBranch + "\n")
 	if err := os.WriteFile(headPath, headContent, constants.FilePerms); err != nil {
-		t.Fatalf("Failed to create %s file: %v", constants.Head, err)
+		t.Fatalf("failed to create %s file: %v", constants.Head, err)
 	}
 
 	return repoPath
@@ -130,7 +130,7 @@ func CreateTestFile(t *testing.T, dir, filename string, content []byte) string {
 
 	filePath := filepath.Join(dir, filename)
 	if err := os.WriteFile(filePath, content, constants.FilePerms); err != nil {
-		t.Fatalf("Failed to create test file %s: %v", filename, err)
+		t.Fatalf("failed to create test file %s: %v", filename, err)
 	}
 
 	return filePath
@@ -142,7 +142,7 @@ func AssertFileExists(t *testing.T, path string) {
 	t.Helper()
 
 	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("Expected file to exist at %s", path)
+		t.Errorf("expected file to exist at %s", path)
 	}
 }
 
@@ -152,7 +152,7 @@ func AssertFileNotExists(t *testing.T, path string) {
 	t.Helper()
 
 	if _, err := os.Stat(path); err == nil {
-		t.Errorf("Expected file to NOT exist at %s", path)
+		t.Errorf("expected file to NOT exist at %s", path)
 	}
 }
 
@@ -163,15 +163,15 @@ func AssertDirExists(t *testing.T, path string) {
 
 	info, err := os.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("Expected directory to exist at %s", path)
+		t.Errorf("expected directory to exist at %s", path)
 		return
 	}
 	if err != nil {
-		t.Errorf("Failed to stat directory %s: %v", path, err)
+		t.Errorf("failed to stat directory %s: %v", path, err)
 		return
 	}
 	if !info.IsDir() {
-		t.Errorf("Expected %s to be a directory, but it's a file", path)
+		t.Errorf("expected %s to be a directory, but it's a file", path)
 	}
 }
 
@@ -182,7 +182,7 @@ func AssertDirNotExists(t *testing.T, path string) {
 
 	_, err := os.Stat(path)
 	if !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("Expected directory to not exist at %s", path)
+		t.Errorf("expected directory to not exist at %s", path)
 		return
 	}
 }
@@ -211,7 +211,7 @@ func AssertRepositoryStructure(t *testing.T, repoPath string) {
 
 	content, err := os.ReadFile(headPath)
 	if err != nil {
-		t.Fatalf("Failed to read %s file: %v", constants.Head, err)
+		t.Fatalf("failed to read %s file: %v", constants.Head, err)
 	}
 
 	expectedContent := constants.DefaultRefPrefix + constants.DefaultBranch + "\n"
@@ -227,7 +227,7 @@ func ReadDefaultRefFile(t *testing.T, repoPath string) string {
 	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
 	content, err := os.ReadFile(refPath)
 	if err != nil {
-		t.Fatalf("Failed to read ref file: %v", err)
+		t.Fatalf("failed to read ref file: %v", err)
 	}
 	return string(bytes.TrimSpace(content))
 }
@@ -239,11 +239,11 @@ func AssertFileContent(t *testing.T, filePath string, expectedContent []byte) {
 
 	actualContent, err := os.ReadFile(filePath)
 	if err != nil {
-		t.Fatalf("Failed to read file %s: %v", filePath, err)
+		t.Fatalf("failed to read file %s: %v", filePath, err)
 	}
 
 	if string(actualContent) != string(expectedContent) {
-		t.Fatalf("File content mismatch at %s:\n  expected: [%s]\n  got: [%s]", filePath, expectedContent, actualContent)
+		t.Fatalf("file content mismatch at %s:\n  expected: [%s]\n  got: [%s]", filePath, expectedContent, actualContent)
 	}
 }
 
@@ -284,6 +284,6 @@ func AssertHEADContent(t *testing.T, repoPath, expectedContent string) {
 
 	head := ReadHEADFile(t, repoPath)
 	if head != expectedContent {
-		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedContent, head)
+		t.Fatalf("expected HEAD to be [%s], got [%s]", expectedContent, head)
 	}
 }

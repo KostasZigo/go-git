@@ -35,7 +35,7 @@ func TestE2E_BranchCommand_SymbolicHEAD(t *testing.T) {
 
 	actualBranchHash := readBranchRefHash(t, repoPath, newBranchName)
 	if actualBranchHash != expectedCommitHash {
-		t.Fatalf("Expected branch [%s] ref hash [%s], got [%s]", newBranchName, expectedCommitHash, actualBranchHash)
+		t.Fatalf("expected branch [%s] ref hash [%s], got [%s]", newBranchName, expectedCommitHash, actualBranchHash)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestE2E_BranchCommand_DetachedHEAD(t *testing.T) {
 
 	actualBranchHash := readBranchRefHash(t, repoPath, newBranchName)
 	if actualBranchHash != expectedCommitHash {
-		t.Fatalf("Expected branch [%s] ref hash [%s], got [%s]", newBranchName, expectedCommitHash, actualBranchHash)
+		t.Fatalf("expected branch [%s] ref hash [%s], got [%s]", newBranchName, expectedCommitHash, actualBranchHash)
 	}
 }
 
@@ -100,18 +100,18 @@ func TestE2E_BranchCommand_BranchAlreadyExists(t *testing.T) {
 
 	actualBranchHash := readBranchRefHash(t, repoPath, newBranchName)
 	if actualBranchHash != expectedCommitHash {
-		t.Fatalf("Expected branch [%s] ref hash [%s], got [%s]", newBranchName, expectedCommitHash, actualBranchHash)
+		t.Fatalf("expected branch [%s] ref hash [%s], got [%s]", newBranchName, expectedCommitHash, actualBranchHash)
 	}
 
 	// Create second branch with the same name
 	output, err = runBranchCommand(t, repoPath, newBranchName)
 	if err == nil {
-		t.Fatal("Expected error when the branch already exists.")
+		t.Fatal("expected error when the branch already exists")
 	}
 
 	expectedErrorMessage := fmt.Sprintf("branch [%s] already exists", newBranchName)
 	if !strings.Contains(string(output), expectedErrorMessage) {
-		t.Fatalf("Expected branch output to contain [%s], got: [%s]", expectedErrorMessage, output)
+		t.Fatalf("expected branch output to contain [%s], got: [%s]", expectedErrorMessage, output)
 	}
 }
 
@@ -137,11 +137,11 @@ func TestE2E_BranchCommand_InvalidName(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			output, err := runBranchCommand(t, repoPath, name)
 			if err == nil {
-				t.Fatalf("Expected error for invalid branch name [%s], but command succeeded.\nOutput: %s", name, output)
+				t.Fatalf("expected error for invalid branch name [%s], but command succeeded\nOutput: %s", name, output)
 			}
 
 			if !strings.Contains(string(output), "invalid branch name") {
-				t.Fatalf("Expected error output to contain 'invalid branch name', got: [%s]", output)
+				t.Fatalf("expected error output to contain 'invalid branch name', got: [%s]", output)
 			}
 		})
 	}
@@ -183,7 +183,7 @@ func TestE2E_BranchCommand_NestedRefMaterialization(t *testing.T) {
 	// Assert the ref file contains the correct commit hash
 	actualBranchHash := readBranchRefHash(t, repoPath, nestedBranchName)
 	if actualBranchHash != expectedCommitHash {
-		t.Fatalf("Expected branch [%s] ref hash [%s], got [%s]", nestedBranchName, expectedCommitHash, actualBranchHash)
+		t.Fatalf("expected branch [%s] ref hash [%s], got [%s]", nestedBranchName, expectedCommitHash, actualBranchHash)
 	}
 }
 
@@ -201,7 +201,7 @@ func TestE2E_BranchCommand_NoSideEffectsOnFailure(t *testing.T) {
 	invalidName := testutils.RandomString(6) + ".lock"
 	output, err := runBranchCommand(t, repoPath, invalidName)
 	if err == nil {
-		t.Fatalf("Expected error for invalid branch name [%s], but command succeeded.\nOutput: %s", invalidName, output)
+		t.Fatalf("expected error for invalid branch name [%s], but command succeeded\nOutput: %s", invalidName, output)
 	}
 
 	// Assert no ref file was created at the expected path

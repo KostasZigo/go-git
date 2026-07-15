@@ -24,7 +24,7 @@ func TestNewBlobFromFile(t *testing.T) {
 
 	blob, err := NewBlobFromFile(testFile)
 	if err != nil {
-		t.Fatalf("Failed to create blob from file: %v", err)
+		t.Fatalf("failed to create blob from file: %v", err)
 	}
 
 	assertBlobHash(t, blob, content)
@@ -36,11 +36,11 @@ func TestNewBlobFromFile_NonExistent(t *testing.T) {
 	_, err := NewBlobFromFile("/nonexistent/file.txt")
 
 	if err == nil {
-		t.Fatal("Expected error for non-existent file")
+		t.Fatal("expected error for non-existent file")
 	}
 
 	if !strings.Contains(err.Error(), "failed to read file") {
-		t.Errorf("Expected error message about reading file, got: %v", err)
+		t.Errorf("expected error message about reading file, got: %v", err)
 	}
 }
 
@@ -63,7 +63,7 @@ func TestBlob_HashConsistency(t *testing.T) {
 	blob2 := NewBlob(content)
 
 	if blob1.Hash() != blob2.Hash() {
-		t.Fatal("Same content should produce same hash")
+		t.Fatal("same content should produce same hash")
 	}
 }
 
@@ -74,6 +74,6 @@ func TestBlob_DifferentContentDifferentHash(t *testing.T) {
 	blob2 := NewBlob([]byte("content B"))
 
 	if blob1.Hash() == blob2.Hash() {
-		t.Fatal("Different content should produce different hashes")
+		t.Fatal("different content should produce different hashes")
 	}
 }

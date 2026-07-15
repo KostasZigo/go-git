@@ -19,12 +19,12 @@ func TestInitCommand_Success(t *testing.T) {
 
 	oldDir, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
+		t.Fatalf("failed to get current directory: %v", err)
 	}
 	defer os.Chdir(oldDir)
 
 	if err = os.Chdir(repoPath); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
+		t.Fatalf("failed to change to temp directory: %v", err)
 	}
 
 	// Create a new root command for testing
@@ -34,13 +34,13 @@ func TestInitCommand_Success(t *testing.T) {
 	// Execute init command
 	testRootCmd.SetArgs([]string{constants.InitCmdName})
 	if err = testRootCmd.Execute(); err != nil {
-		t.Fatalf("Init command failed: %v", err)
+		t.Fatalf("init command failed: %v", err)
 	}
 
 	// Verify output message
 	expectedMsg := fmt.Sprintf("Initialized empty GoGit repository in %s\n", buildDirPath(".", constants.Gogit))
 	if !strings.Contains(stdout.String(), expectedMsg) {
-		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, stdout.String())
+		t.Errorf("expected output to contain %q, got: %s", expectedMsg, stdout.String())
 	}
 
 	testutils.AssertRepositoryStructure(t, repoPath)
@@ -57,7 +57,7 @@ func TestInitCommand_WithDirectory_Success(t *testing.T) {
 	// Execute init with directory argument
 	testRootCmd.SetArgs([]string{constants.InitCmdName, targetDirectory})
 	if err := testRootCmd.Execute(); err != nil {
-		t.Fatalf("Init command with directory failed: %v", err)
+		t.Fatalf("init command with directory failed: %v", err)
 	}
 
 	testutils.AssertRepositoryStructure(t, targetDirectory)
@@ -73,7 +73,7 @@ func TestInitCommand_AlreadyExists(t *testing.T) {
 	testRootCmd1.SetArgs([]string{constants.InitCmdName, repoPath})
 
 	if err := testRootCmd1.Execute(); err != nil {
-		t.Fatalf("First %s failed: %v", constants.InitCmdName, err)
+		t.Fatalf("first %s failed: %v", constants.InitCmdName, err)
 	}
 
 	// Try to initialize again
@@ -83,13 +83,13 @@ func TestInitCommand_AlreadyExists(t *testing.T) {
 
 	err := testRootCmd2.Execute()
 	if err == nil {
-		t.Error("Expected error when repository already exists")
+		t.Error("expected error when repository already exists")
 	}
 
 	// Verify error message mentions repository exists
 	expectedErrorMsg := fmt.Sprintf("failed to initialize repository - repository already exists at %s", filepath.Join(repoPath, constants.Gogit))
 	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("Expected error to contain %q, got: %q", expectedErrorMsg, err.Error())
+		t.Errorf("expected error to contain %q, got: %q", expectedErrorMsg, err.Error())
 	}
 }
 
@@ -102,19 +102,19 @@ func TestInitCommand_TooManyArguments(t *testing.T) {
 
 	// Should return error
 	if err := testRootCmd.Execute(); err == nil {
-		t.Errorf("Expected error for too many args")
+		t.Errorf("expected error for too many args")
 	}
 
 	err := stderr.String()
 	expectedErrorMessage := fmt.Sprintf("%s command accepts at most 1 arg(s), received 2", constants.InitCmdName)
 	if !strings.Contains(err, expectedErrorMessage) {
-		t.Errorf("Expected error message [%s] , got: [%s]", expectedErrorMessage, err)
+		t.Errorf("expected error message [%s] , got: [%s]", expectedErrorMessage, err)
 	}
 
 	output := stdout.String()
 	expectedUsageMessage := fmt.Sprintf("Usage:\n  gogit %s [directory] ", constants.InitCmdName)
 	if !strings.Contains(output, expectedUsageMessage) {
-		t.Errorf("Expected usage message to contain [%s] , got: [%s]", expectedUsageMessage, output)
+		t.Errorf("expected usage message to contain [%s] , got: [%s]", expectedUsageMessage, output)
 	}
 }
 
@@ -143,16 +143,16 @@ func TestInitCommand_Fail(t *testing.T) {
 	err := testRootCmd.Execute()
 
 	if err == nil {
-		t.Error("Expected error since InitRepository mocked to fail")
+		t.Error("expected error since InitRepository mocked to fail")
 	}
 
 	if !errors.Is(err, mockError) {
-		t.Errorf("Expected error to wrap the mock error %v, but got: %v", mockError, err)
+		t.Errorf("expected error to wrap the mock error %v, but got: %v", mockError, err)
 	}
 
 	// Verify cleanup was called
 	gogitDirectory := filepath.Join(repoPath, ".gogit")
 	if _, err := os.Stat(gogitDirectory); err == nil {
-		t.Error("Expected .gogit directory to be cleaned up after failure")
+		t.Error("expected .gogit directory to be cleaned up after failure")
 	}
 }

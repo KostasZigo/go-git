@@ -31,12 +31,12 @@ func TestInitRepository_AlreadyExists(t *testing.T) {
 
 	// Initialize once
 	if err := InitRepository(repoPath); err != nil {
-		t.Fatalf("First initialization failed: %v", err)
+		t.Fatalf("first initialization failed: %v", err)
 	}
 
 	// Try to initialize again - should fail
 	if err := InitRepository(repoPath); err == nil {
-		t.Error("Expected error when repository already exists, but got nil")
+		t.Error("expected error when repository already exists, but got nil")
 	}
 }
 
@@ -58,11 +58,11 @@ func TestInitRepository_MkdirAllFailure(t *testing.T) {
 
 	err := InitRepository(repoPath)
 	if err == nil {
-		t.Error("Expected error when os.MkdirAll fails, but got nil")
+		t.Error("expected error when os.MkdirAll fails, but got nil")
 	}
 
 	if !errors.Is(err, mockError) {
-		t.Errorf("Expected error to wrap the mock error, but got: %v", err)
+		t.Errorf("expected error to wrap the mock error, but got: %v", err)
 	}
 
 	// Verify cleanup was called

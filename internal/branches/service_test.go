@@ -24,12 +24,12 @@ func TestBranch_OrchestrateBranchCreation_SymbolicHead(t *testing.T) {
 	newBranchName := testutils.RandomString(8)
 	err := OrchestrateBranchCreation(repoPath, newBranchName)
 	if err != nil {
-		t.Fatalf("Unexpected error creating branch [%s]: %v", newBranchName, err)
+		t.Fatalf("unexpected error creating branch [%s]: %v", newBranchName, err)
 	}
 
 	createdBranchHash := readBranchRefHash(t, repoPath, newBranchName)
 	if createdBranchHash != currentCommitHash {
-		t.Fatalf("Expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
+		t.Fatalf("expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
 	}
 }
 
@@ -44,12 +44,12 @@ func TestBranch_OrchestrateBranchCreation_DetachedHead(t *testing.T) {
 	newBranchName := testutils.RandomString(8)
 	err := OrchestrateBranchCreation(repoPath, newBranchName)
 	if err != nil {
-		t.Fatalf("Unexpected error creating branch [%s]: %v", newBranchName, err)
+		t.Fatalf("unexpected error creating branch [%s]: %v", newBranchName, err)
 	}
 
 	createdBranchHash := readBranchRefHash(t, repoPath, newBranchName)
 	if createdBranchHash != string(currentCommitHash) {
-		t.Fatalf("Expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
+		t.Fatalf("expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
 	}
 }
 
@@ -66,12 +66,12 @@ func TestBranch_OrchestrateBranchCreation_HierarchicalBranchName(t *testing.T) {
 	newBranchName := filepath.ToSlash(filepath.Join(dir, name))
 	err := OrchestrateBranchCreation(repoPath, newBranchName)
 	if err != nil {
-		t.Fatalf("Unexpected error creating branch [%s]: %v", newBranchName, err)
+		t.Fatalf("unexpected error creating branch [%s]: %v", newBranchName, err)
 	}
 
 	createdBranchHash := readBranchRefHash(t, repoPath, newBranchName)
 	if createdBranchHash != string(currentCommitHash) {
-		t.Fatalf("Expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
+		t.Fatalf("expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
 	}
 }
 
@@ -90,12 +90,12 @@ func TestBranch_OrchestrateBranchCreation_AlreadyExists(t *testing.T) {
 	testutils.WriteRefFile(t, repoPath, branchName, commitHash)
 	err := OrchestrateBranchCreation(repoPath, branchName)
 	if err == nil {
-		t.Fatal("Expected error when the branch already exists.")
+		t.Fatal("expected error when the branch already exists")
 	}
 
 	expectedErrorMessage := fmt.Sprintf("branch [%s] already exists", branchName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -107,12 +107,12 @@ func TestBranch_OrchestrateBranchCreation_HeadRefNotExists(t *testing.T) {
 
 	err := OrchestrateBranchCreation(repoPath, branchName)
 	if err == nil {
-		t.Fatal("Expected error when the branch already exists.")
+		t.Fatal("expected error when the branch already exists")
 	}
 
 	expectedErrorMessage := "failed to read current ref:"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -123,12 +123,12 @@ func TestBranch_OrchestrateBranchCreation_EmptyBranchName(t *testing.T) {
 
 	err := OrchestrateBranchCreation(repoPath, "")
 	if err == nil {
-		t.Fatal("Expected error when the branch name is empty.")
+		t.Fatal("expected error when the branch name is empty")
 	}
 
 	expectedErrorMessage := "branch name cannot be empty"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -140,34 +140,34 @@ func TestBranch_OrchestrateBranchCreation_InvalidBranchName(t *testing.T) {
 
 	err := OrchestrateBranchCreation(repoPath, "aa..bb")
 	if err == nil {
-		t.Fatal("Expected error when the branch name is invalid.")
+		t.Fatal("expected error when the branch name is invalid")
 	}
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 
 	err = OrchestrateBranchCreation(repoPath, ".")
 	if err == nil {
-		t.Fatal("Expected error when the branch name is invalid.")
+		t.Fatal("expected error when the branch name is invalid")
 	}
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 
 	err = OrchestrateBranchCreation(repoPath, "a\\b")
 	if err == nil {
-		t.Fatal("Expected error when the branch name is invalid.")
+		t.Fatal("expected error when the branch name is invalid")
 	}
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 
 	err = OrchestrateBranchCreation(repoPath, "a.lock")
 	if err == nil {
-		t.Fatal("Expected error when the branch name is invalid.")
+		t.Fatal("expected error when the branch name is invalid")
 	}
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -179,16 +179,16 @@ func TestBranch_writeRefFileExclusive_DoesNotOverwriteExistingRef(t *testing.T) 
 
 	initialContent := testutils.RandomBytes(10)
 	if err := os.WriteFile(refPath, initialContent, constants.FilePerms); err != nil {
-		t.Fatalf("Failed to create ref file: %v", err)
+		t.Fatalf("failed to create ref file: %v", err)
 	}
 
 	err := writeRefFileExclusive(refPath, []byte("new-content\n"))
 	if err == nil {
-		t.Fatal("Expected os.ErrExist when writing exclusively an existing ref file")
+		t.Fatal("expected os.ErrExist when writing exclusively an existing ref file")
 	}
 
 	if !errors.Is(err, os.ErrExist) {
-		t.Fatalf("Expected [%v] error, got: [%v]", os.ErrExist, err)
+		t.Fatalf("expected [%v] error, got: [%v]", os.ErrExist, err)
 	}
 }
 
@@ -205,7 +205,7 @@ func readBranchRefHash(t *testing.T, repoPath, branchName string) string {
 	)
 	content, err := os.ReadFile(branchRefPath)
 	if err != nil {
-		t.Fatalf("Failed to read ref file for branch [%s]: %v", branchName, err)
+		t.Fatalf("failed to read ref file for branch [%s]: %v", branchName, err)
 	}
 
 	return string(content)

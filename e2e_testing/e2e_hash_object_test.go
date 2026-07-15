@@ -32,28 +32,28 @@ func TestE2E_HashObjectCommand_NoStorage(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("command failed: %v\nOutput: %s", err, output)
 	}
 
 	// Verify hash is printed (40 hex chars + newline)
 	outputHash := strings.TrimSpace(string(output))
 	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
-		t.Fatalf("Failed to compute hash: %v", err)
+		t.Fatalf("failed to compute hash: %v", err)
 	}
 
 	if len(outputHash) != 40 {
-		t.Errorf("Expected 40-char hash, got: %s", outputHash)
+		t.Errorf("expected 40-char hash, got: %s", outputHash)
 	}
 
 	if expectedHash != outputHash {
-		t.Fatalf("Expected hash %s, got %s", expectedHash, outputHash)
+		t.Fatalf("expected hash %s, got %s", expectedHash, outputHash)
 	}
 
 	// Verify object was NOT created (no -w flag)
 	store := objects.NewObjectStore(repoPath)
 	if store.Exists(outputHash) {
-		t.Error("Object should not be created without -w flag")
+		t.Error("object should not be created without -w flag")
 	}
 }
 
@@ -82,22 +82,22 @@ func TestE2E_HashObjectCommand_WithStorage(t *testing.T) {
 	printedHash := strings.TrimSpace(string(output))
 	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
-		t.Fatalf("Failed to compute hash: %v", err)
+		t.Fatalf("failed to compute hash: %v", err)
 	}
 
 	if printedHash != expectedHash {
-		t.Fatalf("Expected printed has to be [%s] but got [%s]", expectedHash, printedHash)
+		t.Fatalf("expected printed has to be [%s] but got [%s]", expectedHash, printedHash)
 	}
 
 	// Verify blob object is stored and content matches
 	store := objects.NewObjectStore(repoPath)
 	blob, err := store.ReadBlob(expectedHash)
 	if err != nil {
-		t.Fatalf("Failed to read blob object [%s]: %v", expectedHash, err)
+		t.Fatalf("failed to read blob object [%s]: %v", expectedHash, err)
 	}
 
 	if !bytes.Equal(blob.Content(), testFileContent) {
-		t.Fatalf("Blob content mismatch: expected [%s], got [%s]", testFileContent, blob.Content())
+		t.Fatalf("blob content mismatch: expected [%s], got [%s]", testFileContent, blob.Content())
 	}
 }
 
@@ -112,12 +112,12 @@ func TestE2E_HashObjectCommand_InvalidArgs(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
-		t.Error("Expected error when no file argument provided")
+		t.Error("expected error when no file argument provided")
 	}
 
 	outputStr := string(output)
 	expectedMsg := fmt.Sprintf("%s command requires exactly 1 argument, received 0", constants.HashObjectCmdName)
 	if !strings.Contains(outputStr, expectedMsg) {
-		t.Errorf("Expected error to contain %q, got: %s", expectedMsg, outputStr)
+		t.Errorf("expected error to contain %q, got: %s", expectedMsg, outputStr)
 	}
 }

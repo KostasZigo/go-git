@@ -44,17 +44,17 @@ func TestHashObjectCommand_Success_NoStorage(t *testing.T) {
 	outputHash := strings.TrimSpace(stdout.String())
 	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
-		t.Fatalf("Failed to compute hash: %v", err)
+		t.Fatalf("failed to compute hash: %v", err)
 	}
 
 	if expectedHash != outputHash {
-		t.Fatalf("Expected hash %s, got %s", expectedHash, outputHash)
+		t.Fatalf("expected hash %s, got %s", expectedHash, outputHash)
 	}
 
 	// Verify object was NOT created (no -w flag)
 	objectPath := filepath.Join(repoPath, outputHash[:constants.HashDirPrefixLength], outputHash[constants.HashDirPrefixLength:])
 	if _, err := os.Stat(objectPath); !errors.Is(err, fs.ErrNotExist) {
-		t.Error("Object should not be created without -w flag")
+		t.Error("object should not be created without -w flag")
 	}
 }
 
@@ -80,12 +80,12 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	// Verify hash output
 	expectedHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
-		t.Fatalf("Failed to compute hash: %v", err)
+		t.Fatalf("failed to compute hash: %v", err)
 	}
 	outputHash := strings.TrimSpace(stdout.String())
 
 	if expectedHash != outputHash {
-		t.Fatalf("Expected hash %s, got %s", expectedHash, outputHash)
+		t.Fatalf("expected hash %s, got %s", expectedHash, outputHash)
 	}
 
 	// Verify object was created
@@ -96,14 +96,14 @@ func TestHashObjectCommand_Success_WithStorage(t *testing.T) {
 	store := objects.NewObjectStore(repoPath)
 	blob, err := store.ReadBlob(expectedHash)
 	if err != nil {
-		t.Errorf("Failed to read stored blob: %v", err)
+		t.Errorf("failed to read stored blob: %v", err)
 	}
 
 	if blob.Hash() != expectedHash {
-		t.Errorf("Stored blob hash mismatch: expected %q, got %q", expectedHash, blob.Hash())
+		t.Errorf("stored blob hash mismatch: expected %q, got %q", expectedHash, blob.Hash())
 	}
 	if !bytes.Equal(blob.Content(), testFileContent) {
-		t.Errorf("Stored blob content mismatch: expected %q, got %q", testFileContent, blob.Content())
+		t.Errorf("stored blob content mismatch: expected %q, got %q", testFileContent, blob.Content())
 	}
 }
 
@@ -121,13 +121,13 @@ func TestHashObject_FileNotFound(t *testing.T) {
 	testRootCmd.SetArgs([]string{constants.HashObjectCmdName, dummyFileName})
 	err := testRootCmd.Execute()
 	if err == nil {
-		t.Fatalf("%s command SHOULD fail", constants.HashObjectCmdName)
+		t.Fatalf("%s command should fail", constants.HashObjectCmdName)
 	}
 
 	// Verify error message mentions the file
 	expectedErrorMessage := fmt.Sprintf("failed to read file %s", dummyFileName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -142,13 +142,13 @@ func TestHashObjectCommand_NoArguments(t *testing.T) {
 	err := testRootCmd.Execute()
 
 	if err == nil {
-		t.Fatal("Expected error when no arguments provided")
+		t.Fatal("expected error when no arguments provided")
 	}
 
 	// Verify error message matches argument validation error
 	expectedErrorMessage := fmt.Sprintf("%s command requires exactly 1 argument, received 0", constants.HashObjectCmdName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -163,13 +163,13 @@ func TestHashObjectCommand_TooManyArguments(t *testing.T) {
 	err := testRootCmd.Execute()
 
 	if err == nil {
-		t.Fatal("Expected error when too many arguments are provided")
+		t.Fatal("expected error when too many arguments are provided")
 	}
 
 	// Verify error message matches argument validation error
 	expectedErrorMessage := fmt.Sprintf("%s command requires exactly 1 argument, received 2", constants.HashObjectCmdName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -192,12 +192,12 @@ func TestHashObjectCommand_FileNotInRepository(t *testing.T) {
 	err := testRootCmd.Execute()
 
 	if err == nil {
-		t.Fatal("Expected error when file is not inside a repository")
+		t.Fatal("expected error when file is not inside a repository")
 	}
 
 	expectedErrorMessage := fmt.Sprintf("%s directory not found", constants.Gogit)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -229,12 +229,12 @@ func TestHashObjectCommand_StoreFailure(t *testing.T) {
 	err := testRootCmd.Execute()
 
 	if err == nil {
-		t.Fatalf("Expected %s command to fail according to mocking", constants.HashObjectCmdName)
+		t.Fatalf("expected %s command to fail according to mocking", constants.HashObjectCmdName)
 	}
 
 	expectedErrorMessage := "failed to store object: " + mockError.Error()
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -266,10 +266,10 @@ func TestHashObjectCommand_NewBlobFromFileFailure(t *testing.T) {
 	err := testRootCmd.Execute()
 
 	if err == nil {
-		t.Fatalf("Expected %s command to fail according to mocking", constants.HashObjectCmdName)
+		t.Fatalf("expected %s command to fail according to mocking", constants.HashObjectCmdName)
 	}
 	if !strings.Contains(err.Error(), mockError.Error()) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", mockError.Error(), err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", mockError.Error(), err.Error())
 	}
 }
 
@@ -291,7 +291,7 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	stdout1 := captureStdout(testRootCmd1)
 	testRootCmd1.SetArgs([]string{constants.HashObjectCmdName, "-w", fileName1})
 	if err := testRootCmd1.Execute(); err != nil {
-		t.Fatalf("Failed to hash file1: %v", err)
+		t.Fatalf("failed to hash file1: %v", err)
 	}
 	hash1 := strings.TrimSpace(stdout1.String())
 
@@ -300,13 +300,13 @@ func TestHashObjectCommand_MultipleFiles_SameContent(t *testing.T) {
 	stdout2 := captureStdout(testRootCmd2)
 	testRootCmd2.SetArgs([]string{constants.HashObjectCmdName, "-w", fileName2})
 	if err := testRootCmd2.Execute(); err != nil {
-		t.Fatalf("Failed to hash file2: %v", err)
+		t.Fatalf("failed to hash file2: %v", err)
 	}
 	hash2 := strings.TrimSpace(stdout2.String())
 
 	// Verify both files produce the same hash
 	if hash1 != hash2 {
-		t.Errorf("Identical content should produce same hash: %s != %s", hash1, hash2)
+		t.Errorf("identical content should produce same hash: %s != %s", hash1, hash2)
 	}
 
 	// Verify only one object was created (content-addressable)
@@ -336,11 +336,11 @@ func TestHashObjectCommand_EmptyFile(t *testing.T) {
 	outputHash := strings.TrimSpace(stdout.String())
 	expectedHash, err := hasher.ComputeHash([]byte{}, hasher.Blob)
 	if err != nil {
-		t.Fatalf("Failed to compute hash: %v", err)
+		t.Fatalf("failed to compute hash: %v", err)
 	}
 
 	if outputHash != expectedHash {
-		t.Errorf("Expected empty file hash %s, got %s", expectedHash, outputHash)
+		t.Errorf("expected empty file hash %s, got %s", expectedHash, outputHash)
 	}
 }
 
@@ -367,15 +367,15 @@ func TestHashObjectCommand_LargeFile(t *testing.T) {
 	outputHash := strings.TrimSpace(stdout.String())
 	expectedHash, err := hasher.ComputeHash(largeContent, hasher.Blob)
 	if err != nil {
-		t.Fatalf("Failed to compute hash: %v", err)
+		t.Fatalf("failed to compute hash: %v", err)
 	}
 
 	if len(outputHash) != 40 {
-		t.Errorf("Expected 40-char hash, got: %s", outputHash)
+		t.Errorf("expected 40-char hash, got: %s", outputHash)
 	}
 
 	if expectedHash != outputHash {
-		t.Fatalf("Expected hash %s, got %s", expectedHash, outputHash)
+		t.Fatalf("expected hash %s, got %s", expectedHash, outputHash)
 	}
 
 	// Verify object was stored

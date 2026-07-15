@@ -48,55 +48,55 @@ func TestE2E_CommitCommand_FirstCommit(t *testing.T) {
 
 	// Verify output contains the commit message
 	if !strings.Contains(outputStr, commitMessage) {
-		t.Fatalf("Expected output to contain message [%s], got: [%s]", commitMessage, outputStr)
+		t.Fatalf("expected output to contain message [%s], got: [%s]", commitMessage, outputStr)
 	}
 
 	// Read ref file and verify it contains a valid hash
 	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
 	refContent, err := os.ReadFile(refPath)
 	if err != nil {
-		t.Fatalf("Failed to read ref file: %v", err)
+		t.Fatalf("failed to read ref file: %v", err)
 	}
 	commitHash := strings.TrimSpace(string(refContent))
 
 	if len(commitHash) != constants.HashStringLength {
-		t.Fatalf("Expected %d-char hash in ref file, got %d: %s", constants.HashStringLength, len(commitHash), commitHash)
+		t.Fatalf("expected %d-char hash in ref file, got %d: %s", constants.HashStringLength, len(commitHash), commitHash)
 	}
 
 	// Verify output contains the short hash
 	shortHash := commitHash[:7]
 	if !strings.Contains(outputStr, shortHash) {
-		t.Fatalf("Expected output to contain short hash %q, got: %s", shortHash, outputStr)
+		t.Fatalf("expected output to contain short hash %q, got: %s", shortHash, outputStr)
 	}
 
 	// Verify commit object is readable and contains expected message
 	commit := readCommitByHash(t, repoPath, commitHash)
 	if commit.Message() != commitMessage {
-		t.Fatalf("Expected commit message to be [%s], got [%s]", commitMessage, commit.Message())
+		t.Fatalf("expected commit message to be [%s], got [%s]", commitMessage, commit.Message())
 	}
 
 	// Verify commit is an initial commit (no parent)
 	if !commit.IsInitialCommit() {
-		t.Fatalf("Expected initial commit (with no parent), got parent [%s]", commit.ParentHash())
+		t.Fatalf("expected initial commit (with no parent), got parent [%s]", commit.ParentHash())
 	}
 
 	// Verify tree object is readable
 	store := objects.NewObjectStore(repoPath)
 	treeHash := commit.TreeHash()
 	if len(treeHash) != constants.HashStringLength {
-		t.Fatalf("Expected %d-char tree hash, got %d: %q", constants.HashStringLength, len(treeHash), treeHash)
+		t.Fatalf("expected %d-char tree hash, got %d: %q", constants.HashStringLength, len(treeHash), treeHash)
 	}
 	if _, err := store.ReadTree(treeHash); err != nil {
-		t.Fatalf("Failed to read tree object [%s]: %v", treeHash, err)
+		t.Fatalf("failed to read tree object [%s]: %v", treeHash, err)
 	}
 
 	// Verify blob object for the staged file exists
 	expectedBlobHash, err := hasher.ComputeHash(testFileContent, hasher.Blob)
 	if err != nil {
-		t.Fatalf("Failed to compute expected blob hash: %v", err)
+		t.Fatalf("failed to compute expected blob hash: %v", err)
 	}
 	if !store.Exists(expectedBlobHash) {
-		t.Fatalf("Blob object [%s] not found in object store", expectedBlobHash)
+		t.Fatalf("blob object [%s] not found in object store", expectedBlobHash)
 	}
 }
 
@@ -132,7 +132,7 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 
 	firstHashBytes, err := os.ReadFile(refPath)
 	if err != nil {
-		t.Fatalf("Failed to read ref after first commit: %v", err)
+		t.Fatalf("failed to read ref after first commit: %v", err)
 	}
 	firstHash := strings.TrimSpace(string(firstHashBytes))
 
@@ -154,13 +154,13 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 
 	secondHashBytes, err := os.ReadFile(refPath)
 	if err != nil {
-		t.Fatalf("Failed to read ref after second commit: %v", err)
+		t.Fatalf("failed to read ref after second commit: %v", err)
 	}
 	secondHash := strings.TrimSpace(string(secondHashBytes))
 
 	// Hashes must differ
 	if firstHash == secondHash {
-		t.Fatal("First and second commit hashes must differ")
+		t.Fatal("first and second commit hashes must differ")
 	}
 
 	// Read both commits via ObjectStore
@@ -169,26 +169,26 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 
 	// Verify first commit has no parent
 	if !firstCommit.IsInitialCommit() {
-		t.Fatalf("First commit should have no parent, got parent [%s]", firstCommit.ParentHash())
+		t.Fatalf("first commit should have no parent, got parent [%s]", firstCommit.ParentHash())
 	}
 
 	// Verify second commit references first as parent
 	if secondCommit.ParentHash() != firstHash {
-		t.Fatalf("Second commit parent mismatch: expected [%s], got [%s]", firstHash, secondCommit.ParentHash())
+		t.Fatalf("second commit parent mismatch: expected [%s], got [%s]", firstHash, secondCommit.ParentHash())
 	}
 
 	// Verify tree hashes differ between commits with different file content
 	firstTreeHash := firstCommit.TreeHash()
 	secondTreeHash := secondCommit.TreeHash()
 	if firstTreeHash == secondTreeHash {
-		t.Fatal("Tree hashes must differ between commits with different file content")
+		t.Fatal("tree hashes must differ between commits with different file content")
 	}
 
 	// Verify both tree objects are readable
 	store := objects.NewObjectStore(repoPath)
 	for _, treeHash := range []string{firstTreeHash, secondTreeHash} {
 		if _, err := store.ReadTree(treeHash); err != nil {
-			t.Fatalf("Failed to read tree object [%s]: %v", treeHash, err)
+			t.Fatalf("failed to read tree object [%s]: %v", treeHash, err)
 		}
 	}
 }
@@ -208,17 +208,17 @@ func TestE2E_CommitCommand_NoStagedFiles(t *testing.T) {
 	output, err := commitCmd.CombinedOutput()
 
 	if err == nil {
-		t.Fatal("Expected non-zero exit code for commit with no staged files")
+		t.Fatal("expected non-zero exit code for commit with no staged files")
 	}
 
 	outputStr := string(output)
 	if !strings.Contains(outputStr, "nothing to commit") {
-		t.Fatalf("Expected error containing 'nothing to commit', got: %s", outputStr)
+		t.Fatalf("expected error containing 'nothing to commit', got: %s", outputStr)
 	}
 
 	// Verify ref file was NOT created
 	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
 	if _, err := os.Stat(refPath); err == nil {
-		t.Fatal("Ref file should not exist when commit fails")
+		t.Fatal("ref file should not exist when commit fails")
 	}
 }

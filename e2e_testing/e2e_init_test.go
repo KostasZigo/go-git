@@ -24,14 +24,14 @@ func TestE2E_InitCommand(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Binary execution failed: %v\nOutput: %s", err, output)
+		t.Fatalf("binary execution failed: %v\nOutput: %s", err, output)
 	}
 
 	// Verify output
 	outputStr := string(output)
 	expectedMsg := fmt.Sprintf("Initialized empty GoGit repository in %s\n", "."+string(filepath.Separator)+constants.Gogit+string(filepath.Separator))
 	if !strings.Contains(outputStr, expectedMsg) {
-		t.Errorf("Expected output to contain %q, got: %s", expectedMsg, outputStr)
+		t.Errorf("expected output to contain %q, got: %s", expectedMsg, outputStr)
 	}
 
 	// Verify filesystem changes
@@ -45,12 +45,12 @@ func TestE2E_InitCommand(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 
 	if err == nil {
-		t.Errorf("Expected error when running %s twice", constants.InitCmdName)
+		t.Errorf("expected error when running %s twice", constants.InitCmdName)
 	}
 
 	expectedErrorMsg := "Error: failed to initialize repository - repository already exists at .gogit\n"
 	if !strings.Contains(string(output), expectedErrorMsg) {
-		t.Errorf("Expected error to contain %q, got: %q", expectedErrorMsg, string(output))
+		t.Errorf("expected error to contain %q, got: %q", expectedErrorMsg, string(output))
 	}
 }
 
@@ -64,7 +64,7 @@ func TestE2E_HelpCommand(t *testing.T) {
 	cmd := newGogitCmd(t, "--help")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Help command failed: %v", err)
+		t.Fatalf("help command failed: %v", err)
 	}
 
 	expectedTexts := []string{
@@ -79,7 +79,7 @@ func TestE2E_HelpCommand(t *testing.T) {
 	outputStr := string(output)
 	for _, text := range expectedTexts {
 		if !strings.Contains(outputStr, text) {
-			t.Errorf("Help output missing %q, got: %s", text, outputStr)
+			t.Errorf("help output missing %q, got: %s", text, outputStr)
 		}
 	}
 }
@@ -95,11 +95,11 @@ func TestE2E_InvalidCommand(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
-		t.Error("Expected error for invalid command")
+		t.Error("expected error for invalid command")
 	}
 
 	outputStr := string(output)
 	if !strings.Contains(outputStr, "unknown command") {
-		t.Errorf("Expected 'unknown command' error, got: %s", outputStr)
+		t.Errorf("expected 'unknown command' error, got: %s", outputStr)
 	}
 }

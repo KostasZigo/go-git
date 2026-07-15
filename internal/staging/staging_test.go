@@ -26,19 +26,19 @@ func TestOrchestrateAddExecution_SingleFile(t *testing.T) {
 	}
 
 	if len(addedFiles) != 1 {
-		t.Fatalf("Expected 1 added file, got %d", len(addedFiles))
+		t.Fatalf("expected 1 added file, got %d", len(addedFiles))
 	}
 	if addedFiles[0] != testFileName {
-		t.Errorf("Expected added file %q, got %q", testFileName, addedFiles[0])
+		t.Errorf("expected added file %q, got %q", testFileName, addedFiles[0])
 	}
 
 	idx := loadIndex(t, repoPath)
 	entryList := idx.GetEntryList()
 	if len(entryList) != 1 {
-		t.Fatalf("Expected 1 index entry, got %d", len(entryList))
+		t.Fatalf("expected 1 index entry, got %d", len(entryList))
 	}
 	if entryList[0].Path() != testFileName {
-		t.Errorf("Expected index entry path %q, got %q", testFileName, entryList[0].Path())
+		t.Errorf("expected index entry path %q, got %q", testFileName, entryList[0].Path())
 	}
 }
 
@@ -66,7 +66,7 @@ func TestOrchestrateAddExecution_MultipleFiles(t *testing.T) {
 	slices.Sort(expectedSorted)
 
 	if len(addedFiles) != len(expectedSorted) {
-		t.Fatalf("Expected %d added files, got %d", len(expectedSorted), len(addedFiles))
+		t.Fatalf("expected %d added files, got %d", len(expectedSorted), len(addedFiles))
 	}
 	for i, expected := range expectedSorted {
 		if addedFiles[i] != expected {
@@ -77,11 +77,11 @@ func TestOrchestrateAddExecution_MultipleFiles(t *testing.T) {
 	idx := loadIndex(t, repoPath)
 	entryList := idx.GetEntryList()
 	if len(entryList) != len(expectedSorted) {
-		t.Fatalf("Expected %d index entries, got %d", len(expectedSorted), len(entryList))
+		t.Fatalf("expected %d index entries, got %d", len(expectedSorted), len(entryList))
 	}
 	for i, entry := range entryList {
 		if entry.Path() != expectedSorted[i] {
-			t.Errorf("Index entry[%d] path = %q, want %q", i, entry.Path(), expectedSorted[i])
+			t.Errorf("index entry[%d] path = %q, want %q", i, entry.Path(), expectedSorted[i])
 		}
 	}
 }
@@ -96,7 +96,7 @@ func TestOrchestrateAddExecution_FileNotFound(t *testing.T) {
 
 	_, err := OrchestrateAddExecution(repoPath, []string{nonExistentFile})
 	if err == nil {
-		t.Fatal("Expected error for non-existent file, got nil")
+		t.Fatal("expected error for non-existent file, got nil")
 	}
 }
 
@@ -111,7 +111,7 @@ func TestOrchestrateAddExecution_UpdateExistingFile(t *testing.T) {
 
 	// Stage original
 	if _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
-		t.Fatalf("First add failed: %v", err)
+		t.Fatalf("first add failed: %v", err)
 	}
 
 	idx := loadIndex(t, repoPath)
@@ -124,10 +124,10 @@ func TestOrchestrateAddExecution_UpdateExistingFile(t *testing.T) {
 	// Stage modified
 	addedFiles, err := OrchestrateAddExecution(repoPath, []string{testFileName})
 	if err != nil {
-		t.Fatalf("Second add failed: %v", err)
+		t.Fatalf("second add failed: %v", err)
 	}
 	if len(addedFiles) != 1 {
-		t.Fatalf("Expected modified file to be re-staged, got %d added files", len(addedFiles))
+		t.Fatalf("expected modified file to be re-staged, got %d added files", len(addedFiles))
 	}
 
 	idx = loadIndex(t, repoPath)
@@ -135,10 +135,10 @@ func TestOrchestrateAddExecution_UpdateExistingFile(t *testing.T) {
 	modifiedSize := idx.GetEntryList()[0].FileSize()
 
 	if originalHash == modifiedHash {
-		t.Error("Expected hash to change after file modification")
+		t.Error("expected hash to change after file modification")
 	}
 	if originalSize == modifiedSize {
-		t.Error("Expected file size to change after file modification")
+		t.Error("expected file size to change after file modification")
 	}
 }
 
@@ -151,7 +151,7 @@ func TestOrchestrateAddExecution_AddAll(t *testing.T) {
 	// Create files at root and nested directory
 	subDir := testutils.RandomString(5)
 	if err := os.MkdirAll(filepath.Join(repoPath, subDir), constants.DirPerms); err != nil {
-		t.Fatalf("Failed to create subdirectory: %v", err)
+		t.Fatalf("failed to create subdirectory: %v", err)
 	}
 
 	files := map[string][]byte{
@@ -170,13 +170,13 @@ func TestOrchestrateAddExecution_AddAll(t *testing.T) {
 	}
 
 	if len(addedFiles) != len(files) {
-		t.Fatalf("Expected %d added files, got %d", len(files), len(addedFiles))
+		t.Fatalf("expected %d added files, got %d", len(files), len(addedFiles))
 	}
 
 	// Verify index contains all files
 	idx := loadIndex(t, repoPath)
 	if idx.CountEntries() != len(files) {
-		t.Fatalf("Expected %d index entries, got %d", len(files), idx.CountEntries())
+		t.Fatalf("expected %d index entries, got %d", len(files), idx.CountEntries())
 	}
 }
 
@@ -192,12 +192,12 @@ func TestOrchestrateAddExecution_AddAll_EmptyRepository(t *testing.T) {
 	}
 
 	if len(addedFiles) != 0 {
-		t.Errorf("Expected 0 added files for empty repo, got %d", len(addedFiles))
+		t.Errorf("expected 0 added files for empty repo, got %d", len(addedFiles))
 	}
 
 	idx := loadIndex(t, repoPath)
 	if idx.CountEntries() != 0 {
-		t.Errorf("Expected 0 index entries for empty repo, got %d", idx.CountEntries())
+		t.Errorf("expected 0 index entries for empty repo, got %d", idx.CountEntries())
 	}
 }
 
@@ -212,17 +212,17 @@ func TestOrchestrateAddExecution_SkipUnchangedFile(t *testing.T) {
 
 	// Stage once
 	if _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
-		t.Fatalf("First add failed: %v", err)
+		t.Fatalf("first add failed: %v", err)
 	}
 
 	// Stage again without modification
 	addedFiles, err := OrchestrateAddExecution(repoPath, []string{testFileName})
 	if err != nil {
-		t.Fatalf("Second add failed: %v", err)
+		t.Fatalf("second add failed: %v", err)
 	}
 
 	if len(addedFiles) != 0 {
-		t.Errorf("Expected 0 added files for unchanged file, got %d", len(addedFiles))
+		t.Errorf("expected 0 added files for unchanged file, got %d", len(addedFiles))
 	}
 }
 
@@ -235,7 +235,7 @@ func loadIndex(t *testing.T, repoPath string) *index.Index {
 	indexManager := index.NewManager(repoPath)
 	idx, err := indexManager.Load()
 	if err != nil {
-		t.Fatalf("Failed to load index: %v", err)
+		t.Fatalf("failed to load index: %v", err)
 	}
 	return idx
 }

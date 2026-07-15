@@ -28,7 +28,7 @@ func TestE2E_AddCommand_SingleFile(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
 	}
 
 	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContent, repoPath)
@@ -71,7 +71,7 @@ func TestE2E_AddCommand_MultipleFiles(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
 	}
 
 	for _, file := range files {
@@ -100,13 +100,13 @@ func TestE2E_AddCommand_FileNotFound(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
-		t.Fatal("Expected error when trying to add a non-existing file.")
+		t.Fatal("expected error when trying to add a non-existing file")
 	}
 
 	outputStr := string(output)
 	expectedErrorMessage := "Error: failed to add file " + testFileName + ": failed to stat file "
 	if !strings.Contains(outputStr, expectedErrorMessage) {
-		t.Errorf("Expected [%s] error, got: %v", expectedErrorMessage, outputStr)
+		t.Errorf("expected [%s] error, got: %v", expectedErrorMessage, outputStr)
 	}
 }
 
@@ -127,13 +127,13 @@ func TestE2E_AddCommand_NotInRepository(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
-		t.Fatal("Expected error when trying to add a file that does not belong to an initialized repository.")
+		t.Fatal("expected error when trying to add a file that does not belong to an initialized repository")
 	}
 
 	outputStr := string(output)
 	expectedErrorMessage := constants.Gogit + " directory not found"
 	if !strings.Contains(outputStr, expectedErrorMessage) {
-		t.Errorf("Expected [%s] error, got: %v", expectedErrorMessage, outputStr)
+		t.Errorf("expected [%s] error, got: %v", expectedErrorMessage, outputStr)
 	}
 }
 
@@ -154,7 +154,7 @@ func TestE2E_AddCommand_UpdateExistingFile(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
 	}
 
 	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContent, repoPath)
@@ -172,7 +172,7 @@ func TestE2E_AddCommand_UpdateExistingFile(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err = cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
 	}
 
 	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContentUpdated, repoPath)
@@ -197,13 +197,13 @@ func TestE2E_AddCommand_NoArguments(t *testing.T) {
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
-		t.Error("Expected error when no arguments provided")
+		t.Error("expected error when no arguments provided")
 	}
 
 	outputStr := string(output)
 	expectedMsg := fmt.Sprintf("%s command accepts at least %d arg(s), received %d", constants.AddCmdName, 1, 0)
 	if !strings.Contains(outputStr, expectedMsg) {
-		t.Errorf("Expected error to contain %q, got: %s", expectedMsg, outputStr)
+		t.Errorf("expected error to contain %q, got: %s", expectedMsg, outputStr)
 	}
 }
 
@@ -218,7 +218,7 @@ func TestE2E_AddCommand_FileInSubdirectory(t *testing.T) {
 
 	subDir := filepath.Join("src", "pkg")
 	if err := os.MkdirAll(filepath.Join(repoPath, subDir), constants.DirPerms); err != nil {
-		t.Fatalf("Failed to create subdirectory: %v", err)
+		t.Fatalf("failed to create subdirectory: %v", err)
 	}
 
 	testFileName := filepath.Join(subDir, "module.go")
@@ -229,7 +229,7 @@ func TestE2E_AddCommand_FileInSubdirectory(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
 	}
 
 	assertAddCommandOutputAndObjectCreation(t, testFileName, output, testFileContent, repoPath)
@@ -260,7 +260,7 @@ func TestE2E_AddCommand_SameContentDifferentFiles(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Add command failed: %v\nOutput: %s", err, output)
+		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
 	}
 
 	fileNames := []string{file1, file2}
@@ -291,14 +291,14 @@ func TestE2E_AddCommand_IdempotentAdd(t *testing.T) {
 	cmd1 := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd1.Dir = repoPath
 	if _, err := cmd1.CombinedOutput(); err != nil {
-		t.Fatalf("First add failed: %v", err)
+		t.Fatalf("first add failed: %v", err)
 	}
 
 	cmd2 := newGogitCmd(t, constants.AddCmdName, testFileName)
 	cmd2.Dir = repoPath
 	_, err := cmd2.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Second add failed: %v", err)
+		t.Fatalf("second add failed: %v", err)
 	}
 
 	assertAddCommandObjectCreation(t, testFileName, testFileContent, repoPath)
@@ -333,7 +333,7 @@ func TestE2E_AddCommand_AddAll(t *testing.T) {
 		dir := filepath.Dir(file.name)
 		if dir != "." {
 			if err := os.MkdirAll(filepath.Join(repoPath, dir), 0o755); err != nil {
-				t.Fatalf("Failed to create directory: %v", err)
+				t.Fatalf("failed to create directory: %v", err)
 			}
 		}
 		testutils.CreateTestFile(t, repoPath, file.name, file.content)

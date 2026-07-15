@@ -38,7 +38,7 @@ func Test_BuildDirectoryTree_MixedRootAndNestedFiles(t *testing.T) {
 			time.Now(),
 		)
 		if err != nil {
-			t.Fatalf("Failed to create index entry: %v", err)
+			t.Fatalf("failed to create index entry: %v", err)
 		}
 		entries[i] = indexEntry
 	}
@@ -46,22 +46,22 @@ func Test_BuildDirectoryTree_MixedRootAndNestedFiles(t *testing.T) {
 	// Root should have exactly 1 child directory
 	rootNode := buildDirectoryTree(entries)
 	if len(rootNode.files) != 1 {
-		t.Fatalf("Expected a single root level file but got [%d]", len(rootNode.files))
+		t.Fatalf("expected a single root level file but got [%d]", len(rootNode.files))
 	}
 
 	expectedRootFileName := filepath.Base(filePaths[0])
 	if rootNode.files[0].name != expectedRootFileName {
-		t.Fatalf("Expected root file to be named [%s] but got [%s]", expectedRootFileName, rootNode.files[0].name)
+		t.Fatalf("expected root file to be named [%s] but got [%s]", expectedRootFileName, rootNode.files[0].name)
 	}
 
 	if len(rootNode.children) != 1 {
-		t.Fatalf("Expected 1 child directory at root, got %d", len(rootNode.children))
+		t.Fatalf("expected 1 child directory at root, got %d", len(rootNode.children))
 	}
 
 	// First-level directory should contain 2 files
 	firstLevelNode := rootNode.children[folder]
 	if len(firstLevelNode.files) != 2 {
-		t.Fatalf("Expected 2 first directory level files but got [%d]", len(firstLevelNode.files))
+		t.Fatalf("expected 2 first directory level files but got [%d]", len(firstLevelNode.files))
 	}
 
 	expectedFirstLevelFiles := []string{
@@ -80,22 +80,22 @@ func Test_BuildDirectoryTree_MixedRootAndNestedFiles(t *testing.T) {
 	}
 
 	if len(firstLevelNode.children) != 1 {
-		t.Fatalf("Expected 1 child directory in %q, got %d", folder, len(firstLevelNode.children))
+		t.Fatalf("expected 1 child directory in %q, got %d", folder, len(firstLevelNode.children))
 	}
 
 	// Second-level directory should contain 1 file
 	secondLevelNode := firstLevelNode.children[subfolder]
 	if len(secondLevelNode.files) != 1 {
-		t.Fatalf("Expected a single second directory level file but got [%d]", len(rootNode.files))
+		t.Fatalf("expected a single second directory level file but got [%d]", len(rootNode.files))
 	}
 
 	expextedSecondLevelFileName := filepath.Base(filePaths[3])
 	if secondLevelNode.files[0].name != expextedSecondLevelFileName {
-		t.Fatalf("Expected second level directory file to be named [%s] but got [%s]", expextedSecondLevelFileName, secondLevelNode.files[0].name)
+		t.Fatalf("expected second level directory file to be named [%s] but got [%s]", expextedSecondLevelFileName, secondLevelNode.files[0].name)
 	}
 
 	if len(secondLevelNode.children) != 0 {
-		t.Fatalf("Expected 0 children in %s/%s, got %d", folder, subfolder, len(secondLevelNode.children))
+		t.Fatalf("expected 0 children in %s/%s, got %d", folder, subfolder, len(secondLevelNode.children))
 	}
 }
 
@@ -107,10 +107,10 @@ func Test_BuildDirectoryTree_EmptyEntries(t *testing.T) {
 	rootNode := buildDirectoryTree(entries)
 
 	if len(rootNode.files) != 0 {
-		t.Fatalf("Expected 0 root files when no entries exist but got [%d]", len(rootNode.files))
+		t.Fatalf("expected 0 root files when no entries exist but got [%d]", len(rootNode.files))
 	}
 	if len(rootNode.children) != 0 {
-		t.Fatalf("Expected 0 children nodes when no entries exist but got [%d]", len(rootNode.children))
+		t.Fatalf("expected 0 children nodes when no entries exist but got [%d]", len(rootNode.children))
 	}
 }
 
@@ -127,10 +127,10 @@ func Test_WriteTree_WithFilesAndSubdirectory(t *testing.T) {
 	blobSubDir := objects.NewBlob([]byte(testutils.RandomString(100)))
 
 	if err := store.Store(blobRoot); err != nil {
-		t.Fatalf("Failed to store root blob: %v", err)
+		t.Fatalf("failed to store root blob: %v", err)
 	}
 	if err := store.Store(blobSubDir); err != nil {
-		t.Fatalf("Failed to store sub dir blob: %v", err)
+		t.Fatalf("failed to store sub dir blob: %v", err)
 	}
 
 	rootFileName := testutils.RandomString(10)
@@ -160,23 +160,23 @@ func Test_WriteTree_WithFilesAndSubdirectory(t *testing.T) {
 
 	rootHash, err := writeTree(rootNode, store)
 	if err != nil {
-		t.Fatalf("Failed to write tree: %v", err)
+		t.Fatalf("failed to write tree: %v", err)
 	}
 
 	if len(rootHash) != constants.HashStringLength {
-		t.Fatalf("Expected %d-char hash, got %d chars: %s", constants.HashStringLength, len(rootHash), rootHash)
+		t.Fatalf("expected %d-char hash, got %d chars: %s", constants.HashStringLength, len(rootHash), rootHash)
 	}
 
 	// Verify root tree is readable and has 2 entries (1 root file + 1 sub dir )
 	rootTree, err := store.ReadTree(rootHash)
 	if err != nil {
-		t.Fatalf("Failed to read root tree: %v", err)
+		t.Fatalf("failed to read root tree: %v", err)
 	}
 
 	expectedNoRootTreeEntries := (len(rootNode.files) + len(rootNode.children))
 	actualNoRootTreeEntries := len(rootTree.Entries())
 	if actualNoRootTreeEntries != expectedNoRootTreeEntries {
-		t.Fatalf("Expected %d entries but got [%d]", expectedNoRootTreeEntries, actualNoRootTreeEntries)
+		t.Fatalf("expected %d entries but got [%d]", expectedNoRootTreeEntries, actualNoRootTreeEntries)
 	}
 
 	entryNames := make([]string, actualNoRootTreeEntries)
@@ -184,32 +184,32 @@ func Test_WriteTree_WithFilesAndSubdirectory(t *testing.T) {
 		entryNames[i] = e.Name()
 	}
 	if !slices.Contains(entryNames, rootFileName) {
-		t.Fatalf("Root tree missing [%s] entry (found: %v)", rootFileName, entryNames)
+		t.Fatalf("root tree missing [%s] entry (found: %v)", rootFileName, entryNames)
 	}
 	if !slices.Contains(entryNames, subDirName) {
-		t.Fatalf("Root tree missing [%s] entry (found: %v)", subDirName, entryNames)
+		t.Fatalf("root tree missing [%s] entry (found: %v)", subDirName, entryNames)
 	}
 
 	// Verify the subtree is stored and readable
 	subTreeEntry, found := rootTree.FindEntry(subDirName)
 	if !found {
-		t.Fatalf("Expected [%s] to exist in root tree", subDirName)
+		t.Fatalf("expected [%s] to exist in root tree", subDirName)
 	}
 
 	subTree, err := store.ReadTree(subTreeEntry.Hash())
 	if err != nil {
-		t.Fatalf("Failed to read sub tree: %v", err)
+		t.Fatalf("failed to read sub tree: %v", err)
 	}
 
 	subEntries := subTree.Entries()
 	if len(subEntries) != 1 {
-		t.Fatalf("Expected 1 entry in subtree, got %d", len(subEntries))
+		t.Fatalf("expected 1 entry in subtree, got %d", len(subEntries))
 	}
 	if subEntries[0].Name() != subDirFileName {
-		t.Fatalf("Expected [%s] in subtree, got %q", subDirFileName, subEntries[0].Name())
+		t.Fatalf("expected [%s] in subtree, got %q", subDirFileName, subEntries[0].Name())
 	}
 	if subEntries[0].Hash() != blobSubDir.Hash() {
-		t.Fatalf("Expected [%s] hash [%s], got [%s]", subDirFileName, blobSubDir.Hash(), subEntries[0].Hash())
+		t.Fatalf("expected [%s] hash [%s], got [%s]", subDirFileName, blobSubDir.Hash(), subEntries[0].Hash())
 	}
 }
 
@@ -221,7 +221,7 @@ func Test_WriteTree_Idempotency(t *testing.T) {
 
 	blob := objects.NewBlob([]byte(testutils.RandomString(100)))
 	if err := store.Store(blob); err != nil {
-		t.Fatalf("Failed to store blob: %v", err)
+		t.Fatalf("failed to store blob: %v", err)
 	}
 
 	fileName := testutils.RandomString(100)
@@ -236,16 +236,16 @@ func Test_WriteTree_Idempotency(t *testing.T) {
 
 	hash1, err := writeTree(buildNode(), store)
 	if err != nil {
-		t.Fatalf("First writeTree failed: %v", err)
+		t.Fatalf("first writeTree failed: %v", err)
 	}
 
 	hash2, err := writeTree(buildNode(), store)
 	if err != nil {
-		t.Fatalf("Second writeTree failed: %v", err)
+		t.Fatalf("second writeTree failed: %v", err)
 	}
 
 	if hash1 != hash2 {
-		t.Fatalf("Expected identical hashes for identical input, got [%s] and [%s]", hash1, hash2)
+		t.Fatalf("expected identical hashes for identical input, got [%s] and [%s]", hash1, hash2)
 	}
 }
 
@@ -257,12 +257,12 @@ func Test_ResolveHEADRef_ValidHead(t *testing.T) {
 
 	refPath, err := resolveHEADRef(repoPath)
 	if err != nil {
-		t.Fatalf("Failed to resolve HEAD reference: %v", err)
+		t.Fatalf("failed to resolve HEAD reference: %v", err)
 	}
 
 	expectedPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
 	if refPath != expectedPath {
-		t.Fatalf("Expected ref path [%s], got [%s]", expectedPath, refPath)
+		t.Fatalf("expected ref path [%s], got [%s]", expectedPath, refPath)
 	}
 }
 
@@ -274,12 +274,12 @@ func Test_ResolveHEADRef_MissingHead(t *testing.T) {
 
 	_, err := resolveHEADRef(repoPath)
 	if err == nil {
-		t.Fatal("Expected error for missing HEAD file, got nil")
+		t.Fatal("expected error for missing HEAD file, got nil")
 	}
 
 	expectedErrorMessage := "failed to read HEAD file:"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -291,17 +291,17 @@ func Test_ResolveHEADRef_MalformedHead(t *testing.T) {
 
 	headPath := filepath.Join(repoPath, constants.Gogit, constants.Head)
 	if err := os.WriteFile(headPath, []byte("not-a-valid-ref\n"), constants.FilePerms); err != nil {
-		t.Fatalf("Failed to write malformed HEAD: %v", err)
+		t.Fatalf("failed to write malformed HEAD: %v", err)
 	}
 
 	_, err := resolveHEADRef(repoPath)
 	if err == nil {
-		t.Fatal("Expected error for malformed HEAD, got nil")
+		t.Fatal("expected error for malformed HEAD, got nil")
 	}
 
 	expectedErrorMessage := "HEAD is not a symbolic ref:"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error about symbolic ref [%s], got: [%v]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error about symbolic ref [%s], got: [%v]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -314,7 +314,7 @@ func Test_GetParentCommitHash_RefExists(t *testing.T) {
 
 	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
 	if err := os.WriteFile(refPath, []byte(expectedHash+"\n"), constants.FilePerms); err != nil {
-		t.Fatalf("Failed to write ref file: %v", err)
+		t.Fatalf("failed to write ref file: %v", err)
 	}
 
 	hash, err := getRefCommitHash(refPath)
@@ -323,7 +323,7 @@ func Test_GetParentCommitHash_RefExists(t *testing.T) {
 	}
 
 	if hash != expectedHash {
-		t.Fatalf("Expected hash [%s], got [%s]", expectedHash, hash)
+		t.Fatalf("expected hash [%s], got [%s]", expectedHash, hash)
 	}
 }
 
@@ -340,7 +340,7 @@ func Test_GetParentCommitHash_FirstCommit(t *testing.T) {
 	}
 
 	if hash != "" {
-		t.Fatalf("Expected empty hash for init commit, got [%s]", hash)
+		t.Fatalf("expected empty hash for init commit, got [%s]", hash)
 	}
 }
 
@@ -352,33 +352,33 @@ func Test_UpdateRefFile_CreatesAndOverwrites(t *testing.T) {
 	expectedHash := testutils.RandomHash()
 
 	if err := updateRefFile(repoPath, expectedHash); err != nil {
-		t.Fatalf("Failed to update ref file: %v", err)
+		t.Fatalf("failed to update ref file: %v", err)
 	}
 
 	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
 	createdCommitHash, err := os.ReadFile(refPath)
 	if err != nil {
-		t.Fatalf("Failed to read created ref file: %v", err)
+		t.Fatalf("failed to read created ref file: %v", err)
 	}
 
 	createdCommitHashTrimmed := strings.TrimSpace(string(createdCommitHash))
 	if createdCommitHashTrimmed != expectedHash {
-		t.Fatalf("Expected created commit to be [%s], but got [%s]", expectedHash, createdCommitHashTrimmed)
+		t.Fatalf("expected created commit to be [%s], but got [%s]", expectedHash, createdCommitHashTrimmed)
 	}
 
 	expectedUpdateHash := testutils.RandomHash()
 	if err := updateRefFile(repoPath, expectedUpdateHash); err != nil {
-		t.Fatalf("Failed to update ref file: %v", err)
+		t.Fatalf("failed to update ref file: %v", err)
 	}
 
 	updatedCommitHash, err := os.ReadFile(refPath)
 	if err != nil {
-		t.Fatalf("Failed to read updated ref file: %v", err)
+		t.Fatalf("failed to read updated ref file: %v", err)
 	}
 
 	udpdatedCommitHashTrimmed := strings.TrimSpace(string(updatedCommitHash))
 	if udpdatedCommitHashTrimmed != expectedUpdateHash {
-		t.Fatalf("Expected updated commit to be [%s], but got [%s]", expectedUpdateHash, udpdatedCommitHashTrimmed)
+		t.Fatalf("expected updated commit to be [%s], but got [%s]", expectedUpdateHash, udpdatedCommitHashTrimmed)
 	}
 }
 
@@ -392,20 +392,20 @@ func Test_CreateAndStoreCommit_RoundTrip(t *testing.T) {
 	// Create a real blob and tree to reference
 	blob := objects.NewBlob([]byte(testutils.RandomString(100)))
 	if err := store.Store(blob); err != nil {
-		t.Fatalf("Failed to store blob: %v", err)
+		t.Fatalf("failed to store blob: %v", err)
 	}
 
 	treeEntry, err := objects.NewTreeEntry(objects.ModeRegularFile, testutils.RandomString(10), blob.Hash())
 	if err != nil {
-		t.Fatalf("Failed to create tree entry: %v", err)
+		t.Fatalf("failed to create tree entry: %v", err)
 	}
 
 	tree, err := objects.NewTree([]objects.TreeEntry{*treeEntry})
 	if err != nil {
-		t.Fatalf("Failed to create tree: %v", err)
+		t.Fatalf("failed to create tree: %v", err)
 	}
 	if err := store.Store(tree); err != nil {
-		t.Fatalf("Failed to store tree: %v", err)
+		t.Fatalf("failed to store tree: %v", err)
 	}
 
 	author := objects.Author{
@@ -418,32 +418,32 @@ func Test_CreateAndStoreCommit_RoundTrip(t *testing.T) {
 
 	commitHash, err := createAndStoreCommit(tree.Hash(), parentHash, message, author, store)
 	if err != nil {
-		t.Fatalf("Failed to  create and store commit: %v", err)
+		t.Fatalf("failed to  create and store commit: %v", err)
 	}
 
 	if len(commitHash) != constants.HashStringLength {
-		t.Fatalf("Expected %d-char commit hash, got %d chars: %s", constants.HashStringLength, len(commitHash), commitHash)
+		t.Fatalf("expected %d-char commit hash, got %d chars: %s", constants.HashStringLength, len(commitHash), commitHash)
 	}
 
 	// Read back and verify all fields
 	commit, err := store.ReadCommit(commitHash)
 	if err != nil {
-		t.Fatalf("Failed to read commit back from store: %v", err)
+		t.Fatalf("failed to read commit back from store: %v", err)
 	}
 
 	if commit.TreeHash() != tree.Hash() {
-		t.Fatalf("Tree hash mismatch: expected [%s], got [%s]", tree.Hash(), commit.TreeHash())
+		t.Fatalf("tree hash mismatch: expected [%s], got [%s]", tree.Hash(), commit.TreeHash())
 	}
 
 	if commit.ParentHash() != "" {
-		t.Fatalf("Expected empty parent hash for first commit, got [%s]", commit.ParentHash())
+		t.Fatalf("expected empty parent hash for first commit, got [%s]", commit.ParentHash())
 	}
 
 	if commit.Message() != message {
-		t.Fatalf("Message mismatch: expected [%s], got [%s]", message, commit.Message())
+		t.Fatalf("message mismatch: expected [%s], got [%s]", message, commit.Message())
 	}
 
 	if commit.Author().String() != author.String() {
-		t.Fatalf("Author mismatch: expected [%s], got [%s]", author.String(), commit.Author())
+		t.Fatalf("author mismatch: expected [%s], got [%s]", author.String(), commit.Author())
 	}
 }

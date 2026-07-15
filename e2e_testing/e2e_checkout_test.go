@@ -96,12 +96,12 @@ func TestE2E_CheckoutCommand_DirtyWorkingTreeRejection(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		t.Fatalf("Expected checkout to fail on dirty working tree, but it succeeded.\nOutput: %s", output)
+		t.Fatalf("expected checkout to fail on dirty working tree, but it succeeded\nOutput: %s", output)
 	}
 
 	outputStr := string(output)
 	if !strings.Contains(outputStr, "dirty") {
-		t.Fatalf("Expected error output to contain 'dirty', got: [%s]", outputStr)
+		t.Fatalf("expected error output to contain 'dirty', got: [%s]", outputStr)
 	}
 
 	// HEAD must remain on main
@@ -128,13 +128,13 @@ func TestE2E_CheckoutCommand_NonexistentTarget(t *testing.T) {
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		t.Fatalf("Expected checkout to fail for nonexistent target [%s], but it succeeded.\nOutput: %s", nonexistentTarget, output)
+		t.Fatalf("expected checkout to fail for nonexistent target [%s], but it succeeded\nOutput: %s", nonexistentTarget, output)
 	}
 
 	outputStr := string(output)
 	expectedMessage := "not found"
 	if !strings.Contains(outputStr, expectedMessage) {
-		t.Fatalf("Expected error output to contain [%s], got: [%s]", expectedMessage, outputStr)
+		t.Fatalf("expected error output to contain [%s], got: [%s]", expectedMessage, outputStr)
 	}
 }
 
@@ -163,7 +163,7 @@ func TestE2E_CheckoutCommand_NestedDirectoryCleanupAndRestore(t *testing.T) {
 	dirC := testutils.RandomString(5)
 	nestedDir := filepath.Join(dirA, dirB, dirC)
 	if err := os.MkdirAll(filepath.Join(repoPath, nestedDir), constants.DirPerms); err != nil {
-		t.Fatalf("Failed to create nested directory: %v", err)
+		t.Fatalf("failed to create nested directory: %v", err)
 	}
 
 	nestedFileName := filepath.Join(nestedDir, testutils.RandomString(10))

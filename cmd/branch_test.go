@@ -45,13 +45,13 @@ func TestBranchCommand_InvalidNumberOfArguments(t *testing.T) {
 	branchCommand.SetArgs([]string{constants.BranchCmdName})
 	err := branchCommand.Execute()
 	if err == nil {
-		t.Fatal("Expected error when no arguments provided")
+		t.Fatal("expected error when no arguments provided")
 	}
 
 	// Verify error message matches argument validation error
 	expectedErrorMessage := fmt.Sprintf("%s command requires exactly 1 argument, received 0", constants.BranchCmdName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
 
 	// Execute hash-object command without more arguments than needed
@@ -62,13 +62,13 @@ func TestBranchCommand_InvalidNumberOfArguments(t *testing.T) {
 	})
 	err = branchCommand.Execute()
 	if err == nil {
-		t.Fatal("Expected error when more than 1 arguments provided")
+		t.Fatal("expected error when more than 1 arguments provided")
 	}
 
 	// Verify error message matches argument validation error
 	expectedErrorMessage = fmt.Sprintf("%s command requires exactly 1 argument, received 2", constants.BranchCmdName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -78,7 +78,7 @@ func TestBranchCommand_RepoNotFound(t *testing.T) {
 	newBranchName := testutils.RandomString(8)
 	_, err := executeBranchCommand(newBranchName)
 	if err == nil {
-		t.Fatal("Expected error when repository is not found.")
+		t.Fatal("expected error when repository is not found")
 	}
 
 	expectedOutput := fmt.Sprintf("%s directory not found", constants.Gogit)
@@ -97,7 +97,7 @@ func TestBranchCommand_Failure_BranchAlreadyExists(t *testing.T) {
 	newBranchName := constants.DefaultBranch
 	_, err := executeBranchCommand(newBranchName)
 	if err == nil {
-		t.Fatal("Expected error when trying to create existing branch.")
+		t.Fatal("expected error when trying to create existing branch")
 	}
 
 	expectedOutput := fmt.Sprintf("branch [%s] already exists", newBranchName)

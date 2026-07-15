@@ -17,19 +17,19 @@ func TestNewTreeEntry(t *testing.T) {
 	hash := testutils.RandomHash()
 	entry, err := objects.NewTreeEntry(objects.ModeRegularFile, entryName, hash)
 	if err != nil {
-		t.Fatal("Expected New Tree Entry to be created")
+		t.Fatal("expected New Tree Entry to be created")
 	}
 
 	if entry.Mode() != objects.ModeRegularFile {
-		t.Errorf("Expected mode [%s], got [%s]", objects.ModeRegularFile, entry.Mode())
+		t.Errorf("expected mode [%s], got [%s]", objects.ModeRegularFile, entry.Mode())
 	}
 
 	if entry.Name() != entryName {
-		t.Errorf("Expected name [%s], got [%s]", entryName, entry.Name())
+		t.Errorf("expected name [%s], got [%s]", entryName, entry.Name())
 	}
 
 	if entry.Hash() != hash {
-		t.Errorf("Expected hash [%s], got [%s]", hash, entry.Hash())
+		t.Errorf("expected hash [%s], got [%s]", hash, entry.Hash())
 	}
 }
 
@@ -39,11 +39,11 @@ func TestTreeEntry_IsDirectory(t *testing.T) {
 	fileEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, "main.go", testutils.RandomHash())
 
 	if !dirEntry.IsDirectory() {
-		t.Fatal("Expected directory entry to be identified as directory")
+		t.Fatal("expected directory entry to be identified as directory")
 	}
 
 	if fileEntry.IsDirectory() {
-		t.Fatal("Expected file entry not to be identified as directory")
+		t.Fatal("expected file entry not to be identified as directory")
 	}
 }
 
@@ -53,12 +53,12 @@ func TestTreeEntry_IsDirectory(t *testing.T) {
 func TestNewTree_EmptyTree(t *testing.T) {
 	_, err := objects.NewTree([]objects.TreeEntry{})
 	if err == nil {
-		t.Fatalf("Expected to fail when creating empty tree: %v", err)
+		t.Fatalf("expected to fail when creating empty tree: %v", err)
 	}
 
 	expectedErrorMessage := "tree must contain at least one entry"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -72,11 +72,11 @@ func TestNewTree_SingleEntry(t *testing.T) {
 	tree := objectstest.CreateTree(t, entries)
 
 	if tree.Hash() == "" {
-		t.Error("Tree hash should not be empty")
+		t.Error("tree hash should not be empty")
 	}
 
 	if len(tree.Entries()) != len(entries) {
-		t.Errorf("Expected %d entry, got %d", len(entries), len(tree.Entries()))
+		t.Errorf("expected %d entry, got %d", len(entries), len(tree.Entries()))
 	}
 }
 
@@ -93,7 +93,7 @@ func TestNewTree_MultipleEntries(t *testing.T) {
 	tree := objectstest.CreateTree(t, entries)
 
 	if len(tree.Entries()) != len(entries) {
-		t.Errorf("Expected %d entries, got %d", len(entries), len(tree.Entries()))
+		t.Errorf("expected %d entries, got %d", len(entries), len(tree.Entries()))
 	}
 }
 
@@ -112,7 +112,7 @@ func TestNewTree_SortsEntries(t *testing.T) {
 
 	for i, expected := range expectedOrder {
 		if sortedEntries[i].Name() != expected {
-			t.Errorf("Expected entry %d to be '%s', got '%s'", i, expected, sortedEntries[i].Name())
+			t.Errorf("expected entry %d to be '%s', got '%s'", i, expected, sortedEntries[i].Name())
 		}
 	}
 }
@@ -137,7 +137,7 @@ func TestTree_NestedStructure(t *testing.T) {
 
 	// Verify structure
 	if len(rootTree.Entries()) != len(rootEntries) {
-		t.Errorf("Expected %d entries in root tree, got %d", len(rootEntries), len(rootTree.Entries()))
+		t.Errorf("expected %d entries in root tree, got %d", len(rootEntries), len(rootTree.Entries()))
 	}
 
 	// Find the src directory entry
@@ -149,6 +149,6 @@ func TestTree_NestedStructure(t *testing.T) {
 		t.Error("src entry not identified as directory")
 	}
 	if srcEntry.Hash() != srcTree.Hash() {
-		t.Errorf("Expected src entry hash %s, got %s", srcTree.Hash(), srcEntry.Hash())
+		t.Errorf("expected src entry hash %s, got %s", srcTree.Hash(), srcEntry.Hash())
 	}
 }

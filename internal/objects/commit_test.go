@@ -17,17 +17,17 @@ func TestNewCommit_InitialCommit(t *testing.T) {
 
 	commit, err := NewInitialCommit(treeHash, message, author)
 	if err != nil {
-		t.Fatal("Expected commit to be created")
+		t.Fatal("expected commit to be created")
 	}
 
 	if commit.hash == "" {
-		t.Fatal("Expected commit hash to be set")
+		t.Fatal("expected commit hash to be set")
 	}
 	if !commit.IsInitialCommit() {
-		t.Fatal("Expected it to be an initial commit")
+		t.Fatal("expected it to be an initial commit")
 	}
 	if commit.treeHash != treeHash {
-		t.Fatalf("Expected tree hash to be %s,  but got %s", treeHash, commit.treeHash)
+		t.Fatalf("expected tree hash to be %s,  but got %s", treeHash, commit.treeHash)
 	}
 
 	assertCommitFields(t, commit, treeHash, "", message, author)
@@ -42,17 +42,17 @@ func TestNewCommit(t *testing.T) {
 
 	commit, err := NewCommit(treeHash, parentHash, message, author)
 	if err != nil {
-		t.Fatal("Expected for commit to be created")
+		t.Fatal("expected for commit to be created")
 	}
 
 	if commit.hash == "" {
-		t.Fatal("Expected commit hash to be set")
+		t.Fatal("expected commit hash to be set")
 	}
 	if commit.IsInitialCommit() {
-		t.Fatal("Expected it to be non-initial commit (has parent)")
+		t.Fatal("expected it to be non-initial commit (has parent)")
 	}
 	if commit.treeHash != treeHash {
-		t.Fatalf("Expected tree hash to be [%s],  but got [%s]", treeHash, commit.treeHash)
+		t.Fatalf("expected tree hash to be [%s],  but got [%s]", treeHash, commit.treeHash)
 	}
 
 	assertCommitFields(t, commit, treeHash, parentHash, message, author)
@@ -72,7 +72,7 @@ func TestCommit_ContentFormat(t *testing.T) {
 
 	commit, err := NewCommit(treeHash, parentHash, message, author)
 	if err != nil {
-		t.Fatalf("Failed to create commit: %v", err)
+		t.Fatalf("failed to create commit: %v", err)
 	}
 	content := string(commit.Content())
 
@@ -102,10 +102,10 @@ func TestCommit_MessageWithMultipleLines(t *testing.T) {
 
 	commit, err := NewInitialCommit(treeHash, message, author)
 	if err != nil {
-		t.Fatalf("Failed to create initial commit: %v", err)
+		t.Fatalf("failed to create initial commit: %v", err)
 	}
 
 	if commit.message != message {
-		t.Fatalf("Multi-line message not preserved correctly. Expected [%s] got [%s]", message, commit.message)
+		t.Fatalf("multi-line message not preserved correctly. Expected [%s] got [%s]", message, commit.message)
 	}
 }

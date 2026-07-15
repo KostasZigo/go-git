@@ -36,28 +36,28 @@ func TestCollectCommitHistory_SingleCommit(t *testing.T) {
 
 	commitHash, err := createAndStoreCommit(treeHash, "", message, author, store)
 	if err != nil {
-		t.Fatalf("Failed to  create and store commit: %v", err)
+		t.Fatalf("failed to  create and store commit: %v", err)
 	}
 
 	entries, err := collectCommitHistory(store, commitHash)
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if len(entries) != 1 {
-		t.Fatalf("Expected a single entry, got %d", len(entries))
+		t.Fatalf("expected a single entry, got %d", len(entries))
 	}
 
 	if entries[0].Hash != commitHash {
-		t.Errorf("Expected hash %s, got %s", commitHash, entries[0].Hash)
+		t.Errorf("expected hash %s, got %s", commitHash, entries[0].Hash)
 	}
 
 	if entries[0].Message != message {
-		t.Errorf("Expected message [%s], got [%s]", message, entries[0].Message)
+		t.Errorf("expected message [%s], got [%s]", message, entries[0].Message)
 	}
 
 	if entries[0].Author.String() != author.String() {
-		t.Errorf("Expected author [%s], got [%s]", author.String(), entries[0].Author.String())
+		t.Errorf("expected author [%s], got [%s]", author.String(), entries[0].Author.String())
 	}
 }
 
@@ -79,24 +79,24 @@ func TestCollectCommitHistory_CommitChain(t *testing.T) {
 	messageFirst := testutils.RandomString(10)
 	commitHashFirst, err := createAndStoreCommit(treeHash, "", messageFirst, author, store)
 	if err != nil {
-		t.Fatalf("Failed to  create and store commit: %v", err)
+		t.Fatalf("failed to  create and store commit: %v", err)
 	}
 
 	messageSecond := testutils.RandomString(10)
 	commitHashSecond, err := createAndStoreCommit(treeHash, commitHashFirst, messageSecond, author, store)
 	if err != nil {
-		t.Fatalf("Failed to  create and store commit: %v", err)
+		t.Fatalf("failed to  create and store commit: %v", err)
 	}
 
 	messageThird := testutils.RandomString(10)
 	commitHashThird, err := createAndStoreCommit(treeHash, commitHashSecond, messageThird, author, store)
 	if err != nil {
-		t.Fatalf("Failed to  create and store commit: %v", err)
+		t.Fatalf("failed to  create and store commit: %v", err)
 	}
 
 	entries, err := collectCommitHistory(store, commitHashThird)
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Most recent commit first
@@ -110,18 +110,18 @@ func TestCollectCommitHistory_CommitChain(t *testing.T) {
 	}
 
 	if len(entries) != len(expectedEntryList) {
-		t.Fatalf("Expected %d entries, got %d", len(expectedEntryList), len(entries))
+		t.Fatalf("expected %d entries, got %d", len(expectedEntryList), len(entries))
 	}
 
 	for i, exp := range expectedEntryList {
 		if entries[i].Hash != exp.hash {
-			t.Errorf("Entry %d: expected hash [%s], got [%s]", i, exp.hash, entries[i].Hash)
+			t.Errorf("entry %d: expected hash [%s], got [%s]", i, exp.hash, entries[i].Hash)
 		}
 		if entries[i].Message != exp.message {
-			t.Errorf("Entry %d: expected message [%s], got [%s]", i, exp.message, entries[i].Message)
+			t.Errorf("entry %d: expected message [%s], got [%s]", i, exp.message, entries[i].Message)
 		}
 		if entries[0].Author.String() != author.String() {
-			t.Errorf("Expected author [%s], got [%s]", author.String(), entries[0].Author.String())
+			t.Errorf("expected author [%s], got [%s]", author.String(), entries[0].Author.String())
 		}
 	}
 }
@@ -135,12 +135,12 @@ func TestCollectCommitHistory_EmptyHash(t *testing.T) {
 
 	_, err := collectCommitHistory(store, "")
 	if err == nil {
-		t.Fatal("Expected error for empty hash, got nil")
+		t.Fatal("expected error for empty hash, got nil")
 	}
 
 	expectedErrorMessage := "commit hash cannot be empty"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -153,12 +153,12 @@ func TestCollectCommitHistory_InvalidHash(t *testing.T) {
 
 	_, err := collectCommitHistory(store, testutils.RandomString(100))
 	if err == nil {
-		t.Fatal("Expected error for nonexistent hash, got nil")
+		t.Fatal("expected error for nonexistent hash, got nil")
 	}
 
 	expectedErrorMessage := "commit hash length is invalid"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -176,7 +176,7 @@ func TestFormatCommitHistory_SingleCommit(t *testing.T) {
 
 	historyOutput, err := formatCommitHistory(commitLogEntries)
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	expectedHistoryOutput := FormatLogEntry(
@@ -187,7 +187,7 @@ func TestFormatCommitHistory_SingleCommit(t *testing.T) {
 	)
 
 	if historyOutput != expectedHistoryOutput {
-		t.Fatalf("Expected commit history output to be [%s], got [%s]", expectedHistoryOutput, historyOutput)
+		t.Fatalf("expected commit history output to be [%s], got [%s]", expectedHistoryOutput, historyOutput)
 	}
 }
 
@@ -212,7 +212,7 @@ func TestFormatCommitHistory_ChainCommits(t *testing.T) {
 
 	historyOutput, err := formatCommitHistory(commitLogEntries)
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var expectedHistoryOutput strings.Builder
@@ -226,7 +226,7 @@ func TestFormatCommitHistory_ChainCommits(t *testing.T) {
 	}
 
 	if historyOutput != expectedHistoryOutput.String() {
-		t.Fatalf("Expected commit history output to be [%s], got [%s]", expectedHistoryOutput.String(), historyOutput)
+		t.Fatalf("expected commit history output to be [%s], got [%s]", expectedHistoryOutput.String(), historyOutput)
 	}
 }
 
@@ -236,12 +236,12 @@ func TestFormatCommitHistory_ChainCommits(t *testing.T) {
 func TestFormatCommitHistory_NoCommits(t *testing.T) {
 	_, err := formatCommitHistory(nil)
 	if err == nil {
-		t.Fatal("Expected an error when there are no commits in the history")
+		t.Fatal("expected an error when there are no commits in the history")
 	}
 
 	expectedErrorMessage := "no commits found"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("Expected error message to be [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to be [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }
 
@@ -264,30 +264,30 @@ func TestOrchestrateLogExecution(t *testing.T) {
 	messageFirst := testutils.RandomString(10)
 	commitHashFirst, err := createAndStoreCommit(treeHash, "", messageFirst, author, store)
 	if err != nil {
-		t.Fatalf("Failed to  create and store commit: %v", err)
+		t.Fatalf("failed to  create and store commit: %v", err)
 	}
 
 	messageSecond := testutils.RandomString(10)
 	commitHashSecond, err := createAndStoreCommit(treeHash, commitHashFirst, messageSecond, author, store)
 	if err != nil {
-		t.Fatalf("Failed to  create and store commit: %v", err)
+		t.Fatalf("failed to  create and store commit: %v", err)
 	}
 
 	messageThird := testutils.RandomString(10)
 	commitHashThird, err := createAndStoreCommit(treeHash, commitHashSecond, messageThird, author, store)
 	if err != nil {
-		t.Fatalf("Failed to  create and store commit: %v", err)
+		t.Fatalf("failed to  create and store commit: %v", err)
 	}
 
 	refPath := filepath.Join(repoPath, constants.Gogit, "refs", "heads")
 	if err := os.MkdirAll(refPath, constants.DirPerms); err != nil {
-		t.Fatalf("Failed to create ref path directory: %v", err)
+		t.Fatalf("failed to create ref path directory: %v", err)
 	}
 	testutils.CreateTestFile(t, refPath, "main", []byte(commitHashThird+"\n"))
 
 	historyOutput, err := OrchestrateLogExecution(repoPath)
 	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	logEntries := []CommitLogEntry{
@@ -307,6 +307,6 @@ func TestOrchestrateLogExecution(t *testing.T) {
 	}
 
 	if historyOutput != expectedHistoryOutput.String() {
-		t.Fatalf("Expected commit history output to be [%s], got [%s]", expectedHistoryOutput.String(), historyOutput)
+		t.Fatalf("expected commit history output to be [%s], got [%s]", expectedHistoryOutput.String(), historyOutput)
 	}
 }
