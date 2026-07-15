@@ -36,7 +36,7 @@ func exactArgs(n int, cmdName string) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if len(args) != n {
 			cmd.SilenceUsage = false
-			return fmt.Errorf("%s command requires exactly %d argument (filepath), received %d", cmdName, n, len(args))
+			return fmt.Errorf("%s command requires exactly %d argument, received %d", cmdName, n, len(args))
 		}
 		return nil
 	}

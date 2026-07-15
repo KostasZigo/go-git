@@ -16,47 +16,6 @@ import (
 	"github.com/KostasZigo/gogit/internal/objects"
 )
 
-// OrchestrateAddExecution coordinates the full staging workflow: loads the
-// current index, resolves target file paths from args, creates blob objects
-// for modified files, updates the index, and persists it to disk.
-// Returns the list of relative paths that were actually staged.
-func OrchestrateAddExecution(repoPath string, args []string) ([]string, error) {
-	// 1. Load existing index
-	indexManager := index.NewManager(repoPath)
-	idx, err := indexManager.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load index: %w", err)
-	}
-
-	// 2. Resolve file paths
-	filePaths, err := resolveFilePaths(repoPath, args)
-	if err != nil {
-		return nil, err
-	}
-	// Sort paths for deterministic processing
-	slices.Sort(filePaths)
-
-	// 3. Process each file
-	addedFiles := make([]string, 0, len(filePaths))
-	store := objects.NewObjectStore(repoPath)
-	for _, filePath := range filePaths {
-		added, err := addFile(repoPath, filePath, idx, store)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add file %s: %w", filePath, err)
-		}
-		if added != "" {
-			addedFiles = append(addedFiles, added)
-		}
-	}
-
-	// 4. Save updated index
-	if err := indexManager.Save(idx); err != nil {
-		return nil, fmt.Errorf("failed to save index: %w", err)
-	}
-
-	return addedFiles, nil
-}
-
 // resolveFilePaths determines which files to stage based on the provided args.
 // If args is ["."], all trackable files in the repository are collected recursively.
 // Otherwise, the explicit argument list is returned as-is.
@@ -183,4 +142,45 @@ func addFile(repoPath, filePath string, idx *index.Index, store *objects.ObjectS
 	}
 
 	return relativeFilePath, nil
+}
+
+// OrchestrateAddExecution coordinates the full staging workflow: loads the
+// current index, resolves target file paths from args, creates blob objects
+// for modified files, updates the index, and persists it to disk.
+// Returns the list of relative paths that were actually staged.
+func OrchestrateAddExecution(repoPath string, args []string) ([]string, error) {
+	// 1. Load existing index
+	indexManager := index.NewManager(repoPath)
+	idx, err := indexManager.Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load index: %w", err)
+	}
+
+	// 2. Resolve file paths
+	filePaths, err := resolveFilePaths(repoPath, args)
+	if err != nil {
+		return nil, err
+	}
+	// Sort paths for deterministic processing
+	slices.Sort(filePaths)
+
+	// 3. Process each file
+	addedFiles := make([]string, 0, len(filePaths))
+	store := objects.NewObjectStore(repoPath)
+	for _, filePath := range filePaths {
+		added, err := addFile(repoPath, filePath, idx, store)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add file %s: %w", filePath, err)
+		}
+		if added != "" {
+			addedFiles = append(addedFiles, added)
+		}
+	}
+
+	// 4. Save updated index
+	if err := indexManager.Save(idx); err != nil {
+		return nil, fmt.Errorf("failed to save index: %w", err)
+	}
+
+	return addedFiles, nil
 }

@@ -72,7 +72,7 @@ func TestCheckoutCommand_NoArguments(t *testing.T) {
 	}
 
 	// Verify error message matches argument validation error
-	expectedErrorMessage := fmt.Sprintf("%s command requires exactly 1 argument (filepath), received 0", constants.CheckoutCmdName)
+	expectedErrorMessage := fmt.Sprintf("%s command requires exactly 1 argument, received 0", constants.CheckoutCmdName)
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
 		t.Fatalf("Expected error message to contain [%s] but got error message [%s]", expectedErrorMessage, err.Error())
 	}

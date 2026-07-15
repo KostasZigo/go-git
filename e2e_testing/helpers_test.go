@@ -303,3 +303,37 @@ func assertHEADContent(t *testing.T, repoPath, expectedContent string) {
 		t.Fatalf("Expected HEAD to be [%s], got [%s]", expectedContent, string(content))
 	}
 }
+
+// runBranchCommand executes `gogit branch <branchName>` inside repoPath and
+// returns combined output and execution error.
+func runBranchCommand(t *testing.T, repoPath, branchName string) ([]byte, error) {
+	t.Helper()
+
+	cmd := newGogitCmd(t, constants.BranchCmdName, branchName)
+	cmd.Dir = repoPath
+	return cmd.CombinedOutput()
+}
+
+// assertBranchOutput verifies that branch command output contains the expected
+// success message for created branch name.
+func assertBranchOutput(t *testing.T, output, branchName string) {
+	t.Helper()
+
+	expected := fmt.Sprintf("created branch [%s]\n", branchName)
+	if !strings.Contains(output, expected) {
+		t.Fatalf("Expected branch output to contain [%s], got: [%s]", expected, output)
+	}
+}
+
+// readBranchRefHash reads refs/heads/<branchName> and returns the trimmed hash.
+func readBranchRefHash(t *testing.T, repoPath, branchName string) string {
+	t.Helper()
+
+	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, filepath.FromSlash(branchName))
+	content, err := os.ReadFile(refPath)
+	if err != nil {
+		t.Fatalf("Failed to read branch ref file for [%s]: %v", branchName, err)
+	}
+
+	return string(bytes.TrimSpace(content))
+}

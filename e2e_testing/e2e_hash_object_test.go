@@ -116,7 +116,7 @@ func TestE2E_HashObjectCommand_InvalidArgs(t *testing.T) {
 	}
 
 	outputStr := string(output)
-	expectedMsg := fmt.Sprintf("%s command requires exactly 1 argument (filepath), received 0", constants.HashObjectCmdName)
+	expectedMsg := fmt.Sprintf("%s command requires exactly 1 argument, received 0", constants.HashObjectCmdName)
 	if !strings.Contains(outputStr, expectedMsg) {
 		t.Errorf("Expected error to contain %q, got: %s", expectedMsg, outputStr)
 	}

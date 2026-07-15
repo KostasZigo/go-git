@@ -103,3 +103,13 @@ func executeCommitCommand(t *testing.T, commitMessage string) {
 		t.Fatalf("commit command failed: %v", err)
 	}
 }
+
+// executeBranchCommand executes the branch command with the given branch name
+// and returns captured stdout plus any execution error.
+func executeBranchCommand(branchName string) (string, error) {
+	command := createTestRootCmd(branchCmd)
+	stdout := captureStdout(command)
+	command.SetArgs([]string{constants.BranchCmdName, branchName})
+	err := command.Execute()
+	return stdout.String(), err
+}

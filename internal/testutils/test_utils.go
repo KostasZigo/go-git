@@ -3,6 +3,7 @@
 package testutils
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -10,7 +11,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
@@ -21,6 +21,13 @@ func RandomString(n int) string {
 	bytes := make([]byte, n)
 	rand.Read(bytes)
 	return hex.EncodeToString(bytes)
+}
+
+// RandomBytes generates a random hex bytes array of n bytes
+func RandomBytes(n int) []byte {
+	bytes := make([]byte, n)
+	rand.Read(bytes)
+	return hex.AppendEncode(nil, bytes)
 }
 
 // RandomByteSlice generates a cryptographically random byte slice of length n.
@@ -43,6 +50,11 @@ func RandomInt(upperBound int) int64 {
 // RandomHash generates a random 40-character SHA-1 hash
 func RandomHash() string {
 	return RandomString(constants.HashByteLength)
+}
+
+// RandomByteHash generates a random 40-character SHA-1 byte hash
+func RandomByteHash() []byte {
+	return RandomBytes(constants.HashByteLength)
 }
 
 // ChangeToDir changes the working directory to dir and registers a cleanup
@@ -217,7 +229,7 @@ func ReadDefaultRefFile(t *testing.T, repoPath string) string {
 	if err != nil {
 		t.Fatalf("Failed to read ref file: %v", err)
 	}
-	return strings.TrimSpace(string(content))
+	return string(bytes.TrimSpace(content))
 }
 
 // AssertFileContent reads the file at the given path and verifies its content
