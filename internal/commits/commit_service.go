@@ -149,7 +149,13 @@ func getRefCommitHash(refPath string) (string, error) {
 
 // createAndStoreCommit creates and stores commit in the file system and returns the commit hash
 func createAndStoreCommit(treeHash, parentHash, message string, author objects.Author, store *objects.ObjectStore) (string, error) {
-	commit, err := objects.NewCommit(treeHash, parentHash, message, author)
+	var commit *objects.Commit
+	var err error
+	if parentHash == "" {
+		commit, err = objects.NewInitialCommit(treeHash, message, author)
+	} else {
+		commit, err = objects.NewCommit(treeHash, parentHash, message, author)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to create commit: %w", err)
 	}

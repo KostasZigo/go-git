@@ -3,8 +3,10 @@ package objects
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
@@ -202,8 +204,8 @@ Initial commit message
 		t.Errorf("unexpected tree hash: %s", commit.treeHash)
 	}
 
-	if commit.parentHash != "abc123def456" {
-		t.Errorf("unexpected parent hash: %s", commit.parentHash)
+	if !slices.Equal(commit.parentHashes, []string{"abc123def456"}) {
+		t.Errorf("unexpected parent hash: %v", commit.parentHashes)
 	}
 
 	if commit.message != "Initial commit message" {
@@ -225,6 +227,31 @@ Initial commit message
 	timezone := calculateTimezone(commit.author.Timestamp)
 	if timezone != "+0000" {
 		t.Errorf("expected timezone +0000, got %s", timezone)
+	}
+}
+
+// TestParseCommitContent_MergeCommit verifies that parsing a merge commit
+// preserves both parent hashes in their serialized order.
+func TestParseCommitContent_MergeCommit(t *testing.T) {
+	firstParentHash := "abc123def456"
+	secondParentHash := "def456abc123"
+	commitContent := fmt.Sprintf(`tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+parent %s
+parent %s
+author Alexander the Great <alexander@great.com> 1698765432 +0000
+committer Alexander the Great <alexander@great.com> 1698765432 +0000
+
+Merge commit message
+`, firstParentHash, secondParentHash)
+
+	commit, err := parseCommitContent(commitContent)
+	if err != nil {
+		t.Fatalf("failed to parse merge commit: %v", err)
+	}
+
+	expectedParentHashes := []string{firstParentHash, secondParentHash}
+	if !slices.Equal(commit.parentHashes, expectedParentHashes) {
+		t.Fatalf("expected parent hashes [%v], got [%v]", expectedParentHashes, commit.parentHashes)
 	}
 }
 
@@ -261,12 +288,47 @@ func TestObjectStore_StoreAndreadChildCommit_WithParent(t *testing.T) {
 	}
 
 	// Verify
-	if readChildCommit.parentHash != parentCommit.Hash() {
+	if readChildCommit.ParentHash() != parentCommit.Hash() {
 		t.Errorf("parent hash mismatch: expected %s, got %s",
-			parentCommit.Hash(), readChildCommit.parentHash)
+			parentCommit.Hash(), readChildCommit.ParentHash())
 	}
 	if readChildCommit.IsInitialCommit() {
 		t.Error("child commit should not be initial commit")
 	}
 	assertCommitEqual(t, readChildCommit, childCommit)
+}
+
+// TestObjectStore_StoreAndReadMergeCommit verifies that a merge commit retains
+// both ordered parent hashes after an object-store round trip.
+func TestObjectStore_StoreAndReadMergeCommit(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := NewObjectStore(repoPath)
+
+	firstParentHash := testutils.RandomHash()
+	secondParentHash := testutils.RandomHash()
+	for secondParentHash == firstParentHash {
+		secondParentHash = testutils.RandomHash()
+	}
+	author := createTestAuthor(testutils.RandomString(10), testutils.RandomString(20))
+	mergeCommit, err := NewMergeCommit(
+		testutils.RandomHash(),
+		firstParentHash,
+		secondParentHash,
+		testutils.RandomString(50),
+		author,
+	)
+	if err != nil {
+		t.Fatalf("failed to create merge commit: %v", err)
+	}
+
+	if err := store.Store(mergeCommit); err != nil {
+		t.Fatalf("failed to store merge commit: %v", err)
+	}
+
+	readMergeCommit, err := store.ReadCommit(mergeCommit.Hash())
+	if err != nil {
+		t.Fatalf("failed to read merge commit: %v", err)
+	}
+
+	assertCommitEqual(t, readMergeCommit, mergeCommit)
 }

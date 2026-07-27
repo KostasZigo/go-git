@@ -299,9 +299,10 @@ func parseCommitData(data []byte, hash string) (*Commit, error) {
 func parseCommitContent(content string) (*Commit, error) {
 	lines := strings.Split(content, "\n")
 
-	var treeHash, parentHash string
+	var treeHash string
 	var author, committer Author
 	var messageIndex int
+	parentHashes := make([]string, 0, 2)
 
 	for i, line := range lines {
 		if line == "" { // this is the blank line separating the message
@@ -313,7 +314,7 @@ func parseCommitContent(content string) (*Commit, error) {
 		case strings.HasPrefix(line, constants.TreePrefix):
 			treeHash = strings.TrimPrefix(line, constants.TreePrefix)
 		case strings.HasPrefix(line, constants.CommitParentPrefix):
-			parentHash = strings.TrimPrefix(line, constants.CommitParentPrefix)
+			parentHashes = append(parentHashes, strings.TrimPrefix(line, constants.CommitParentPrefix))
 		case strings.HasPrefix(line, constants.CommitAuthorPrefix):
 			var err error
 			author, err = parseAuthor(strings.TrimPrefix(line, constants.CommitAuthorPrefix))
@@ -345,7 +346,7 @@ func parseCommitContent(content string) (*Commit, error) {
 	message = strings.TrimRight(message, "\n")
 
 	// Compute Hash
-	builtContent := buildCommitContent(treeHash, parentHash, message, author)
+	builtContent := buildCommitContent(treeHash, message, parentHashes, author)
 	hash, err := hasher.ComputeHash(builtContent, hasher.Commit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute commit hash: %w", err)
@@ -353,12 +354,12 @@ func parseCommitContent(content string) (*Commit, error) {
 
 	// Create commit
 	return &Commit{
-		hash:       hash,
-		treeHash:   treeHash,
-		parentHash: parentHash,
-		author:     author,
-		committer:  committer,
-		message:    message,
+		hash:         hash,
+		treeHash:     treeHash,
+		parentHashes: parentHashes,
+		author:       author,
+		committer:    committer,
+		message:      message,
 	}, nil
 }
 
