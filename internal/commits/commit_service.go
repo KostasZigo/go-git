@@ -6,11 +6,9 @@ package commits
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/branches"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 )
@@ -111,42 +109,6 @@ func writeTree(node *directoryNode, store *objects.ObjectStore) (string, error) 
 	return tree.Hash(), nil
 }
 
-// resolveHEADRef reads the .gogit/HEAD file and resolves the symbolic reference
-// to the full filesystem path of the current branch ref file.
-// Returns the absolute path to the ref file (e.g., .gogit/refs/heads/master).
-func resolveHEADRef(repoPath string) (string, error) {
-	headContent, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
-	if err != nil {
-		return "", fmt.Errorf("failed to read HEAD file: %w", err)
-	}
-
-	trimmed := strings.TrimSpace(string(headContent))
-
-	const refPrefix = "ref: "
-	if !strings.HasPrefix(trimmed, refPrefix) {
-		return "", fmt.Errorf("HEAD is not a symbolic ref: %q", trimmed)
-	}
-
-	relRefPath := strings.TrimPrefix(trimmed, refPrefix)
-	fullRefPath := filepath.Join(repoPath, constants.Gogit, relRefPath)
-	return fullRefPath, nil
-}
-
-// getRefCommitHash reads the commit hash stored in the given branch ref file.
-// Returns an empty string if the ref file does not exist (first commit scenario).
-// Returns an error for any other filesystem failure.
-func getRefCommitHash(refPath string) (string, error) {
-	parentCommitHash, err := os.ReadFile(refPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", fmt.Errorf("failed to read ref file %q: %w", refPath, err)
-	}
-
-	return strings.TrimSpace(string(parentCommitHash)), nil
-}
-
 // createAndStoreCommit creates and stores commit in the file system and returns the commit hash
 func createAndStoreCommit(treeHash, parentHash, message string, author objects.Author, store *objects.ObjectStore) (string, error) {
 	var commit *objects.Commit
@@ -167,58 +129,6 @@ func createAndStoreCommit(treeHash, parentHash, message string, author objects.A
 	return commit.Hash(), nil
 }
 
-// updateRefFile is updating the commit hash in the branch ref file by creating a temporary
-// file, writing the commit hash in said file and then replacing the ref file with the temporary file.
-// This is covering safety cases for updates in file system.
-func updateRefFile(repoPath, commitHash string) error {
-	refPath, err := resolveHEADRef(repoPath)
-	if err != nil {
-		return err
-	}
-
-	// Create temporary file to write the commit hash
-	// If everything is successful this file will replace the existing commit file
-	tempFile, err := os.CreateTemp(filepath.Dir(refPath), ".commit-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary commit file: %w", err)
-	}
-	tempPath := tempFile.Name()
-
-	// Track success for cleanup
-	succeeded := false
-	defer func() {
-		if !succeeded {
-			_ = tempFile.Close()
-			_ = os.Remove(tempPath)
-		}
-	}()
-
-	// write commit hash to tempFile
-	_, err = tempFile.Write([]byte(commitHash + "\n"))
-	if err != nil {
-		return fmt.Errorf("failed to write commit to temporary file: %w", err)
-	}
-
-	// Force OS to flush data to physical disk before rename
-	// Critical for durability guarantees on power loss
-	if err := tempFile.Sync(); err != nil {
-		return fmt.Errorf("failed to sync temporary file: %w", err)
-	}
-
-	// Close temp file descriptor before rename
-	if err := tempFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temporary file: %w", err)
-	}
-
-	// Replace ref file with temporary file
-	if err := os.Rename(tempPath, refPath); err != nil {
-		return fmt.Errorf("failed to rename temporary file to commit ref: %w", err)
-	}
-
-	succeeded = true
-	return nil
-}
-
 // OrchestrateCommitExecution orchestrates the full commit workflow:
 // loads the index, builds the tree hierarchy, resolves the parent commit,
 // creates and stores the commit object, and updates the current branch ref.
@@ -233,28 +143,24 @@ func OrchestrateCommitExecution(repoPath string, message string, author objects.
 		return "", fmt.Errorf("nothing to commit")
 	}
 
-	// 2. construct full directory node in-memory - to be used in order to create and store Tree entries
+	// 2. resolve the current branch and commit parent before creating objects
+	currentBranch, err := branches.ResolveCurrent(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve current branch: %w", err)
+	}
+	parentHash := currentBranch.Hash
+
+	// 3. construct full directory node in-memory - to be used in order to create and store Tree entries
 	directoryNode := buildDirectoryTree(entries)
 
-	// 3. Create and store recursively and bottom up all trees and return root tree hash
+	// 4. Create and store recursively and bottom up all trees and return root tree hash
 	store := objects.NewObjectStore(repoPath)
 	rootTreeHash, err := writeTree(directoryNode, store)
 	if err != nil {
 		return "", fmt.Errorf("failed to create commit tree directory: %w", err)
 	}
 
-	// 4. resolve commit parent hash
-	refPath, err := resolveHEADRef(repoPath)
-	if err != nil {
-		return "", err
-	}
-
-	parentHash, err := getRefCommitHash(refPath)
-	if err != nil {
-		return "", err
-	}
-
-	// 4.5 reject commit if tree is unchanged from parent
+	// 5. reject commit if tree is unchanged from parent
 	if parentHash != "" {
 		parentCommit, err := store.ReadCommit(parentHash)
 		if err != nil {
@@ -265,15 +171,20 @@ func OrchestrateCommitExecution(repoPath string, message string, author objects.
 		}
 	}
 
-	// 5. create and store commit in the filesystem
+	// 6. create and store commit in the filesystem
 	commitHash, err := createAndStoreCommit(rootTreeHash, parentHash, message, author, store)
 	if err != nil {
 		return "", err
 	}
 
-	// 6. update reference file with the new commit hash
-	if err := updateRefFile(repoPath, commitHash); err != nil {
-		return "", fmt.Errorf("failed to update ref file [%s]: %w", refPath, err)
+	// 7. advance the current branch only if it still points to the parent commit
+	if err := branches.CompareAndSwap(
+		repoPath,
+		currentBranch.Name,
+		parentHash,
+		commitHash,
+	); err != nil {
+		return "", fmt.Errorf("failed to update branch [%s]: %w", currentBranch.Name, err)
 	}
 
 	return commitHash, nil

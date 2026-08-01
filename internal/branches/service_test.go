@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -20,17 +20,32 @@ func TestBranch_OrchestrateBranchCreation_SymbolicHead(t *testing.T) {
 	currentCommitHash := testutils.RandomHash()
 	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, currentCommitHash)
 
-	currentCommitHash += "\n" // \n is added in WriteRefFile but not updating the currentCommitHash var
 	newBranchName := testutils.RandomString(8)
 	err := OrchestrateBranchCreation(repoPath, newBranchName)
 	if err != nil {
 		t.Fatalf("unexpected error creating branch [%s]: %v", newBranchName, err)
 	}
 
-	createdBranchHash := readBranchRefHash(t, repoPath, newBranchName)
-	if createdBranchHash != currentCommitHash {
-		t.Fatalf("expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
+	assertBranchRefHash(t, repoPath, newBranchName, currentCommitHash)
+}
+
+// TestBranch_OrchestrateBranchCreation_HierarchicalSymbolicHEAD verifies that
+// branch creation resolves a hierarchical current branch from symbolic HEAD.
+func TestBranch_OrchestrateBranchCreation_HierarchicalSymbolicHEAD(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	currentBranchName := path.Join(testutils.RandomString(8), testutils.RandomString(8))
+	currentCommitHash := testutils.RandomHash()
+	headContent := constants.DefaultRefPrefix + currentBranchName + "\n"
+	testutils.WriteHEADFile(t, repoPath, []byte(headContent))
+	writeBranchRefFixture(t, repoPath, currentBranchName, []byte(currentCommitHash+"\n"))
+	newBranchName := testutils.RandomString(8)
+
+	if err := OrchestrateBranchCreation(repoPath, newBranchName); err != nil {
+		t.Fatalf("unexpected error creating branch [%s]: %v", newBranchName, err)
 	}
+
+	assertBranchRefHash(t, repoPath, newBranchName, currentCommitHash)
+	testutils.AssertHEADContent(t, repoPath, headContent)
 }
 
 // TestBranch_OrchestrateBranchCreation_DetachedHead verifies that creating a branch
@@ -38,8 +53,8 @@ func TestBranch_OrchestrateBranchCreation_SymbolicHead(t *testing.T) {
 // refs/heads/<new-branch>.
 func TestBranch_OrchestrateBranchCreation_DetachedHead(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	currentCommitHash := append(testutils.RandomByteHash(), '\n')
-	testutils.WriteHEADFile(t, repoPath, currentCommitHash)
+	currentCommitHash := testutils.RandomHash()
+	testutils.WriteHEADFile(t, repoPath, []byte(currentCommitHash+"\n"))
 
 	newBranchName := testutils.RandomString(8)
 	err := OrchestrateBranchCreation(repoPath, newBranchName)
@@ -47,10 +62,32 @@ func TestBranch_OrchestrateBranchCreation_DetachedHead(t *testing.T) {
 		t.Fatalf("unexpected error creating branch [%s]: %v", newBranchName, err)
 	}
 
-	createdBranchHash := readBranchRefHash(t, repoPath, newBranchName)
-	if createdBranchHash != string(currentCommitHash) {
-		t.Fatalf("expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
+	assertBranchRefHash(t, repoPath, newBranchName, currentCommitHash)
+}
+
+// TestBranch_OrchestrateBranchCreation_InvalidDetachedHEAD verifies that an
+// invalid detached HEAD does not create a branch ref or leave a lock file.
+func TestBranch_OrchestrateBranchCreation_InvalidDetachedHEAD(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	invalidHEADContent := testutils.RandomString(8) + "\n"
+	testutils.WriteHEADFile(t, repoPath, []byte(invalidHEADContent))
+	newBranchName := testutils.RandomString(8)
+
+	err := OrchestrateBranchCreation(repoPath, newBranchName)
+	if err == nil {
+		t.Fatal("expected error")
 	}
+	if !strings.Contains(err.Error(), "HEAD contains invalid commit hash") {
+		t.Fatalf("expected invalid HEAD hash error, got [%v]", err)
+	}
+
+	refPath, pathErr := branchRefPath(repoPath, newBranchName)
+	if pathErr != nil {
+		t.Fatalf("failed to resolve branch ref path: %v", pathErr)
+	}
+	testutils.AssertFileNotExists(t, refPath)
+	assertBranchRefLockNotExists(t, repoPath, newBranchName)
+	testutils.AssertHEADContent(t, repoPath, invalidHEADContent)
 }
 
 // TestBranch_OrchestrateBranchCreation_HierarchicalBranchName verifies that
@@ -58,21 +95,18 @@ func TestBranch_OrchestrateBranchCreation_DetachedHead(t *testing.T) {
 // the expected commit hash into the branch ref.
 func TestBranch_OrchestrateBranchCreation_HierarchicalBranchName(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	currentCommitHash := append(testutils.RandomByteHash(), '\n')
-	testutils.WriteHEADFile(t, repoPath, currentCommitHash)
+	currentCommitHash := testutils.RandomHash()
+	testutils.WriteHEADFile(t, repoPath, []byte(currentCommitHash+"\n"))
 
 	dir := testutils.RandomString(8)
 	name := testutils.RandomString(8)
-	newBranchName := filepath.ToSlash(filepath.Join(dir, name))
+	newBranchName := path.Join(dir, name)
 	err := OrchestrateBranchCreation(repoPath, newBranchName)
 	if err != nil {
 		t.Fatalf("unexpected error creating branch [%s]: %v", newBranchName, err)
 	}
 
-	createdBranchHash := readBranchRefHash(t, repoPath, newBranchName)
-	if createdBranchHash != string(currentCommitHash) {
-		t.Fatalf("expected branch [%s] hash to be [%s], got [%s]", newBranchName, currentCommitHash, createdBranchHash)
-	}
+	assertBranchRefHash(t, repoPath, newBranchName, currentCommitHash)
 }
 
 // TestBranch_OrchestrateBranchCreation_AlreadyExists verifies that branch
@@ -171,42 +205,30 @@ func TestBranch_OrchestrateBranchCreation_InvalidBranchName(t *testing.T) {
 	}
 }
 
-// TestBranch_writeRefFileExclusive_DoesNotOverwriteExistingRef verifies that
-// exclusive creation fails with os.ErrExist when the target ref file already exists.
-func TestBranch_writeRefFileExclusive_DoesNotOverwriteExistingRef(t *testing.T) {
-	repoPath := t.TempDir()
-	refPath := filepath.Join(repoPath, testutils.RandomString(5))
-
-	initialContent := testutils.RandomBytes(10)
-	if err := os.WriteFile(refPath, initialContent, constants.FilePerms); err != nil {
-		t.Fatalf("failed to create ref file: %v", err)
-	}
-
-	err := writeRefFileExclusive(refPath, []byte("new-content\n"))
-	if err == nil {
-		t.Fatal("expected os.ErrExist when writing exclusively an existing ref file")
-	}
-
-	if !errors.Is(err, os.ErrExist) {
-		t.Fatalf("expected [%v] error, got: [%v]", os.ErrExist, err)
-	}
-}
-
-// readBranchRefHash reads refs/heads/<branchName> and returns the trimmed commit hash.
-func readBranchRefHash(t *testing.T, repoPath, branchName string) string {
-	t.Helper()
-
-	branchRefPath := filepath.Join(
-		repoPath,
-		constants.Gogit,
-		constants.Refs,
-		constants.Heads,
-		filepath.FromSlash(branchName),
-	)
-	content, err := os.ReadFile(branchRefPath)
+// TestBranch_OrchestrateBranchCreation_LockedRef verifies that branch creation
+// respects an existing ref lock without creating or overwriting the branch.
+func TestBranch_OrchestrateBranchCreation_LockedRef(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, testutils.RandomHash())
+	branchName := testutils.RandomString(8)
+	refPath, err := branchRefPath(repoPath, branchName)
 	if err != nil {
-		t.Fatalf("failed to read ref file for branch [%s]: %v", branchName, err)
+		t.Fatalf("failed to resolve branch ref path: %v", err)
+	}
+	lockPath := refPath + ".lock"
+	lockContent := testutils.RandomByteSlice(20)
+	if err := os.WriteFile(lockPath, lockContent, constants.FilePerms); err != nil {
+		t.Fatalf("failed to create branch ref lock: %v", err)
 	}
 
-	return string(content)
+	err = OrchestrateBranchCreation(repoPath, branchName)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, ErrReferenceLocked) {
+		t.Fatalf("expected reference locked error, got [%v]", err)
+	}
+
+	testutils.AssertFileNotExists(t, refPath)
+	testutils.AssertFileContent(t, lockPath, lockContent)
 }

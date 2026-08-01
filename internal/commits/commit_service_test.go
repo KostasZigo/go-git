@@ -1,13 +1,15 @@
 package commits
 
 import (
+	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/branches"
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
@@ -249,139 +251,6 @@ func Test_WriteTree_Idempotency(t *testing.T) {
 	}
 }
 
-// Test_ResolveHEADRef_ValidHead
-// verifies that a properly initialized HEAD file with a symbolic ref is
-// resolved to the correct absolute filesystem path.
-func Test_ResolveHEADRef_ValidHead(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-
-	refPath, err := resolveHEADRef(repoPath)
-	if err != nil {
-		t.Fatalf("failed to resolve HEAD reference: %v", err)
-	}
-
-	expectedPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
-	if refPath != expectedPath {
-		t.Fatalf("expected ref path [%s], got [%s]", expectedPath, refPath)
-	}
-}
-
-// Test_ResolveHEADRef_MissingHead
-// verifies that a missing HEAD file produces a descriptive error rather
-// than a panic or silent failure.
-func Test_ResolveHEADRef_MissingHead(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithGogitDir(t)
-
-	_, err := resolveHEADRef(repoPath)
-	if err == nil {
-		t.Fatal("expected error for missing HEAD file, got nil")
-	}
-
-	expectedErrorMessage := "failed to read HEAD file:"
-	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
-	}
-}
-
-// Test_ResolveHEADRef_MalformedHead
-// verifies that a HEAD file without the "ref: " prefix is rejected with
-// a clear error message.
-func Test_ResolveHEADRef_MalformedHead(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-
-	headPath := filepath.Join(repoPath, constants.Gogit, constants.Head)
-	if err := os.WriteFile(headPath, []byte("not-a-valid-ref\n"), constants.FilePerms); err != nil {
-		t.Fatalf("failed to write malformed HEAD: %v", err)
-	}
-
-	_, err := resolveHEADRef(repoPath)
-	if err == nil {
-		t.Fatal("expected error for malformed HEAD, got nil")
-	}
-
-	expectedErrorMessage := "HEAD is not a symbolic ref:"
-	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("expected error about symbolic ref [%s], got: [%v]", expectedErrorMessage, err.Error())
-	}
-}
-
-// Test_GetParentCommitHash_RefExists
-// verifies that an existing ref file is read and the hash is returned
-// with whitespace trimmed.
-func Test_GetParentCommitHash_RefExists(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	expectedHash := testutils.RandomHash()
-
-	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
-	if err := os.WriteFile(refPath, []byte(expectedHash+"\n"), constants.FilePerms); err != nil {
-		t.Fatalf("failed to write ref file: %v", err)
-	}
-
-	hash, err := getRefCommitHash(refPath)
-	if err != nil {
-		t.Fatalf("getParentCommitHash failed: %v", err)
-	}
-
-	if hash != expectedHash {
-		t.Fatalf("expected hash [%s], got [%s]", expectedHash, hash)
-	}
-}
-
-// Test_GetParentCommitHash_FirstCommit
-// Verifies that a missing ref file is treated as the first-commit scenario:
-// returns an empty string with no error.
-func Test_GetParentCommitHash_FirstCommit(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
-
-	hash, err := getRefCommitHash(refPath)
-	if err != nil {
-		t.Fatalf("getRefCommitHash failed: %v", err)
-	}
-
-	if hash != "" {
-		t.Fatalf("expected empty hash for init commit, got [%s]", hash)
-	}
-}
-
-// Test_UpdateRefFile_CreatesAndOverwrites
-// Verifies that the ref file is created on first write with the correct
-// hash, and that a second write overwrites it with the new hash.
-func Test_UpdateRefFile_CreatesAndOverwrites(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	expectedHash := testutils.RandomHash()
-
-	if err := updateRefFile(repoPath, expectedHash); err != nil {
-		t.Fatalf("failed to update ref file: %v", err)
-	}
-
-	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
-	createdCommitHash, err := os.ReadFile(refPath)
-	if err != nil {
-		t.Fatalf("failed to read created ref file: %v", err)
-	}
-
-	createdCommitHashTrimmed := strings.TrimSpace(string(createdCommitHash))
-	if createdCommitHashTrimmed != expectedHash {
-		t.Fatalf("expected created commit to be [%s], but got [%s]", expectedHash, createdCommitHashTrimmed)
-	}
-
-	expectedUpdateHash := testutils.RandomHash()
-	if err := updateRefFile(repoPath, expectedUpdateHash); err != nil {
-		t.Fatalf("failed to update ref file: %v", err)
-	}
-
-	updatedCommitHash, err := os.ReadFile(refPath)
-	if err != nil {
-		t.Fatalf("failed to read updated ref file: %v", err)
-	}
-
-	udpdatedCommitHashTrimmed := strings.TrimSpace(string(updatedCommitHash))
-	if udpdatedCommitHashTrimmed != expectedUpdateHash {
-		t.Fatalf("expected updated commit to be [%s], but got [%s]", expectedUpdateHash, udpdatedCommitHashTrimmed)
-	}
-}
-
 // Test_CreateAndStoreCommit_RoundTrip
 // creates a commit with a real tree reference, stores it, reads it back,
 // and verifies all fields (tree hash, parent hash, message, author) match.
@@ -445,5 +314,160 @@ func Test_CreateAndStoreCommit_RoundTrip(t *testing.T) {
 
 	if commit.Author().String() != author.String() {
 		t.Fatalf("author mismatch: expected [%s], got [%s]", author.String(), commit.Author())
+	}
+}
+
+// Test_OrchestrateCommitExecution_DetachedHEAD verifies that commit
+// orchestration rejects detached HEAD without creating a branch ref.
+func Test_OrchestrateCommitExecution_DetachedHEAD(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	stageCommitEntry(t, repoPath, testutils.RandomString(8), []byte(testutils.RandomString(50)))
+	detachedHash := testutils.RandomHash()
+	testutils.WriteHEADFile(t, repoPath, []byte(detachedHash+"\n"))
+
+	_, err := OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, branches.ErrDetachedHEAD) {
+		t.Fatalf("expected detached HEAD error, got [%v]", err)
+	}
+
+	defaultRefPath := filepath.Join(
+		repoPath,
+		constants.Gogit,
+		constants.Refs,
+		constants.Heads,
+		constants.DefaultBranch,
+	)
+	testutils.AssertFileNotExists(t, defaultRefPath)
+	testutils.AssertHEADContent(t, repoPath, detachedHash+"\n")
+}
+
+// Test_OrchestrateCommitExecution_HierarchicalCurrentBranch verifies that
+// initial and ordinary commits advance a hierarchical current branch.
+func Test_OrchestrateCommitExecution_HierarchicalCurrentBranch(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	branchName := path.Join(testutils.RandomString(8), testutils.RandomString(8))
+	headContent := constants.DefaultRefPrefix + branchName + "\n"
+	testutils.WriteHEADFile(t, repoPath, []byte(headContent))
+	fileName := testutils.RandomString(8)
+
+	stageCommitEntry(t, repoPath, fileName, []byte(testutils.RandomString(50)))
+	firstCommitHash, err := OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create initial commit: %v", err)
+	}
+
+	stageCommitEntry(t, repoPath, fileName, []byte(testutils.RandomString(100)))
+	secondCommitHash, err := OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create ordinary commit: %v", err)
+	}
+
+	refPath := filepath.Join(
+		repoPath,
+		constants.Gogit,
+		constants.Refs,
+		constants.Heads,
+		filepath.FromSlash(branchName),
+	)
+	testutils.AssertFileContent(t, refPath, []byte(secondCommitHash+"\n"))
+	testutils.AssertHEADContent(t, repoPath, headContent)
+
+	secondCommit, err := objects.NewObjectStore(repoPath).ReadCommit(secondCommitHash)
+	if err != nil {
+		t.Fatalf("failed to read second commit: %v", err)
+	}
+	if secondCommit.ParentHash() != firstCommitHash {
+		t.Fatalf("expected parent hash [%s], got [%s]", firstCommitHash, secondCommit.ParentHash())
+	}
+}
+
+// Test_OrchestrateCommitExecution_LockedCurrentRef verifies that a current ref
+// lock prevents branch advancement without changing the ref or HEAD.
+func Test_OrchestrateCommitExecution_LockedCurrentRef(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	fileName := testutils.RandomString(8)
+	stageCommitEntry(t, repoPath, fileName, []byte(testutils.RandomString(50)))
+	firstCommitHash, err := OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create initial commit: %v", err)
+	}
+
+	stageCommitEntry(t, repoPath, fileName, []byte(testutils.RandomString(100)))
+	refPath := filepath.Join(
+		repoPath,
+		constants.Gogit,
+		constants.Refs,
+		constants.Heads,
+		constants.DefaultBranch,
+	)
+	lockPath := refPath + ".lock"
+	lockContent := testutils.RandomByteSlice(20)
+	if err := os.WriteFile(lockPath, lockContent, constants.FilePerms); err != nil {
+		t.Fatalf("failed to create current ref lock: %v", err)
+	}
+	originalHEADContent := testutils.ReadHEADFile(t, repoPath)
+
+	_, err = OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, branches.ErrReferenceLocked) {
+		t.Fatalf("expected reference locked error, got [%v]", err)
+	}
+
+	testutils.AssertFileContent(t, refPath, []byte(firstCommitHash+"\n"))
+	testutils.AssertFileContent(t, lockPath, lockContent)
+	testutils.AssertHEADContent(t, repoPath, originalHEADContent)
+}
+
+// stageCommitEntry stores a blob and writes a one-entry index for commit tests.
+func stageCommitEntry(t *testing.T, repoPath, fileName string, content []byte) {
+	t.Helper()
+
+	store := objects.NewObjectStore(repoPath)
+	blob := objects.NewBlob(content)
+	if err := store.Store(blob); err != nil {
+		t.Fatalf("failed to store blob: %v", err)
+	}
+
+	entry, err := index.NewEntry(
+		index.ModeRegularFile,
+		blob.Hash(),
+		fileName,
+		int64(len(content)),
+		time.Now(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create index entry: %v", err)
+	}
+	idx := index.NewIndex()
+	if err := idx.AddEntry(entry); err != nil {
+		t.Fatalf("failed to add index entry: %v", err)
+	}
+	if err := index.NewManager(repoPath).Save(idx); err != nil {
+		t.Fatalf("failed to save index: %v", err)
 	}
 }
