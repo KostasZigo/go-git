@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
@@ -16,238 +15,200 @@ import (
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
-// Test_BuildDirectoryTree_MixedRootAndNestedFiles verifies that a flat
-// list of index entries with paths at multiple depths
-// is correctly decomposed into a tree with root-level files, first-level
-// children, and deeper nested children.
-func Test_BuildDirectoryTree_MixedRootAndNestedFiles(t *testing.T) {
-	folder := testutils.RandomString(3)
-	subfolder := testutils.RandomString(3)
-	filePaths := []string{
-		testutils.RandomString(10),
-		filepath.ToSlash(filepath.Join(folder, testutils.RandomString(10))),
-		filepath.ToSlash(filepath.Join(folder, testutils.RandomString(10))),
-		filepath.ToSlash(filepath.Join(folder, subfolder, testutils.RandomString(10))),
+// TestBuildTreeSnapshot verifies that index entries retain their logical paths,
+// object hashes, and Git file modes in the commit tree snapshot.
+func TestBuildTreeSnapshot(t *testing.T) {
+	rootFilePath := testutils.RandomString(10)
+	rootFileHash := testutils.RandomHash()
+
+	nestedFilePath := path.Join(testutils.RandomString(8), testutils.RandomString(8))
+	nestedFileHash := testutils.RandomHash()
+
+	lastModified := time.Now()
+
+	rootEntry, err := index.NewEntry(
+		index.ModeRegularFile,
+		rootFileHash,
+		rootFilePath,
+		testutils.RandomInt(50),
+		lastModified,
+	)
+	if err != nil {
+		t.Fatalf("failed to create root index entry: %v", err)
 	}
 
-	entries := make([]*index.Entry, len(filePaths))
-	for i, filePath := range filePaths {
-		indexEntry, err := index.NewEntry(
-			index.ModeExecutable,
-			testutils.RandomHash(),
-			filePath,
-			testutils.RandomInt(50),
-			time.Now(),
-		)
-		if err != nil {
-			t.Fatalf("failed to create index entry: %v", err)
+	nestedEntry, err := index.NewEntry(
+		index.ModeExecutable,
+		nestedFileHash,
+		nestedFilePath,
+		testutils.RandomInt(50),
+		lastModified,
+	)
+	if err != nil {
+		t.Fatalf("failed to create nested index entry: %v", err)
+	}
+
+	snapshot := buildTreeSnapshot([]*index.Entry{rootEntry, nestedEntry})
+	expectedSnapshot := objects.TreeSnapshot{
+		rootFilePath: {
+			Mode: objects.ModeRegularFile,
+			Hash: rootFileHash,
+		},
+		nestedFilePath: {
+			Mode: objects.ModeExecutable,
+			Hash: nestedFileHash,
+		},
+	}
+
+	if len(snapshot) != len(expectedSnapshot) {
+		t.Fatalf("expected snapshot entry count should be [%d], got [%d]", len(expectedSnapshot), len(snapshot))
+	}
+
+	for relativePath, expectedEntry := range expectedSnapshot {
+		actualEntry, exists := snapshot[relativePath]
+		if !exists {
+			t.Fatalf("snapshot is missing path [%q]", relativePath)
 		}
-		entries[i] = indexEntry
-	}
 
-	// Root should have exactly 1 child directory
-	rootNode := buildDirectoryTree(entries)
-	if len(rootNode.files) != 1 {
-		t.Fatalf("expected a single root level file but got [%d]", len(rootNode.files))
-	}
-
-	expectedRootFileName := filepath.Base(filePaths[0])
-	if rootNode.files[0].name != expectedRootFileName {
-		t.Fatalf("expected root file to be named [%s] but got [%s]", expectedRootFileName, rootNode.files[0].name)
-	}
-
-	if len(rootNode.children) != 1 {
-		t.Fatalf("expected 1 child directory at root, got %d", len(rootNode.children))
-	}
-
-	// First-level directory should contain 2 files
-	firstLevelNode := rootNode.children[folder]
-	if len(firstLevelNode.files) != 2 {
-		t.Fatalf("expected 2 first directory level files but got [%d]", len(firstLevelNode.files))
-	}
-
-	expectedFirstLevelFiles := []string{
-		filepath.Base(filePaths[1]),
-		filepath.Base(filePaths[2]),
-	}
-	actualFirstLevelFiles := []string{
-		firstLevelNode.files[0].name,
-		firstLevelNode.files[1].name,
-	}
-
-	for _, expected := range expectedFirstLevelFiles {
-		if !slices.Contains(actualFirstLevelFiles, expected) {
-			t.Fatalf("%s directory missing expected file: %q (found: %v)", folder, expected, actualFirstLevelFiles)
+		if actualEntry != expectedEntry {
+			t.Fatalf("snapshot entry %q = [%#v], got [%#v]", relativePath, expectedEntry, actualEntry)
 		}
-	}
-
-	if len(firstLevelNode.children) != 1 {
-		t.Fatalf("expected 1 child directory in %q, got %d", folder, len(firstLevelNode.children))
-	}
-
-	// Second-level directory should contain 1 file
-	secondLevelNode := firstLevelNode.children[subfolder]
-	if len(secondLevelNode.files) != 1 {
-		t.Fatalf("expected a single second directory level file but got [%d]", len(rootNode.files))
-	}
-
-	expextedSecondLevelFileName := filepath.Base(filePaths[3])
-	if secondLevelNode.files[0].name != expextedSecondLevelFileName {
-		t.Fatalf("expected second level directory file to be named [%s] but got [%s]", expextedSecondLevelFileName, secondLevelNode.files[0].name)
-	}
-
-	if len(secondLevelNode.children) != 0 {
-		t.Fatalf("expected 0 children in %s/%s, got %d", folder, subfolder, len(secondLevelNode.children))
 	}
 }
 
-// Test_BuildDirectoryTree_EmptyEntries
-// verifies that an empty input produces a valid root node with no files
-// and no children, without panicking.
-func Test_BuildDirectoryTree_EmptyEntries(t *testing.T) {
-	var entries []*index.Entry
-	rootNode := buildDirectoryTree(entries)
-
-	if len(rootNode.files) != 0 {
-		t.Fatalf("expected 0 root files when no entries exist but got [%d]", len(rootNode.files))
-	}
-	if len(rootNode.children) != 0 {
-		t.Fatalf("expected 0 children nodes when no entries exist but got [%d]", len(rootNode.children))
-	}
-}
-
-// Test_WriteTree_WithFilesAndSubdirectory
-// Builds a directoryNode with a root-level blob and a subdirectory containing
-// another blob. Verifies both tree objects are stored, the root tree contains
-// two entries (blob + subtree), and the subtree is readable with the correct
-// child entry.
-func Test_WriteTree_WithFilesAndSubdirectory(t *testing.T) {
+// TestOrchestrateCommitExecution_SnapshotTreeRestoresThroughCheckout verifies
+// that commit orchestration creates snapshot-backed trees that checkout can
+// restore into the working tree and index.
+func TestOrchestrateCommitExecution_SnapshotTreeRestoresThroughCheckout(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	store := objects.NewObjectStore(repoPath)
-
-	blobRoot := objects.NewBlob([]byte(testutils.RandomString(100)))
-	blobSubDir := objects.NewBlob([]byte(testutils.RandomString(100)))
-
-	if err := store.Store(blobRoot); err != nil {
-		t.Fatalf("failed to store root blob: %v", err)
-	}
-	if err := store.Store(blobSubDir); err != nil {
-		t.Fatalf("failed to store sub dir blob: %v", err)
-	}
 
 	rootFileName := testutils.RandomString(10)
-	subDirName := testutils.RandomString(3)
-	subDirFileName := testutils.RandomString(10)
-	rootNode := &directoryNode{
-		files: []fileEntry{
-			{
-				name: rootFileName,
-				mode: objects.ModeExecutable,
-				hash: blobRoot.Hash(),
-			},
+	rootFileContent := testutils.RandomByteSlice(50)
+	rootBlob := objects.NewBlob(rootFileContent)
+	if err := store.Store(rootBlob); err != nil {
+		t.Fatalf("failed to store root blob: %v", err)
+	}
+
+	directoryName := testutils.RandomString(10)
+	nestedFileName := testutils.RandomString(10)
+	nestedFilePath := path.Join(directoryName, nestedFileName)
+	nestedFileContent := testutils.RandomByteSlice(50)
+	nestedBlob := objects.NewBlob(nestedFileContent)
+	if err := store.Store(nestedBlob); err != nil {
+		t.Fatalf("failed to store nested blob: %v", err)
+	}
+
+	lastModified := time.Now()
+	rootIndexEntry, err := index.NewEntry(
+		index.ModeRegularFile,
+		rootBlob.Hash(),
+		rootFileName,
+		int64(len(rootFileContent)),
+		lastModified,
+	)
+	if err != nil {
+		t.Fatalf("failed to create root index entry: %v", err)
+	}
+
+	nestedIndexEntry, err := index.NewEntry(
+		index.ModeExecutable,
+		nestedBlob.Hash(),
+		nestedFilePath,
+		int64(len(nestedFileContent)),
+		lastModified,
+	)
+	if err != nil {
+		t.Fatalf("failed to create nested index entry: %v", err)
+	}
+
+	stagedIndex := index.NewIndex()
+	if err := stagedIndex.AddEntry(rootIndexEntry); err != nil {
+		t.Fatalf("failed to add root index entry: %v", err)
+	}
+	if err := stagedIndex.AddEntry(nestedIndexEntry); err != nil {
+		t.Fatalf("failed to add nested index entry: %v", err)
+	}
+	if err := index.NewManager(repoPath).Save(stagedIndex); err != nil {
+		t.Fatalf("failed to save staged index: %v", err)
+	}
+
+	commitHash, err := OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create commit: %v", err)
+	}
+
+	commit, err := store.ReadCommit(commitHash)
+	if err != nil {
+		t.Fatalf("failed to read commit: %v", err)
+	}
+
+	if err := RestoreTreeAndRebuildIndex(repoPath, commit.TreeHash()); err != nil {
+		t.Fatalf("failed to restore committed tree: %v", err)
+	}
+
+	testutils.AssertFileContent(t, filepath.Join(repoPath, rootFileName), rootFileContent)
+	testutils.AssertFileContent(
+		t,
+		filepath.Join(repoPath, directoryName, nestedFileName),
+		nestedFileContent,
+	)
+
+	rebuiltIndex, err := index.NewManager(repoPath).Load()
+	if err != nil {
+		t.Fatalf("failed to load rebuilt index: %v", err)
+	}
+
+	expectedEntries := map[string]struct {
+		hash string
+		mode index.FileMode
+	}{
+		rootFileName: {
+			hash: rootBlob.Hash(),
+			mode: index.ModeRegularFile,
 		},
-		children: map[string]*directoryNode{
-			subDirName: {
-				files: []fileEntry{
-					{
-						name: subDirFileName,
-						mode: objects.ModeExecutable,
-						hash: blobSubDir.Hash(),
-					},
-				},
-				children: make(map[string]*directoryNode),
-			},
+		nestedFilePath: {
+			hash: nestedBlob.Hash(),
+			mode: index.ModeExecutable,
 		},
 	}
 
-	rootHash, err := writeTree(rootNode, store)
-	if err != nil {
-		t.Fatalf("failed to write tree: %v", err)
+	actualEntries := rebuiltIndex.GetEntryList()
+	if len(actualEntries) != len(expectedEntries) {
+		t.Fatalf(
+			"expected rebuilt index entry count to be [%d], got [%d]",
+			len(expectedEntries),
+			len(actualEntries),
+		)
 	}
 
-	if len(rootHash) != constants.HashStringLength {
-		t.Fatalf("expected %d-char hash, got %d chars: %s", constants.HashStringLength, len(rootHash), rootHash)
-	}
-
-	// Verify root tree is readable and has 2 entries (1 root file + 1 sub dir )
-	rootTree, err := store.ReadTree(rootHash)
-	if err != nil {
-		t.Fatalf("failed to read root tree: %v", err)
-	}
-
-	expectedNoRootTreeEntries := (len(rootNode.files) + len(rootNode.children))
-	actualNoRootTreeEntries := len(rootTree.Entries())
-	if actualNoRootTreeEntries != expectedNoRootTreeEntries {
-		t.Fatalf("expected %d entries but got [%d]", expectedNoRootTreeEntries, actualNoRootTreeEntries)
-	}
-
-	entryNames := make([]string, actualNoRootTreeEntries)
-	for i, e := range rootTree.Entries() {
-		entryNames[i] = e.Name()
-	}
-	if !slices.Contains(entryNames, rootFileName) {
-		t.Fatalf("root tree missing [%s] entry (found: %v)", rootFileName, entryNames)
-	}
-	if !slices.Contains(entryNames, subDirName) {
-		t.Fatalf("root tree missing [%s] entry (found: %v)", subDirName, entryNames)
-	}
-
-	// Verify the subtree is stored and readable
-	subTreeEntry, found := rootTree.FindEntry(subDirName)
-	if !found {
-		t.Fatalf("expected [%s] to exist in root tree", subDirName)
-	}
-
-	subTree, err := store.ReadTree(subTreeEntry.Hash())
-	if err != nil {
-		t.Fatalf("failed to read sub tree: %v", err)
-	}
-
-	subEntries := subTree.Entries()
-	if len(subEntries) != 1 {
-		t.Fatalf("expected 1 entry in subtree, got %d", len(subEntries))
-	}
-	if subEntries[0].Name() != subDirFileName {
-		t.Fatalf("expected [%s] in subtree, got %q", subDirFileName, subEntries[0].Name())
-	}
-	if subEntries[0].Hash() != blobSubDir.Hash() {
-		t.Fatalf("expected [%s] hash [%s], got [%s]", subDirFileName, blobSubDir.Hash(), subEntries[0].Hash())
-	}
-}
-
-// Test_WriteTree_Idempotency verifies that
-// same input twice produces same root hash (idempotency)
-func Test_WriteTree_Idempotency(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	store := objects.NewObjectStore(repoPath)
-
-	blob := objects.NewBlob([]byte(testutils.RandomString(100)))
-	if err := store.Store(blob); err != nil {
-		t.Fatalf("failed to store blob: %v", err)
-	}
-
-	fileName := testutils.RandomString(100)
-	buildNode := func() *directoryNode {
-		return &directoryNode{
-			files: []fileEntry{
-				{name: fileName, mode: objects.ModeRegularFile, hash: blob.Hash()},
-			},
-			children: make(map[string]*directoryNode),
+	for _, entry := range actualEntries {
+		expectedEntry, exists := expectedEntries[entry.Path()]
+		if !exists {
+			t.Fatalf("unexpected rebuilt index path [%s]", entry.Path())
 		}
-	}
 
-	hash1, err := writeTree(buildNode(), store)
-	if err != nil {
-		t.Fatalf("first writeTree failed: %v", err)
-	}
+		if entry.Hash() != expectedEntry.hash {
+			t.Fatalf(
+				"expected rebuilt index hash for [%s] to be [%s], got [%s]",
+				entry.Path(),
+				expectedEntry.hash,
+				entry.Hash(),
+			)
+		}
 
-	hash2, err := writeTree(buildNode(), store)
-	if err != nil {
-		t.Fatalf("second writeTree failed: %v", err)
-	}
-
-	if hash1 != hash2 {
-		t.Fatalf("expected identical hashes for identical input, got [%s] and [%s]", hash1, hash2)
+		if entry.Mode() != expectedEntry.mode {
+			t.Fatalf(
+				"expected rebuilt index mode for [%s] to be [%v], got [%v]",
+				entry.Path(),
+				expectedEntry.mode,
+				entry.Mode(),
+			)
+		}
 	}
 }
 

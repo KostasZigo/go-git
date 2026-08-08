@@ -88,12 +88,9 @@ type Tree struct {
 	hash    string
 }
 
-// NewTree creates a tree object from the list of Tree Entries
+// NewTree creates a tree object from the list of Tree Entries,
+// including empty tree.
 func NewTree(treeEntries []TreeEntry) (*Tree, error) {
-	if len(treeEntries) == 0 {
-		return nil, fmt.Errorf("tree must contain at least one entry")
-	}
-
 	// GoGit requires entries to be sorted by name in ascending order
 	entries := make([]TreeEntry, len(treeEntries))
 	copy(entries, treeEntries)

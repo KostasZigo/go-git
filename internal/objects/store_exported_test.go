@@ -10,8 +10,6 @@ import (
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
-// TREE STORAGE TESTS
-
 // TestObjectStore_StoreAndReadTree verifies tree storage with single entry.
 func TestObjectStore_StoreAndReadTree(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithGogitDir(t)
@@ -55,6 +53,45 @@ func TestObjectStore_StoreAndReadTree(t *testing.T) {
 
 	// Verify entry details
 	objectstest.AssertTreeEntryEqual(t, retrievedTree.Entries()[0], treeEntry)
+}
+
+// TestObjectStore_StoreAndReadEmptyTree verifies empty tree persistence.
+func TestObjectStore_StoreAndReadEmptyTree(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithGogitDir(t)
+	store := objects.NewObjectStore(repoPath)
+
+	tree, err := objects.NewTree(nil)
+	if err != nil {
+		t.Fatalf("failed to create empty tree: %v", err)
+	}
+
+	if err := store.Store(tree); err != nil {
+		t.Fatalf("failed to store empty tree: %v", err)
+	}
+
+	if !store.Exists(testutils.CanonicalEmptyTreeHash) {
+		t.Fatal("empty tree object was not stored")
+	}
+
+	retrievedTree, err := store.ReadTree(testutils.CanonicalEmptyTreeHash)
+	if err != nil {
+		t.Fatalf("failed to read empty tree: %v", err)
+	}
+
+	if retrievedTree.Hash() != testutils.CanonicalEmptyTreeHash {
+		t.Fatalf(
+			"expected retrieved empty tree hash [%s], got [%s]",
+			testutils.CanonicalEmptyTreeHash,
+			retrievedTree.Hash(),
+		)
+	}
+
+	if len(retrievedTree.Entries()) != 0 {
+		t.Fatalf(
+			"expected retrieved empty tree entries to be 0, got [%d], got 0",
+			len(retrievedTree.Entries()),
+		)
+	}
 }
 
 // TestObjectStore_ReadTree_MultipleEntries verifies tree with multiple files.

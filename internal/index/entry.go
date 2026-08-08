@@ -101,3 +101,20 @@ func ToObjectFileMode(m FileMode) objects.FileMode {
 		return objects.ModeRegularFile
 	}
 }
+
+// FromObjectFileMode converts a supported leaf tree mode to the corresponding
+// index file mode.
+func FromObjectFileMode(mode objects.FileMode) (FileMode, error) {
+	switch mode {
+	case objects.ModeRegularFile:
+		return ModeRegularFile, nil
+	case objects.ModeExecutable:
+		return ModeExecutable, nil
+	case objects.ModeSymlink:
+		return ModeSymlink, nil
+	case objects.ModeSubmodule:
+		return ModeSubmodule, nil
+	default:
+		return 0, fmt.Errorf("unsupported tree leaf mode: %s", mode)
+	}
+}

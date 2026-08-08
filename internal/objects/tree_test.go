@@ -1,7 +1,6 @@
 package objects_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/objects"
@@ -51,14 +50,19 @@ func TestTreeEntry_IsDirectory(t *testing.T) {
 
 // TestNewTree_EmptyTree verifies empty tree creation and hash computation.
 func TestNewTree_EmptyTree(t *testing.T) {
-	_, err := objects.NewTree([]objects.TreeEntry{})
-	if err == nil {
-		t.Fatalf("expected to fail when creating empty tree: %v", err)
+	tree, err := objects.NewTree(nil)
+	if err != nil {
+		t.Fatalf("failed to create empty tree: %v", err)
 	}
 
-	expectedErrorMessage := "tree must contain at least one entry"
-	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("expected error message [%s], got [%s]", expectedErrorMessage, err.Error())
+	if tree.Hash() != testutils.CanonicalEmptyTreeHash {
+		t.Fatalf("expected empty tree hash [%s], got [%s]", testutils.CanonicalEmptyTreeHash, tree.Hash())
+	}
+	if len(tree.Entries()) != 0 {
+		t.Fatalf("expected 0 tree entries , got [%d]", len(tree.Entries()))
+	}
+	if len(tree.Content()) != 0 {
+		t.Fatalf("expected tree content length to be 0, got [%d]", len(tree.Content()))
 	}
 }
 
