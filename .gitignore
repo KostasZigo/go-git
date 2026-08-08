@@ -29,3 +29,6 @@ test-repos/
 # instructions
 .github/instructions/
 .github/instructions/chat_instructions.instructions.md
+
+# ide
+.idea

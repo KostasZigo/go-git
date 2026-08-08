@@ -115,7 +115,14 @@ func StoreBlobTreeWithContent(t *testing.T, store *objects.ObjectStore, fileCont
 func CreateAndStoreCommit(t *testing.T, store *objects.ObjectStore, treeHash, parentHash, message string) *objects.Commit {
 	t.Helper()
 
-	commit, err := objects.NewCommit(treeHash, parentHash, message, objects.DefaultAuthor())
+	author := objects.DefaultAuthor()
+	var commit *objects.Commit
+	var err error
+	if parentHash == "" {
+		commit, err = objects.NewInitialCommit(treeHash, message, author)
+	} else {
+		commit, err = objects.NewCommit(treeHash, parentHash, message, author)
+	}
 	if err != nil {
 		t.Fatalf("failed to create commit: %v", err)
 	}

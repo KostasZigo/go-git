@@ -3,6 +3,7 @@ package objects
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
@@ -41,46 +42,75 @@ func DefaultAuthor() Author {
 
 // Commit represents a snapshot of the repository
 type Commit struct {
-	hash       string
-	treeHash   string
-	parentHash string
-	author     Author
-	committer  Author
-	message    string
+	hash         string
+	treeHash     string
+	parentHashes []string
+	author       Author
+	committer    Author
+	message      string
 }
 
-// NewCommit creates commit with parent reference.
-func NewCommit(treeHash, parentHash, message string, author Author) (*Commit, error) {
-	content := buildCommitContent(treeHash, parentHash, message, author)
+func newCommit(treeHash, message string, parentHashes []string, author Author) (*Commit, error) {
+	clonedParentHashes := slices.Clone(parentHashes)
+	content := buildCommitContent(treeHash, message, clonedParentHashes, author)
 	hash, err := hasher.ComputeHash(content, hasher.Commit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute hash for commit: %w", err)
 	}
 
 	return &Commit{
-		hash:       hash,
-		treeHash:   treeHash,
-		parentHash: parentHash,
-		author:     author,
-		committer:  author,
-		message:    message,
+		hash:         hash,
+		treeHash:     treeHash,
+		parentHashes: clonedParentHashes,
+		author:       author,
+		committer:    author,
+		message:      message,
 	}, nil
+}
+
+// NewCommit creates an ordinary commit with one parent reference.
+func NewCommit(treeHash, parentHash, message string, author Author) (*Commit, error) {
+	if parentHash == "" {
+		return nil, fmt.Errorf("parent hash cannot be empty")
+	}
+
+	return newCommit(treeHash, message, []string{parentHash}, author)
 }
 
 // NewInitialCommit creates root commit without parent.
 func NewInitialCommit(treeHash, message string, author Author) (*Commit, error) {
-	return NewCommit(treeHash, "", message, author)
+	return newCommit(treeHash, message, nil, author)
+}
+
+// NewMergeCommit creates a merge commit with two ordered parent references.
+func NewMergeCommit(treeHash, firstParentHash, secondParentHash, message string, author Author) (*Commit, error) {
+	if firstParentHash == "" {
+		return nil, fmt.Errorf("first parent hash cannot be empty")
+	}
+	if secondParentHash == "" {
+		return nil, fmt.Errorf("second parent hash cannot be empty")
+	}
+	if firstParentHash == secondParentHash {
+		return nil, fmt.Errorf("merge commit parents must be different")
+	}
+
+	return newCommit(
+		treeHash,
+		message,
+		[]string{firstParentHash, secondParentHash},
+		author,
+	)
 }
 
 // buildCommitContent constructs Git commit object format
-func buildCommitContent(treeHash, parentHash, message string, author Author) []byte {
+func buildCommitContent(treeHash, message string, parentHashes []string, author Author) []byte {
 	var buf bytes.Buffer
 
 	// Tree reference - tree hash\n
 	fmt.Fprintf(&buf, "%s%s\n", constants.TreePrefix, treeHash)
 
-	// Parent reference - parent hash\n
-	if parentHash != "" {
+	// Parent references - parent hash\n
+	for _, parentHash := range parentHashes {
 		fmt.Fprintf(&buf, "%s%s\n", constants.CommitParentPrefix, parentHash)
 	}
 
@@ -142,7 +172,15 @@ func (c *Commit) TreeHash() string {
 // ParentHash returns the SHA-1 hash of the parent commit,
 // or an empty string for the initial commit.
 func (c *Commit) ParentHash() string {
-	return c.parentHash
+	if len(c.parentHashes) == 0 {
+		return ""
+	}
+	return c.parentHashes[0]
+}
+
+// ParentHashes returns all parent hashes in serialized order.
+func (c *Commit) ParentHashes() []string {
+	return slices.Clone(c.parentHashes)
 }
 
 // Message returns the commit message.
@@ -158,7 +196,7 @@ func (c *Commit) Author() Author {
 // Content returns the raw commit object body without the header,
 // reconstructed from the commit's stored fields.
 func (c *Commit) Content() []byte {
-	return buildCommitContent(c.treeHash, c.parentHash, c.message, c.author)
+	return buildCommitContent(c.treeHash, c.message, c.parentHashes, c.author)
 }
 
 // Size returns the byte length of the commit content body.
@@ -178,5 +216,5 @@ func (c *Commit) Data() []byte {
 
 // IsInitialCommit checks whether this is the first commit of the repository
 func (c *Commit) IsInitialCommit() bool {
-	return c.parentHash == ""
+	return len(c.parentHashes) == 0
 }

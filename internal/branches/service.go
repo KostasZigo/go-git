@@ -4,7 +4,6 @@
 package branches
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -22,45 +21,46 @@ func OrchestrateBranchCreation(repoPath, branchName string) error {
 		return err
 	}
 
-	// 1. Compute refs path
-	refsPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads)
-
-	// 2. retrieve commit hash from HEAD.
-	// Create the commit Hash for the new branch from the Head content (detached head state).
-	// If the HEAD content contains a ref then retrieve the hash from that branch's file.
-	headContent, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
+	commitHash, err := resolveHEADCommitHash(repoPath)
 	if err != nil {
-		return fmt.Errorf("failed to read HEAD file: %w", err)
+		return err
 	}
 
-	trimmedHeadContent := bytes.TrimSpace(headContent)
-	commitHash := append([]byte(nil), trimmedHeadContent...)
-	commitHash = append(commitHash, '\n')
-
-	refPrefix := []byte(constants.DefaultRefPrefix)
-	headRefPath, hasPrefix := bytes.CutPrefix(trimmedHeadContent, refPrefix)
-	if hasPrefix {
-		relRefPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, filepath.FromSlash(string(headRefPath)))
-		commitHash, err = os.ReadFile(relRefPath)
-		if err != nil {
-			return fmt.Errorf("failed to read current ref: %w", err)
-		}
-	}
-
-	// 3. Create file and write content (exclusive create)
-	newRefPath := filepath.Join(refsPath, branchName)
-	if err := os.MkdirAll(filepath.Dir(newRefPath), constants.DirPerms); err != nil {
-		return fmt.Errorf("failed to create refs directory for branch [%s]: %w", branchName, err)
-	}
-
-	if err := writeRefFileExclusive(newRefPath, commitHash); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			return fmt.Errorf("branch [%s] already exists", branchName)
+	if err := CompareAndSwap(repoPath, branchName, "", commitHash); err != nil {
+		if errors.Is(err, ErrReferenceChanged) {
+			return fmt.Errorf("branch [%s] already exists: %w", branchName, err)
 		}
 		return fmt.Errorf("failed to create new ref/branch [%s]: %w", branchName, err)
 	}
 
 	return nil
+}
+
+// resolveHEADCommitHash returns the commit referenced by symbolic or detached HEAD.
+func resolveHEADCommitHash(repoPath string) (string, error) {
+	headContent, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
+	if err != nil {
+		return "", fmt.Errorf("failed to read HEAD file: %w", err)
+	}
+
+	trimmedHeadContent := strings.TrimSpace(string(headContent))
+	branchName, isSymbolic := strings.CutPrefix(trimmedHeadContent, constants.DefaultRefPrefix)
+	if !isSymbolic {
+		if err := validateRefHash(trimmedHeadContent); err != nil {
+			return "", fmt.Errorf("HEAD contains invalid commit hash: %w", err)
+		}
+		return trimmedHeadContent, nil
+	}
+
+	commitHash, exists, err := readBranchRef(repoPath, branchName)
+	if err != nil {
+		return "", fmt.Errorf("failed to read current ref: %w", err)
+	}
+	if !exists {
+		return "", fmt.Errorf("failed to read current ref: branch [%s] not found", branchName)
+	}
+
+	return commitHash, nil
 }
 
 // validateBranchName verifies branch names are acceptable before creating refs/heads/<name>.
@@ -80,35 +80,6 @@ func validateBranchName(branchName string) error {
 		if r < 0x20 || r == 0x7f { // this check catches ASCII control chars and DEL
 			return fmt.Errorf("invalid branch name [%s]", branchName)
 		}
-	}
-
-	return nil
-}
-
-// writeRefFileExclusive creates a new ref file and writes content with durability safeguards.
-// It fails with os.ErrExist if the path already exists.
-func writeRefFileExclusive(filePath string, content []byte) error {
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, constants.FilePerms)
-	if err != nil {
-		return err
-	}
-
-	if _, err := file.Write(content); err != nil {
-		if closeErr := file.Close(); closeErr != nil {
-			return errors.Join(err, closeErr)
-		}
-		return err
-	}
-
-	if err := file.Sync(); err != nil {
-		if closeErr := file.Close(); closeErr != nil {
-			return errors.Join(err, closeErr)
-		}
-		return err
-	}
-
-	if err := file.Close(); err != nil {
-		return err
 	}
 
 	return nil

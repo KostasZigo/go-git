@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/branches"
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
 )
@@ -87,21 +88,16 @@ func formatCommitHistory(commitLogEntries []CommitLogEntry) (string, error) {
 // and returns the formatted log output string. This is the top-level
 // entry point invoked by the CLI log command.
 func OrchestrateLogExecution(repoPath string) (string, error) {
-	refPath, err := resolveHEADRef(repoPath)
+	currentBranch, err := branches.ResolveCurrent(repoPath)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to resolve current branch: %w", err)
 	}
-
-	refHash, err := getRefCommitHash(refPath)
-	if err != nil {
-		return "", err
-	}
-	if refHash == "" {
-		return "", fmt.Errorf("failed to read commit hash from [%s]", refPath)
+	if currentBranch.Hash == "" {
+		return "", fmt.Errorf("failed to read commit hash from [%s]", currentBranch.FilePath)
 	}
 
 	store := objects.NewObjectStore(repoPath)
-	commitLogEntries, err := collectCommitHistory(store, refHash)
+	commitLogEntries, err := collectCommitHistory(store, currentBranch.Hash)
 	if err != nil {
 		return "", fmt.Errorf("failed to collect commit history: %w", err)
 	}

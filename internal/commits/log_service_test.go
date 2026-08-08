@@ -1,12 +1,15 @@
 package commits
 
 import (
+	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/branches"
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
@@ -309,4 +312,71 @@ func TestOrchestrateLogExecution(t *testing.T) {
 	if historyOutput != expectedHistoryOutput.String() {
 		t.Fatalf("expected commit history output to be [%s], got [%s]", expectedHistoryOutput.String(), historyOutput)
 	}
+}
+
+// TestOrchestrateLogExecution_HierarchicalCurrentBranch verifies that log
+// resolves the starting commit from a hierarchical symbolic branch name.
+func TestOrchestrateLogExecution_HierarchicalCurrentBranch(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+	author := objects.Author{
+		Name:      testutils.RandomString(10),
+		Email:     testutils.RandomString(15),
+		Timestamp: time.Now(),
+	}
+	message := testutils.RandomString(10)
+	commitHash, err := createAndStoreCommit(
+		testutils.RandomHash(),
+		"",
+		message,
+		author,
+		store,
+	)
+	if err != nil {
+		t.Fatalf("failed to create and store commit: %v", err)
+	}
+
+	branchName := path.Join(testutils.RandomString(8), testutils.RandomString(8))
+	headContent := constants.DefaultRefPrefix + branchName + "\n"
+	testutils.WriteHEADFile(t, repoPath, []byte(headContent))
+	refPath := filepath.Join(
+		repoPath,
+		constants.Gogit,
+		constants.Refs,
+		constants.Heads,
+		filepath.FromSlash(branchName),
+	)
+	if err := os.MkdirAll(filepath.Dir(refPath), constants.DirPerms); err != nil {
+		t.Fatalf("failed to create hierarchical ref directory: %v", err)
+	}
+	if err := os.WriteFile(refPath, []byte(commitHash+"\n"), constants.FilePerms); err != nil {
+		t.Fatalf("failed to write hierarchical branch ref: %v", err)
+	}
+
+	historyOutput, err := OrchestrateLogExecution(repoPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedOutput := FormatLogEntry(commitHash, message, author.String(), author.Time())
+	if historyOutput != expectedOutput {
+		t.Fatalf("expected commit history output to be [%s], got [%s]", expectedOutput, historyOutput)
+	}
+	testutils.AssertHEADContent(t, repoPath, headContent)
+}
+
+// TestOrchestrateLogExecution_DetachedHEAD verifies that log rejects detached
+// HEAD through the centralized current-branch resolver.
+func TestOrchestrateLogExecution_DetachedHEAD(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	detachedHash := testutils.RandomHash()
+	testutils.WriteHEADFile(t, repoPath, []byte(detachedHash+"\n"))
+
+	_, err := OrchestrateLogExecution(repoPath)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, branches.ErrDetachedHEAD) {
+		t.Fatalf("expected detached HEAD error, got [%v]", err)
+	}
+	testutils.AssertHEADContent(t, repoPath, detachedHash+"\n")
 }

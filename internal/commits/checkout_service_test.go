@@ -53,8 +53,7 @@ func TestCheckout_ResolveTarget_CommitHash(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 
 	// store commit
-	commit, err := objects.NewCommit(testutils.RandomHash(),
-		"",
+	commit, err := objects.NewInitialCommit(testutils.RandomHash(),
 		testutils.RandomString(10),
 		objects.DefaultAuthor())
 	if err != nil {
@@ -139,8 +138,7 @@ func TestCheckout_ResolveTarget_BranchTakesPriorityOverCommitHash(t *testing.T) 
 	repoPath := testutils.SetupTestRepoWithInit(t)
 
 	// Store a commit in the object store
-	commit, err := objects.NewCommit(testutils.RandomHash(),
-		"",
+	commit, err := objects.NewInitialCommit(testutils.RandomHash(),
 		testutils.RandomString(10),
 		objects.DefaultAuthor())
 	if err != nil {

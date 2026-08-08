@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/branches"
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/index"
@@ -59,19 +60,17 @@ func ResolveTarget(repoPath, target string) (resolvedTarget *ResolvedTarget, err
 // Returns nil, nil if no matching branch exists (not an error).
 // Returns an error only for filesystem failures.
 func searchForTargetInRefs(repoPath, target string) (*ResolvedTarget, error) {
-	branchPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, target)
-	content, err := os.ReadFile(branchPath)
-	if os.IsNotExist(err) {
+	branch, err := branches.Resolve(repoPath, target)
+	if errors.Is(err, branches.ErrBranchNotFound) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to read branch file: %w", err)
+		return nil, fmt.Errorf("failed to resolve branch: %w", err)
 	}
 
-	hash := strings.TrimSpace(string(content))
 	return &ResolvedTarget{
 		IsBranch: true,
-		Hash:     hash,
+		Hash:     branch.Hash,
 	}, nil
 }
 
@@ -417,26 +416,20 @@ func resolveHEADCommit(repoPath string) (*ResolvedTarget, error) {
 	}
 
 	trimmed := bytes.TrimSpace(headContent)
-	refPrefix := []byte("ref: ")
-	if !bytes.HasPrefix(trimmed, refPrefix) {
+	if !bytes.HasPrefix(trimmed, []byte(constants.DefaultRefPrefix)) {
 		return &ResolvedTarget{
 			Hash:     string(trimmed),
 			IsBranch: false,
 		}, nil
 	}
 
-	refPath := filepath.Join(
-		repoPath,
-		constants.Gogit,
-		string(bytes.TrimPrefix(trimmed, refPrefix)),
-	)
-	hash, err := getRefCommitHash(refPath)
+	currentBranch, err := branches.ResolveCurrent(repoPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve commit hash from ref [%s]: %w", refPath, err)
+		return nil, fmt.Errorf("failed to resolve current branch: %w", err)
 	}
 
 	return &ResolvedTarget{
-		Hash:     hash,
+		Hash:     currentBranch.Hash,
 		IsBranch: true,
 	}, nil
 }

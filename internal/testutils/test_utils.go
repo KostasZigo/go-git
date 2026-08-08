@@ -251,7 +251,10 @@ func AssertFileContent(t *testing.T, filePath string, expectedContent []byte) {
 func WriteRefFile(t *testing.T, repoPath, branchName, commitHash string) {
 	t.Helper()
 
-	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, branchName)
+	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, filepath.FromSlash(branchName))
+	if err := os.MkdirAll(filepath.Dir(refPath), constants.DirPerms); err != nil {
+		t.Fatalf("failed to create ref directory for branch %s: %v", branchName, err)
+	}
 	if err := os.WriteFile(refPath, []byte(commitHash+"\n"), constants.FilePerms); err != nil {
 		t.Fatalf("failed to write ref file for branch %s: %v", branchName, err)
 	}

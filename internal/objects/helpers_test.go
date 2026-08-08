@@ -1,6 +1,7 @@
 package objects
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -79,15 +80,15 @@ func createAndStoreCommit(t *testing.T, parentHash string, store *ObjectStore) *
 }
 
 // assertCommitFields verifies commit fields match expected values.
-func assertCommitFields(t *testing.T, commit *Commit, treeHash, parentHash, message string, author Author) {
+func assertCommitFields(t *testing.T, commit *Commit, treeHash, message string, parentHashes []string, author Author) {
 	t.Helper()
 
 	if commit.treeHash != treeHash {
 		t.Errorf("expected tree hash [%s], got [%s]", treeHash, commit.treeHash)
 	}
 
-	if commit.parentHash != parentHash {
-		t.Errorf("expected parent hash [%s], got [%s]", parentHash, commit.parentHash)
+	if !slices.Equal(commit.parentHashes, parentHashes) {
+		t.Errorf("expected parent hashes [%v], got [%v]", parentHashes, commit.parentHashes)
 	}
 
 	if commit.message != message {
@@ -113,6 +114,10 @@ func assertCommitEqual(t *testing.T, actual, expected *Commit) {
 
 	if actual.treeHash != expected.treeHash {
 		t.Errorf("tree hash mismatch: expected [%s], got [%s]", expected.treeHash, actual.treeHash)
+	}
+
+	if !slices.Equal(actual.parentHashes, expected.parentHashes) {
+		t.Errorf("parent hashes mismatch: expected [%v], got [%v]", expected.parentHashes, actual.parentHashes)
 	}
 
 	if actual.message != expected.message {
