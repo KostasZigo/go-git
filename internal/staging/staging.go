@@ -110,9 +110,14 @@ func addFile(repoPath, filePath string, idx *index.Index, store *objects.ObjectS
 		return "", fmt.Errorf("failed to create blob from file %s: %w", absolutePath, err)
 	}
 
+	// Determine file mode
+	fileMode := index.DetectFileMode(fileInfo)
+
 	// Skip unchanged files: if an index entry already exists with the same
-	// content hash, the file has not been modified.
-	if existing := idx.GetEntry(relativeFilePath); existing != nil && existing.Hash() == blob.Hash() {
+	// content hash and mode, the file has not been modified.
+	if existing := idx.GetEntry(relativeFilePath); existing != nil &&
+		existing.Hash() == blob.Hash() &&
+		existing.Mode() == fileMode {
 		return "", nil
 	}
 
@@ -120,9 +125,6 @@ func addFile(repoPath, filePath string, idx *index.Index, store *objects.ObjectS
 	if err := store.Store(blob); err != nil {
 		return "", fmt.Errorf("failed to store file blob: %w", err)
 	}
-
-	// Determine file mode
-	fileMode := index.DetectFileMode(fileInfo)
 
 	// create index entry
 	entry, err := index.NewEntry(

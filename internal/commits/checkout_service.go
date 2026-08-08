@@ -219,10 +219,22 @@ func restoreTreeRecursive(dirPath, relDir, treeHash string, store *objects.Objec
 		entryRelPath := path.Join(relDir, treeEntry.Name())
 
 		if !treeEntry.IsDirectory() {
-			if err := createFileFromBlob(store, treeEntry.Hash(), entryPath); err != nil {
+			if err := createFileFromBlob(
+				store,
+				treeEntry.Hash(),
+				entryPath,
+				treeEntry.Mode(),
+			); err != nil {
 				return err
 			}
-			if err := addFileToRebuiltIndex(entryPath, entryRelPath, treeEntry.Hash(), idx); err != nil {
+
+			if err := addFileToRebuiltIndex(
+				entryPath,
+				entryRelPath,
+				treeEntry.Hash(),
+				treeEntry.Mode(),
+				idx,
+			); err != nil {
 				return err
 			}
 			continue
@@ -241,29 +253,54 @@ func restoreTreeRecursive(dirPath, relDir, treeHash string, store *objects.Objec
 
 // createFileFromBlob reads a blob from the object store and writes its content
 // to the specified file path.
-func createFileFromBlob(store *objects.ObjectStore, blobHash, filePath string) error {
+func createFileFromBlob(store *objects.ObjectStore, blobHash, filePath string, fileMode objects.FileMode) error {
 	blob, err := store.ReadBlob(blobHash)
 	if err != nil {
 		return fmt.Errorf("failed to create file [%s] from blob [%s]: %w", filePath, blobHash, err)
 	}
 
-	if err := os.WriteFile(filePath, blob.Content(), constants.FilePerms); err != nil {
+	filePermissions, err := filePermissionsForFileMode(fileMode)
+	if err != nil {
+		return fmt.Errorf("failed to determine permissions for file [%s]: %w", filePath, err)
+	}
+
+	if err := os.WriteFile(filePath, blob.Content(), filePermissions); err != nil {
 		return fmt.Errorf("failed to write [%s] file: %w", filePath, err)
+	}
+
+	if err := os.Chmod(filePath, filePermissions); err != nil {
+		return fmt.Errorf("failed to apply permissions to file [%s]: %w", filePath, err)
 	}
 
 	return nil
 }
 
+// filePermissionsForFileMode returns the working-tree permissions for a
+// supported file mode.
+func filePermissionsForFileMode(fileMode objects.FileMode) (os.FileMode, error) {
+	switch fileMode {
+	case objects.ModeRegularFile:
+		return constants.FilePerms, nil
+	case objects.ModeExecutable:
+		return constants.ExecutableFilePerms, nil
+	default:
+		return 0, fmt.Errorf("unsupported tree leaf mode: %s", fileMode)
+	}
+}
+
 // addFileToRebuiltIndex stats the file at absPath to obtain size, mode, and
 // modification time, then creates an index entry using the provided relative
 // path and blob hash, and adds it to the index.
-func addFileToRebuiltIndex(absPath, relPath, hash string, idx *index.Index) error {
+func addFileToRebuiltIndex(absPath, relPath, hash string, objectFileMode objects.FileMode, idx *index.Index) error {
 	fileInfo, err := os.Stat(absPath)
 	if err != nil {
 		return fmt.Errorf("failed to stat file %s: %w", absPath, err)
 	}
 
-	fileMode := index.DetectFileMode(fileInfo)
+	fileMode, err := index.FromObjectFileMode(objectFileMode)
+	if err != nil {
+		return fmt.Errorf("failed to convert tree mode for index entry %s: %w", relPath, err)
+	}
 
 	entry, err := index.NewEntry(
 		fileMode,

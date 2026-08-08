@@ -6,7 +6,6 @@ package commits
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/KostasZigo/gogit/internal/branches"
 	"github.com/KostasZigo/gogit/internal/index"
@@ -24,89 +23,18 @@ func loadIndexEntries(repoPath string) ([]*index.Entry, error) {
 	return idx.GetEntryList(), nil
 }
 
-// fileEntry holds the minimal data needed to create a tree entry for a file.
-type fileEntry struct {
-	name string
-	mode objects.FileMode
-	hash string
-}
-
-// directoryNode represents a node in the in-memory directory tree.
-// Files are stored as entries, subdirectories as child nodes.
-type directoryNode struct {
-	files    []fileEntry
-	children map[string]*directoryNode
-}
-
-// buildDirectoryTree constructs an in-memory directory tree from flat index entries.
-// Each index path is split into segments and inserted into the tree at the correct depth.
-func buildDirectoryTree(entries []*index.Entry) *directoryNode {
-	root := &directoryNode{children: make(map[string]*directoryNode)}
+// buildTreeSnapshot converts staged index entries into the flat logical-path
+// representation of TreeSnapshot used by the tree writer.
+func buildTreeSnapshot(entries []*index.Entry) objects.TreeSnapshot {
+	snapshot := make(objects.TreeSnapshot, len(entries))
 
 	for _, entry := range entries {
-		// Index paths are stored as forward-slash-separated (normalized at add time).
-		pathSegments := strings.Split(entry.Path(), "/")
-		current := root
-
-		// Create intermediate directories
-		for _, dirName := range pathSegments[:len(pathSegments)-1] {
-			if current.children[dirName] == nil {
-				current.children[dirName] = &directoryNode{children: make(map[string]*directoryNode)}
-			}
-			current = current.children[dirName]
+		snapshot[entry.Path()] = objects.SnapshotEntry{
+			Hash: entry.Hash(),
+			Mode: index.ToObjectFileMode(entry.Mode()),
 		}
-
-		// Add file to final directory
-		fileName := pathSegments[len(pathSegments)-1]
-		current.files = append(current.files, fileEntry{
-			name: fileName,
-			mode: index.ToObjectFileMode(entry.Mode()),
-			hash: entry.Hash(),
-		})
 	}
-
-	return root
-}
-
-// writeTree recursively creates and stores tree objects from a directoryNode.
-// Processes children first (bottom-up) so parent trees can reference child hashes.
-func writeTree(node *directoryNode, store *objects.ObjectStore) (string, error) {
-	var treeEntries []objects.TreeEntry
-
-	// Add file entries (blobs)
-	for _, file := range node.files {
-		treeEntry, err := objects.NewTreeEntry(file.mode, file.name, file.hash)
-		if err != nil {
-			return "", fmt.Errorf("failed to create file tree entry for %s: %w", file.name, err)
-		}
-		treeEntries = append(treeEntries, *treeEntry)
-	}
-
-	// Recurse into subdirectories, get their tree hashes
-	for dirName, childNode := range node.children {
-		childHash, err := writeTree(childNode, store)
-		if err != nil {
-			return "", fmt.Errorf("failed to write sub-tree for %s: %w", dirName, err)
-		}
-
-		treeEntry, err := objects.NewTreeEntry(objects.ModeDirectory, dirName, childHash)
-		if err != nil {
-			return "", fmt.Errorf("failed to create directory tree entry for %s: %w", dirName, err)
-		}
-		treeEntries = append(treeEntries, *treeEntry)
-	}
-
-	// Create and store tree
-	tree, err := objects.NewTree(treeEntries)
-	if err != nil {
-		return "", fmt.Errorf("failed to create new tree object: %w", err)
-	}
-
-	if err := store.Store(tree); err != nil {
-		return "", fmt.Errorf("failed to store tree object: %w", err)
-	}
-
-	return tree.Hash(), nil
+	return snapshot
 }
 
 // createAndStoreCommit creates and stores commit in the file system and returns the commit hash
@@ -129,9 +57,9 @@ func createAndStoreCommit(treeHash, parentHash, message string, author objects.A
 	return commit.Hash(), nil
 }
 
-// OrchestrateCommitExecution orchestrates the full commit workflow:
-// loads the index, builds the tree hierarchy, resolves the parent commit,
-// creates and stores the commit object, and updates the current branch ref.
+// OrchestrateCommitExecution loads staged index entries, converts them to a
+// tree snapshot, resolves the parent commit, creates and stores the commit,
+// and advances the current branch ref.
 func OrchestrateCommitExecution(repoPath string, message string, author objects.Author) (string, error) {
 	// 1. load staged files entries from index
 	entries, err := loadIndexEntries(repoPath)
@@ -150,12 +78,13 @@ func OrchestrateCommitExecution(repoPath string, message string, author objects.
 	}
 	parentHash := currentBranch.Hash
 
-	// 3. construct full directory node in-memory - to be used in order to create and store Tree entries
-	directoryNode := buildDirectoryTree(entries)
+	// 3. convert staged index entries into the shared tree snapshot representation
+	snapshot := buildTreeSnapshot(entries)
 
-	// 4. Create and store recursively and bottom up all trees and return root tree hash
+	// 4. Create and store recursively and bottom up all trees from snapshot
+	//  and return root tree hash
 	store := objects.NewObjectStore(repoPath)
-	rootTreeHash, err := writeTree(directoryNode, store)
+	rootTreeHash, err := store.StoreTreeSnapshot(snapshot)
 	if err != nil {
 		return "", fmt.Errorf("failed to create commit tree directory: %w", err)
 	}

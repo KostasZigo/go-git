@@ -60,6 +60,10 @@ const (
 
 	// FilePerms grants read/write to owner, read-only to others (rw-r--r--).
 	FilePerms os.FileMode = 0o644
+
+	// ExecutableFilePerms grants read/write/execute to owner and read/execute to
+	// group and others (rwxr-xr-x).
+	ExecutableFilePerms os.FileMode = 0o755
 )
 
 // Cryptographic hash properties.

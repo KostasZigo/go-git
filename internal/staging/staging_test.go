@@ -3,6 +3,7 @@ package staging
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -223,6 +224,54 @@ func TestOrchestrateAddExecution_SkipUnchangedFile(t *testing.T) {
 
 	if len(addedFiles) != 0 {
 		t.Errorf("expected 0 added files for unchanged file, got %d", len(addedFiles))
+	}
+}
+
+// TestOrchestrateAddExecution_RestagesModeOnlyChange verifies that an
+// executable-bit change updates the existing index entry without changing its blob.
+func TestOrchestrateAddExecution_RestagesModeOnlyChange(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("executable file permissions are not reliable on Windows")
+	}
+
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	testFileName := testutils.RandomString(10)
+	testutils.CreateTestFile(t, repoPath, testFileName, []byte(testutils.RandomString(100)))
+
+	if _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
+		t.Fatalf("first add failed: %v", err)
+	}
+
+	originalEntry := loadIndex(t, repoPath).GetEntry(testFileName)
+	if originalEntry == nil {
+		t.Fatal("expected staged entry after first add")
+	}
+	originalHash := originalEntry.Hash()
+
+	filePath := filepath.Join(repoPath, testFileName)
+	if err := os.Chmod(filePath, constants.ExecutableFilePerms); err != nil {
+		t.Fatalf("failed to make file executable: %v", err)
+	}
+
+	addedFiles, err := OrchestrateAddExecution(repoPath, []string{testFileName})
+	if err != nil {
+		t.Fatalf("second add failed: %v", err)
+	}
+	if len(addedFiles) != 1 || addedFiles[0] != testFileName {
+		t.Fatalf("expected mode-only change to re-stage [%q], got [%v]", testFileName, addedFiles)
+	}
+
+	updatedEntry := loadIndex(t, repoPath).GetEntry(testFileName)
+	if updatedEntry == nil {
+		t.Fatal("expected staged entry after mode-only change")
+	}
+	if updatedEntry.Hash() != originalHash {
+		t.Errorf("expected mode-only change to retain blob hash [%s], got [%s]", originalHash, updatedEntry.Hash())
+	}
+	if updatedEntry.Mode() != index.ModeExecutable {
+		t.Errorf("expected executable index mode, got [%v]", updatedEntry.Mode())
 	}
 }
 
