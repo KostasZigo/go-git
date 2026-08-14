@@ -90,3 +90,14 @@ func sortChanges(changes []Change) {
 		return strings.Compare(string(a.Kind), string(b.Kind))
 	})
 }
+
+// sortCollisions sorts a slice of Collision elements first by their path and
+// the by the kind of change.
+func sortCollisions(collisions []Collision) {
+	slices.SortFunc(collisions, func(a, b Collision) int {
+		if comparison := strings.Compare(a.Path, b.Path); comparison != 0 {
+			return comparison
+		}
+		return strings.Compare(string(a.Kind), string(b.Kind))
+	})
+}

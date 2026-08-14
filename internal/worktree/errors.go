@@ -1,9 +1,17 @@
 package worktree
 
-import "errors"
+import (
+	"errors"
+)
 
 // ErrPreflight indicates that snapshot application failed the inspection.
 var ErrPreflight = errors.New("worktree preflight failed")
+
+// ErrRepositoryMetadataTarget indicates that a target snapshot attempts to
+// address gogit's internal repository metadata directory.
+var ErrRepositoryMetadataTarget = errors.New(
+	"target snapshot contains repository metadata path",
+)
 
 // PreflightError reports the inspection state that prevented snapshot
 // application.
