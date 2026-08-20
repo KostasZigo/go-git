@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
@@ -293,116 +292,6 @@ func TestCheckout_RestoreTree_UnknowBlobHash_ReferencedByTree(t *testing.T) {
 	if strings.Contains(err.Error(), expectedErrorMessage) {
 		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
-}
-
-// TestCheckout_DeleteIndexFiles_SingleFile verifies that CleanWorkingTree
-// removes a single tracked file from the repository root.
-func TestCheckout_DeleteIndexFiles_SingleFile(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-
-	idx := index.NewIndex()
-	filePath := indextest.CreateTrackedFile(t, repoPath, repoPath, testutils.RandomString(10), idx)
-
-	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("failed to clean working directory: %v", err)
-	}
-
-	testutils.AssertFileNotExists(t, filePath)
-}
-
-// TestCheckout_DeleteIndexFiles_NestedFiles verifies that CleanWorkingTree
-// removes tracked files inside a subdirectory and prunes the now-empty parent directory.
-func TestCheckout_DeleteIndexFiles_NestedFiles(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-
-	idx := index.NewIndex()
-	dir := filepath.Join(repoPath, testutils.RandomString(10))
-
-	filePaths := make([]string, 2)
-	for i := range filePaths {
-		filePaths[i] = indextest.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx)
-	}
-
-	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("failed to clean working directory: %v", err)
-	}
-
-	for _, filePath := range filePaths {
-		testutils.AssertFileNotExists(t, filePath)
-	}
-	testutils.AssertDirNotExists(t, dir)
-}
-
-// TestCheckout_DeleteIndexFiles_UntrackedFilesRemain verifies that CleanWorkingTree
-// only removes files tracked in the index, leaving untracked files and their parent
-// directories intact — even when tracked and untracked files share the same directory.
-func TestCheckout_DeleteIndexFiles_UntrackedFilesRemain(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-
-	idx := index.NewIndex()
-	dir := filepath.Join(repoPath, testutils.RandomString(10))
-
-	// Tracked files: registered in the index, expected to be deleted
-	trackedPaths := []string{
-		indextest.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx),
-		indextest.CreateTrackedFile(t, repoPath, dir, testutils.RandomString(10), idx),
-	}
-
-	// Untracked files: NOT in the index, expected to survive cleanup
-	untrackedPaths := []string{
-		testutils.CreateTestFile(t, dir, testutils.RandomString(10), []byte(testutils.RandomString(10))),
-		testutils.CreateTestFile(t, repoPath, testutils.RandomString(10), []byte(testutils.RandomString(10))),
-	}
-
-	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("failed to clean working directory: %v", err)
-	}
-
-	for _, filePath := range trackedPaths {
-		testutils.AssertFileNotExists(t, filePath)
-	}
-	for _, filePath := range untrackedPaths {
-		testutils.AssertFileExists(t, filePath)
-	}
-	testutils.AssertDirExists(t, dir)
-}
-
-// TestCheckout_DeleteIndexFiles_EmptyIndex verifies that CleanWorkingTree
-// returns no error and leaves existing files untouched when the index is empty.
-func TestCheckout_DeleteIndexFiles_EmptyIndex(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	filePath := testutils.CreateTestFile(t, repoPath, testutils.RandomString(10), []byte(testutils.RandomString(10)))
-
-	idx := index.NewIndex()
-
-	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("failed to clean working directory: %v", err)
-	}
-	testutils.AssertFileExists(t, filePath)
-}
-
-// TestCheckout_DeleteIndexFiles_FileAlreadyMissing verifies that CleanWorkingTree
-// does not error when an index entry references a file that no longer exists on disk.
-func TestCheckout_DeleteIndexFiles_FileAlreadyMissing(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-
-	idx := index.NewIndex()
-
-	fileName := testutils.RandomString(10)
-	entry, err := index.NewEntry(index.ModeRegularFile, testutils.RandomHash(), filepath.ToSlash(fileName), testutils.RandomInt(100), time.Now())
-	if err != nil {
-		t.Fatalf("failed to create index entry for %s: %v", fileName, err)
-	}
-
-	if err := idx.AddEntry(entry); err != nil {
-		t.Fatalf("failed to add index entry for %s: %v", fileName, err)
-	}
-
-	if err := CleanWorkingTree(repoPath, idx.GetEntryList()); err != nil {
-		t.Fatalf("failed to clean working directory: %v", err)
-	}
-
-	testutils.AssertFileNotExists(t, filepath.Join(repoPath, fileName))
 }
 
 func TestCheckout_RebuildIndex_SingleFile(t *testing.T) {
@@ -703,4 +592,13 @@ func TestCheckout_Orchestrate_CurrentBranchNoop(t *testing.T) {
 	if entriesAfter[0].Path() != fileName {
 		t.Fatalf("expected index entry path [%s], got [%s]", fileName, entriesAfter[0].Path())
 	}
+}
+
+func extractPathsFromIndexEntries(t *testing.T, idxEntries []*index.Entry) []string {
+	t.Helper()
+	pathsToRemove := make([]string, 0, len(idxEntries))
+	for _, entry := range idxEntries {
+		pathsToRemove = append(pathsToRemove, entry.Path())
+	}
+	return pathsToRemove
 }

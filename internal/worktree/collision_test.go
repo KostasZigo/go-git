@@ -389,3 +389,102 @@ func TestServiceInspectCollisions_RejectedPreflightDoesNotMutateState(t *testing
 		t.Fatal("index bytes changed during rejected preflight")
 	}
 }
+
+// TestServiceInspectCollisions_TrackedFileReplacedByDirectoryWithUntrackedChild
+// verifies that force cannot discard untracked content inside a directory that
+// replaced a directly tracked file.
+func TestServiceInspectCollisions_TrackedFileReplacedByDirectoryWithUntrackedChild(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+
+	trackedPath := testutils.RandomString(10)
+	untrackedChildPath := filepath.Join(trackedPath, testutils.RandomString(10))
+
+	idx := index.NewIndex()
+	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), trackedPath, time.Now().UTC())
+	saveIndex(t, repoPath, idx)
+
+	if err := os.MkdirAll(filepath.Join(repoPath, filepath.Dir(untrackedChildPath)), constants.DirPerms); err != nil {
+		t.Fatalf("failed to create directory [%s], %v", filepath.Dir(untrackedChildPath), err)
+	}
+	_ = testutils.CreateTestFile(t, repoPath, untrackedChildPath, testutils.RandomBytes(20))
+
+	targetSnapshot := objects.TreeSnapshot{
+		trackedPath: {
+			Hash: testutils.RandomHash(),
+			Mode: objects.ModeRegularFile,
+		},
+	}
+
+	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	if err != nil {
+		t.Fatalf("failed to inspect collisions: %v", err)
+	}
+
+	expectedCollisions := []Collision{
+		{
+			Path: filepath.ToSlash(untrackedChildPath),
+			Kind: CollisionUntrackedDescendant,
+		},
+	}
+	if !slices.Equal(collisions, expectedCollisions) {
+		t.Fatalf("expected collisions [%#v], got [%#v]", expectedCollisions, collisions)
+	}
+}
+
+// TestServiceInspectCollisions_RemovedTrackedPathWithUntrackedDescendant
+// verifies that removing a tracked path cannot discard an untracked file
+// contained in a directory that replaced it on disk.
+func TestServiceInspectCollisions_RemovedTrackedPathWithUntrackedDescendant(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+
+	trackedPath := testutils.RandomString(10)
+	untrackedChildPath := filepath.Join(trackedPath, testutils.RandomString(10))
+
+	idx := index.NewIndex()
+	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), trackedPath, time.Now().UTC())
+	saveIndex(t, repoPath, idx)
+
+	if err := os.MkdirAll(filepath.Join(repoPath, filepath.Dir(untrackedChildPath)), constants.DirPerms); err != nil {
+		t.Fatalf("failed to create directory [%s], %v", filepath.Dir(untrackedChildPath), err)
+	}
+	_ = testutils.CreateTestFile(t, repoPath, untrackedChildPath, testutils.RandomBytes(20))
+
+	targetSnapshot := objects.TreeSnapshot{}
+	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	if err != nil {
+		t.Fatalf("failed to inspect collisions: %v", err)
+	}
+
+	expectedCollisions := []Collision{
+		{
+			Path: filepath.ToSlash(untrackedChildPath),
+			Kind: CollisionUntrackedDescendant,
+		},
+	}
+	if !slices.Equal(collisions, expectedCollisions) {
+		t.Fatalf("expected collisions [%#v], got [%#v]", expectedCollisions, collisions)
+	}
+}
+
+// TestServiceInspectCollisions_RemovedTrackedRegularFile verifies that a
+// regular tracked file absent from the target produces no collision.
+func TestServiceInspectCollisions_RemovedTrackedRegularFile(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+
+	trackedPath := testutils.RandomString(10)
+	_ = testutils.CreateTestFile(t, repoPath, trackedPath, testutils.RandomBytes(20))
+
+	idx := index.NewIndex()
+	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), trackedPath, time.Now().UTC())
+	saveIndex(t, repoPath, idx)
+
+	collisions, err := NewService(repoPath).InspectCollisions(
+		objects.TreeSnapshot{},
+	)
+	if err != nil {
+		t.Fatalf("failed to inspect collisions: %v", err)
+	}
+	if len(collisions) != 0 {
+		t.Fatalf("expected no collisions, got [%#v]", collisions)
+	}
+}

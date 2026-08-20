@@ -4,13 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -19,6 +16,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/internal/worktree"
 )
 
 // ResolvedTarget holds the result of resolving a checkout target string.
@@ -96,93 +94,6 @@ func searchForTargetInCommitObjects(repoPath, target string) (*ResolvedTarget, e
 		IsBranch: false,
 		Hash:     commit.Hash(),
 	}, nil
-}
-
-// CleanWorkingTree removes all files referenced by the provided index entries
-// from the working directory. Operates in two passes: first deletes all tracked
-// files, then collects unique parent directories and prunes empty ones deepest-first
-// up to (but not including) repoPath. Files already missing on disk are silently skipped.
-func CleanWorkingTree(repoPath string, indexEntries []*index.Entry) error {
-	uniqueDirs := map[string]struct{}{}
-	for _, entry := range indexEntries {
-		relPath, err := filepath.Localize(entry.Path())
-		if err != nil {
-			return fmt.Errorf("failed to convert file path to local os specific format for file [%s]: %w", entry.Path(), err)
-		}
-		absPath := filepath.Join(repoPath, relPath)
-		if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to remove file [%s]: %w", relPath, err)
-		}
-
-		dir := filepath.Dir(absPath)
-		if dir == repoPath {
-			continue
-		}
-		uniqueDirs[dir] = struct{}{}
-	}
-
-	dirs := slices.Collect(maps.Keys(uniqueDirs))
-	slices.SortFunc(dirs, func(a, b string) int {
-		aCount := strings.Count(a, string(os.PathSeparator))
-		bCount := strings.Count(b, string(os.PathSeparator))
-		if aCount > bCount {
-			return -1
-		}
-		if aCount == bCount {
-			return 0
-		}
-		return 1
-	})
-
-	for _, dir := range dirs {
-		if err := pruneEmptyDirectories(repoPath, dir); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// pruneEmptyDirectories walks upward from dirPath toward repoPath, removing each
-// directory that is empty after file deletion. Stops at repoPath or the first
-// non-empty directory.
-func pruneEmptyDirectories(repoPath, dirPath string) error {
-	for {
-		if repoPath == dirPath {
-			return nil
-		}
-
-		parentDir := filepath.Dir(dirPath)
-		isEmpty, err := isDirEmpty(dirPath)
-		if err != nil {
-			return fmt.Errorf("failed to check if directory [%s] is empty: %w", dirPath, err)
-		}
-
-		if isEmpty {
-			if err := os.Remove(dirPath); err != nil {
-				return fmt.Errorf("failed to remove empty directory [%s]: %w", dirPath, err)
-			}
-			dirPath = parentDir
-		} else {
-			return nil
-		}
-	}
-}
-
-// isDirEmpty reports whether the directory at path contains no entries.
-// Uses a single Readdirnames call to avoid reading the entire directory listing.
-func isDirEmpty(path string) (bool, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = f.Close() }()
-
-	_, err = f.Readdirnames(1)
-	if errors.Is(err, io.EOF) {
-		return true, nil
-	}
-	return false, err
 }
 
 // RestoreTreeAndRebuildIndex reads a stored tree object, reconstructs its contents on the
@@ -519,7 +430,11 @@ func OrchestrateCheckoutExecution(repoPath, target string, force bool) error {
 	}
 
 	// 4. Clean working directory
-	if err := CleanWorkingTree(repoPath, idxEntries); err != nil {
+	pathsToRemove := make([]string, 0, len(idxEntries))
+	for _, entry := range idxEntries {
+		pathsToRemove = append(pathsToRemove, entry.Path())
+	}
+	if err := worktree.RemovePaths(repoPath, pathsToRemove); err != nil {
 		return fmt.Errorf("failed to clean working directory: %w", err)
 	}
 

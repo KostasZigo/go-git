@@ -139,6 +139,25 @@ func CreateTestFile(t *testing.T, dir, filename string, content []byte) string {
 	return filePath
 }
 
+// CreateTestFileWithDirs creates a file with given content and all its parent directories
+// if they do not exist. Returns the full path to the created file.
+//
+//	If file already exists, it content is updated.
+func CreateTestFileWithDirs(t *testing.T, dir, filename string, content []byte) string {
+	t.Helper()
+
+	filePath := filepath.Join(dir, filename)
+	if err := os.MkdirAll(filepath.Dir(filePath), constants.DirPerms); err != nil {
+		t.Fatalf("failed to create directory %s: %v", filepath.Dir(filePath), err)
+	}
+
+	if err := os.WriteFile(filePath, content, constants.FilePerms); err != nil {
+		t.Fatalf("failed to create test file %s: %v", filename, err)
+	}
+
+	return filePath
+}
+
 // AssertFileExists checks that a file exists at the given path.
 // Fails the test if the file doesn't exist.
 func AssertFileExists(t *testing.T, path string) {

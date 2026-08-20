@@ -7,10 +7,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 
-	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 )
@@ -18,19 +16,18 @@ import (
 // InspectCollisions reports untracked paths that would prevent target from
 // being applied safely.
 func (service *Service) InspectCollisions(targetSnapshot objects.TreeSnapshot) ([]Collision, error) {
-	if err := validateCollisionTarget(targetSnapshot); err != nil {
-		return nil, err
+	if err := validateWorktreeSnapshot(targetSnapshot); err != nil {
+		return nil, fmt.Errorf("invalid target snapshot: %w", err)
 	}
 
 	idx, err := service.indexManager.Load()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load index: %w", err)
 	}
-
 	trackedPaths := buildTrackedPathSet(idx)
 
 	collisionSet := make(map[Collision]struct{}, 0)
-
+	// inspect collisions per target path
 	for targetPath := range targetSnapshot {
 		targetCollisions, err := inspectTargetCollisions(
 			service.repoPath,
@@ -46,7 +43,16 @@ func (service *Service) InspectCollisions(targetSnapshot objects.TreeSnapshot) (
 		}
 	}
 
-	collisions := make([]Collision, 0, len(collisionSet))
+	// inspect collisions derived from files removed by target
+	removedPathCollissions, err := inspectRemovedTrackedPathCollisions(service.repoPath, targetSnapshot, trackedPaths)
+	if err != nil {
+		return nil, err
+	}
+	for _, collision := range removedPathCollissions {
+		collisionSet[collision] = struct{}{}
+	}
+
+	collisions := make([]Collision, 0, len(collisionSet)+len(removedPathCollissions))
 	for collision := range collisionSet {
 		collisions = append(collisions, collision)
 	}
@@ -77,7 +83,7 @@ func inspectTargetCollisions(repoPath, targetPath string, trackedPaths map[strin
 		return []Collision{parentCollision}, nil
 	}
 
-	descendantCollisions, err := inspectTrackedDirectoryReplacement(repoPath, targetPath, trackedPaths)
+	descendantCollisions, err := inspectTrackedPathDirectory(repoPath, targetPath, trackedPaths)
 	if err != nil {
 		return nil, err
 	}
@@ -99,35 +105,6 @@ func inspectTargetCollisions(repoPath, targetPath string, trackedPaths map[strin
 	}
 
 	return []Collision{exactCollision}, nil
-}
-
-// validateCollisionTarget verifies that target can be inspected without
-// treating repository metadata as working-tree content.
-func validateCollisionTarget(target objects.TreeSnapshot) error {
-	if err := target.Validate(); err != nil {
-		return fmt.Errorf("failed to validate target snapshot: %w", err)
-	}
-
-	targetPaths := make([]string, 0, len(target))
-	for targetPath := range target {
-		targetPaths = append(targetPaths, targetPath)
-	}
-	slices.Sort(targetPaths)
-
-	for _, targetPath := range targetPaths {
-		if isRepositoryMetadataPath(targetPath) {
-			return fmt.Errorf("%w: %q", ErrRepositoryMetadataTarget, targetPath)
-		}
-	}
-
-	return nil
-}
-
-// isRepositoryMetadataPath reports whether logicalPath addresses gogit's
-// internal metadata directory.
-func isRepositoryMetadataPath(logicalPath string) bool {
-	return logicalPath == constants.Gogit ||
-		strings.HasPrefix(logicalPath, constants.Gogit+"/")
 }
 
 // inspectUntrackedParent reports an untracked regular file that blocks
@@ -163,14 +140,20 @@ func inspectUntrackedParent(repoPath, targetPath string, trackedPaths map[string
 	return Collision{}, nil
 }
 
-// inspectTrackedDirectoryReplacement reports untracked content that would be
-// removed when targetPath replaces an implicit tracked directory with a file.
+// inspectTrackedPathDirectory reports untracked files below a Git-owned path
+// that currently exists as a directory on disk.
 // E.x. Disk contains : kappa/hello.txt and kappa/world.txt
 //
 //	Index contains: kappa/world.txt
 //	Target contains: kappa -> converts tracked dir to file
-func inspectTrackedDirectoryReplacement(repoPath, targetPath string, trackedPaths map[string]struct{}) ([]Collision, error) {
-	if !hasTrackedDescendant(targetPath, trackedPaths) {
+//
+// or
+// Disk contains: kappa/hello.txt
+// Index contains: kappa
+// Target contains: kappa
+func inspectTrackedPathDirectory(repoPath, targetPath string, trackedPaths map[string]struct{}) ([]Collision, error) {
+	_, isDirectlyTracked := trackedPaths[targetPath]
+	if !isDirectlyTracked && !hasTrackedDescendant(targetPath, trackedPaths) {
 		return nil, nil
 	}
 
@@ -263,4 +246,25 @@ func inspectTargetPathCollision(repoPath, targetPath string) (Collision, error) 
 		return Collision{Path: targetPath, Kind: CollisionUntrackedDirectory}, nil
 	}
 	return Collision{Path: targetPath, Kind: CollisionUntrackedFile}, nil
+}
+
+// inspectRemovedTrackedPathCollisions reports untracked descendants below
+// tracked paths that are absent from the target snapshot.
+func inspectRemovedTrackedPathCollisions(repoPath string, targetSnapshot objects.TreeSnapshot, trackedPaths map[string]struct{}) ([]Collision, error) {
+	collisions := make([]Collision, 0)
+
+	for trackedPath := range trackedPaths {
+		if _, exists := targetSnapshot[trackedPath]; exists {
+			continue
+		}
+
+		pathCollisions, err := inspectTrackedPathDirectory(repoPath, trackedPath, trackedPaths)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect removed tracked path %q: %w", trackedPath, err)
+		}
+
+		collisions = append(collisions, pathCollisions...)
+	}
+
+	return collisions, nil
 }

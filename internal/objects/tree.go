@@ -11,29 +11,6 @@ import (
 	"github.com/KostasZigo/gogit/internal/hasher"
 )
 
-// FileMode represents Unix file permissions and type in Git objects.
-type FileMode string
-
-// FileMode constants define the standard Unix permission and type
-// values used in Git tree object entries.
-const (
-	ModeRegularFile FileMode = "100644" // Regular non-executable file
-	ModeExecutable  FileMode = "100755" // Executable file
-	ModeSymlink     FileMode = "120000" // Symbolic link
-	ModeDirectory   FileMode = "040000" // Directory (tree)
-	ModeSubmodule   FileMode = "160000" // Git submodule
-)
-
-// IsValid verifies file mode matches Git specification.
-func (m FileMode) isValid() bool {
-	switch m {
-	case ModeRegularFile, ModeExecutable, ModeSymlink, ModeDirectory, ModeSubmodule:
-		return true
-	default:
-		return false
-	}
-}
-
 // TreeEntry represents a single entry in a Git tree object,
 // holding the file mode, name, and SHA-1 hash of the referenced object.
 type TreeEntry struct {
