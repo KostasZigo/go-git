@@ -2,9 +2,11 @@ package index
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/gogitpath"
 	"github.com/KostasZigo/gogit/internal/objects"
 )
 
@@ -47,8 +49,8 @@ func NewEntry(mode FileMode, hash, path string, fileSize int64, lastModified tim
 	if len(hash) != constants.HashStringLength {
 		return nil, fmt.Errorf("invalid hash length expected [%d], got [%d]", constants.HashStringLength, len(hash))
 	}
-	if path == "" {
-		return nil, fmt.Errorf("path cannot be empty")
+	if err := ValidatePath(path); err != nil {
+		return nil, fmt.Errorf("invalid index path %q: %w", path, err)
 	}
 
 	return &Entry{
@@ -58,6 +60,20 @@ func NewEntry(mode FileMode, hash, path string, fileSize int64, lastModified tim
 		fileSize:     fileSize,
 		lastModified: lastModified,
 	}, nil
+}
+
+// ValidatePath verifies that entryPath is a canonical repository-relative
+// logical path and does not address gogit's internal metadata directory.
+func ValidatePath(entryPath string) error {
+	if err := gogitpath.Validate(entryPath); err != nil {
+		return err
+	}
+
+	if entryPath == constants.Gogit || strings.HasPrefix(entryPath, constants.Gogit+"/") {
+		return fmt.Errorf("path cannot address repository metadata")
+	}
+
+	return nil
 }
 
 // Mode returns the Unix file permission and type bits for this entry.

@@ -1,11 +1,15 @@
 package worktree
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
@@ -154,7 +158,7 @@ func TestServiceInspectStagedChanges_InvalidHeadSnapshot(t *testing.T) {
 }
 
 // TestServiceInspectStagedChanges_InvalidIndexSnapshot verifies that inspection
-// rejects index entries that cannot be represented as a valid tree snapshot.
+// rejects a persisted index containing a non-canonical logical path.
 func TestServiceInspectStagedChanges_InvalidIndexSnapshot(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	headSnapshot := objects.TreeSnapshot{
@@ -165,17 +169,35 @@ func TestServiceInspectStagedChanges_InvalidIndexSnapshot(t *testing.T) {
 	}
 
 	idx := index.NewIndex()
-	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), `invalid\path.txt`, time.Now())
+	validPath := "invalid/path.txt"
+	invalidPath := `invalid\path.txt`
+	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), validPath, time.Now())
 	saveIndex(t, repoPath, idx)
 
+	indexPath := filepath.Join(repoPath, constants.Gogit, constants.Index)
+	indexData, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("failed to read persisted index: %v", err)
+	}
+	corruptIndexData := bytes.Replace(indexData, []byte(validPath), []byte(invalidPath), 1)
+	if bytes.Equal(corruptIndexData, indexData) {
+		t.Fatal("expected persisted index path to be replaced")
+	}
+	if err := os.WriteFile(indexPath, corruptIndexData, constants.FilePerms); err != nil {
+		t.Fatalf("failed to write corrupt index: %v", err)
+	}
+
 	service := NewService(repoPath)
-	_, err := service.InspectStagedChanges(headSnapshot)
+	_, err = service.InspectStagedChanges(headSnapshot)
 	if err == nil {
 		t.Fatal("expected an error to occur when index snapshot is invalid")
 	}
 
-	expectedErrorMessage := "invalid snapshot created from index:"
+	expectedErrorMessage := "failed to load index:"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
 		t.Fatalf("expectrer error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+	}
+	if !strings.Contains(err.Error(), "path cannot contain backslashes") {
+		t.Fatalf("expected invalid path error, got [%s]", err.Error())
 	}
 }

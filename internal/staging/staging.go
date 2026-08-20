@@ -103,6 +103,9 @@ func addFile(repoPath, filePath string, idx *index.Index, store *objects.ObjectS
 
 	// Normalize to forward slashes so index and tree entries are OS-independent.
 	relativeFilePath = filepath.ToSlash(relativeFilePath)
+	if err := index.ValidatePath(relativeFilePath); err != nil {
+		return "", fmt.Errorf("invalid path [%s]: %w", relativeFilePath, err)
+	}
 
 	// Create blob from file
 	blob, err := objects.NewBlobFromFile(absolutePath)
