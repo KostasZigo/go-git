@@ -48,7 +48,14 @@ func TestBuildTreeSnapshot(t *testing.T) {
 		t.Fatalf("failed to create nested index entry: %v", err)
 	}
 
-	snapshot := buildTreeSnapshot([]*index.Entry{rootEntry, nestedEntry})
+	idx := index.NewIndex()
+	_ = idx.AddEntry(rootEntry)
+	_ = idx.AddEntry(nestedEntry)
+	snapshot, err := idx.ToTreeSnapshot()
+	if err != nil {
+		t.Fatalf("failed to convert index  to snapshot: %v", err)
+	}
+
 	expectedSnapshot := objects.TreeSnapshot{
 		rootFilePath: {
 			Mode: objects.ModeRegularFile,

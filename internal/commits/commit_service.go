@@ -13,28 +13,14 @@ import (
 )
 
 // LoadIndexEntries returns all entries of staged files for repository's index
-func loadIndexEntries(repoPath string) ([]*index.Entry, error) {
+func loadIndexEntries(repoPath string) ([]*index.Entry, *index.Index, error) {
 	indexManager := index.NewManager(repoPath)
 	idx, err := indexManager.Load()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load index from path [%s]: %w", repoPath, err)
+		return nil, nil, fmt.Errorf("failed to load index from path [%s]: %w", repoPath, err)
 	}
 
-	return idx.GetEntryList(), nil
-}
-
-// buildTreeSnapshot converts staged index entries into the flat logical-path
-// representation of TreeSnapshot used by the tree writer.
-func buildTreeSnapshot(entries []*index.Entry) objects.TreeSnapshot {
-	snapshot := make(objects.TreeSnapshot, len(entries))
-
-	for _, entry := range entries {
-		snapshot[entry.Path()] = objects.SnapshotEntry{
-			Hash: entry.Hash(),
-			Mode: index.ToObjectFileMode(entry.Mode()),
-		}
-	}
-	return snapshot
+	return idx.GetEntryList(), idx, nil
 }
 
 // createAndStoreCommit creates and stores commit in the file system and returns the commit hash
@@ -62,7 +48,7 @@ func createAndStoreCommit(treeHash, parentHash, message string, author objects.A
 // and advances the current branch ref.
 func OrchestrateCommitExecution(repoPath string, message string, author objects.Author) (string, error) {
 	// 1. load staged files entries from index
-	entries, err := loadIndexEntries(repoPath)
+	entries, idx, err := loadIndexEntries(repoPath)
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +65,10 @@ func OrchestrateCommitExecution(repoPath string, message string, author objects.
 	parentHash := currentBranch.Hash
 
 	// 3. convert staged index entries into the shared tree snapshot representation
-	snapshot := buildTreeSnapshot(entries)
+	snapshot, err := idx.ToTreeSnapshot()
+	if err != nil {
+		return "", err
+	}
 
 	// 4. Create and store recursively and bottom up all trees from snapshot
 	//  and return root tree hash
