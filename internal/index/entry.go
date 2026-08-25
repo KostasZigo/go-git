@@ -2,6 +2,7 @@ package index
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -132,5 +133,18 @@ func FromObjectFileMode(mode objects.FileMode) (FileMode, error) {
 		return ModeSubmodule, nil
 	default:
 		return 0, fmt.Errorf("unsupported tree leaf mode: %s", mode)
+	}
+}
+
+// ToOsFileMOde converts an indexs' package FileMode to the
+// corresponding os.FileMode.
+func (m FileMode) ToOsFileMOde() (os.FileMode, error) {
+	switch m {
+	case ModeRegularFile:
+		return constants.FilePerms, nil
+	case ModeExecutable:
+		return constants.ExecutableFilePerms, nil
+	default:
+		return 0, fmt.Errorf("unsuported file mode for conversion [%v]", m)
 	}
 }

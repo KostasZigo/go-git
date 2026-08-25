@@ -38,6 +38,9 @@ type applicationPlan struct {
 	targetPlannedFiles []plannedFile
 }
 
+// saveIndexFunc persists a replacement index after worktree materialization.
+type saveIndexFunc func(*index.Index) error
+
 // buildApplicationPlan validates the original and target snapshots and
 // preloads every target blob before filesystem mutation begins.
 //
@@ -267,20 +270,11 @@ func createAndAddIndexEntry(abspath string, file plannedFile, idx *index.Index) 
 	return nil
 }
 
-// ApplySnapshot updates the worktree and index from original to target.
-// It validates and plans the complete transition before mutation, removes
-// obsolete paths, materializes every target file, and persists the rebuilt
-// index only after all filesystem operations succeed.
-//
-// Planning failures leave both the worktree and persisted index unchanged.
-// Failures after mutation begins may leave a partially updated worktree, but
-// the persisted index is not replaced unless materialization completes.
-func ApplySnapshot(repoPath string, store *objects.ObjectStore, currentIndex *index.Index, original, target objects.TreeSnapshot) error {
-	plan, err := buildApplicationPlan(repoPath, store, currentIndex, original, target)
-	if err != nil {
-		return fmt.Errorf("failed to build application plan: %w", err)
-	}
-
+// applySnapshotPlan performs the mutating phase of snapshot application. It
+// removes obsolete paths, materializes the target files, and atomically saves
+// the replacement index. The caller is responsible for rollback if any step
+// fails.
+func applySnapshotPlan(repoPath string, plan *applicationPlan, saveIndex saveIndexFunc) error {
 	if err := plan.removeWorkTreePaths(repoPath); err != nil {
 		return fmt.Errorf("failed to remove obsolete worktree paths: %w", err)
 	}
@@ -290,10 +284,44 @@ func ApplySnapshot(repoPath string, store *objects.ObjectStore, currentIndex *in
 		return fmt.Errorf("failed to materialize target snapshot: %w", err)
 	}
 
-	indexManager := index.NewManager(repoPath)
-	if err := indexManager.Save(updatedIndex); err != nil {
+	if err := saveIndex(updatedIndex); err != nil {
 		return fmt.Errorf("failed to save updated index: %w", err)
 	}
 
 	return nil
+}
+
+// applySnapshot is the testable version of the exported ApplySnapshot function - allows to setup the function for
+// saving the replacement index (and therefore mock its behavior).
+func applySnapshot(repoPath string, store *objects.ObjectStore, currentIndex *index.Index, original, target objects.TreeSnapshot, saveIndex saveIndexFunc) error {
+	plan, err := buildApplicationPlan(repoPath, store, currentIndex, original, target)
+	if err != nil {
+		return fmt.Errorf("%w, failed to build application plan: %w", ErrPreflight, err)
+	}
+
+	applicationErr := applySnapshotPlan(repoPath, plan, saveIndex)
+	if applicationErr == nil {
+		return nil
+	}
+
+	if rollbackErr := rollbackSnapshotApplication(repoPath, store, currentIndex, target); rollbackErr != nil {
+		return errors.Join(applicationErr, rollbackErr)
+	}
+	return applicationErr
+}
+
+// ApplySnapshot updates the worktree and index from original to target.
+// currentIndex must represent the persisted index before application starts;
+// it is used both to plan the transition and to restore the worktree if the
+// mutating phase fails. Callers must complete collision inspection before
+// invoking ApplySnapshot.
+//
+// Planning failures wrap ErrPreflight and leave the worktree and persisted
+// index unchanged. After planning succeeds, any removal, materialization, or
+// index-save failure triggers a best-effort rollback to the files and modes in
+// currentIndex. If rollback also fails, the returned error joins the original
+// application error with an error wrapping ErrRollback. Rollback never rewrites
+// the persisted index.
+func ApplySnapshot(repoPath string, store *objects.ObjectStore, currentIndex *index.Index, original, target objects.TreeSnapshot) error {
+	return applySnapshot(repoPath, store, currentIndex, original, target, index.NewManager(repoPath).Save)
 }

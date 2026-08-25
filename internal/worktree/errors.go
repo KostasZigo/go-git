@@ -7,6 +7,10 @@ import (
 // ErrPreflight indicates that snapshot application failed the inspection.
 var ErrPreflight = errors.New("worktree preflight failed")
 
+// ErrRollback identifies a failure while restoring the worktree after an
+// unsuccessful snapshot application.
+var ErrRollback = errors.New("rollback failed")
+
 // ErrRepositoryMetadataTarget indicates that a target snapshot attempts to
 // address gogit's internal repository metadata directory.
 var ErrRepositoryMetadataTarget = errors.New(

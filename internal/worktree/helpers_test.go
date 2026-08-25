@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/internal/objects/objectstest"
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
@@ -43,6 +45,32 @@ func saveIndex(t *testing.T, repoPath string, idx *index.Index) {
 	if err := idxManager.Save(idx); err != nil {
 		t.Fatalf("failed to save index: %v", err)
 	}
+}
+
+// addRollbackIndexEntry stores content as a blob and adds its recovery metadata
+// to idx without creating the corresponding worktree file.
+func addRollbackIndexEntry(t *testing.T, store *objects.ObjectStore, idx *index.Index, logicalPath string, content []byte, mode objects.FileMode) string {
+	t.Helper()
+
+	blob := objectstest.CreateAndStoreBlob(t, store, content)
+	addIndexEntryWithContent(t, idx, mode, blob.Hash(), logicalPath, content, time.Now().Truncate(time.Second))
+	return blob.Hash()
+}
+
+// readPersistedIndex returns the exact serialized index bytes.
+func readPersistedIndex(t *testing.T, repoPath string) []byte {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Index))
+	if err != nil {
+		t.Fatalf("failed to read persisted index: %v", err)
+	}
+	return content
+}
+
+// failingIndexSave returns an index-save operation that always fails with err.
+func failingIndexSave(err error) saveIndexFunc {
+	return func(*index.Index) error { return err }
 }
 
 // createMaterializationIndexEntry writes one disk file and returns matching

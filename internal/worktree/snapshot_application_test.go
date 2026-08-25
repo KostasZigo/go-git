@@ -1,6 +1,8 @@
 package worktree
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -154,6 +156,12 @@ func TestApplySnapshot_PlanningFailureLeavesWorktreeAndIndexUnchanged(t *testing
 	if err == nil {
 		t.Fatal("expected snapshot application to fail when a target blob is missing")
 	}
+	if !errors.Is(err, ErrPreflight) {
+		t.Fatalf("expected ErrPreflight, got [%v]", err)
+	}
+	if errors.Is(err, ErrRollback) {
+		t.Fatalf("planning failure must not trigger rollback: %v", err)
+	}
 
 	expectedErrorMessage := "failed to build application plan"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
@@ -172,6 +180,7 @@ func TestApplySnapshot_PlanningFailureLeavesWorktreeAndIndexUnchanged(t *testing
 // TestApplySnapshot_RemovalFailurePreservesUntrackedContentAndIndex verifies
 // that removing a tracked path fails when it has become a non-empty directory,
 // preserving its untracked descendant and the previously persisted index.
+// It also leads to an Error during rollback.
 func TestApplySnapshot_RemovalFailurePreservesUntrackedContentAndIndex(t *testing.T) {
 	// Arrange
 	repoPath := testutils.SetupTestRepoWithInit(t)
@@ -205,10 +214,14 @@ func TestApplySnapshot_RemovalFailurePreservesUntrackedContentAndIndex(t *testin
 	if err == nil {
 		t.Fatal("expected snapshot application to fail when removing a non-empty directory")
 	}
+	if !errors.Is(err, ErrRollback) {
+		t.Fatalf("expected ErrRollback, got [%v]", err)
+	}
 
-	expectedErrorMessage := "failed to remove obsolete worktree paths"
-	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("expected error to contain [%s], got [%v]", expectedErrorMessage, err)
+	for _, expected := range []string{"failed to remove obsolete worktree paths", "failed to restore indexed files"} {
+		if !strings.Contains(err.Error(), expected) {
+			t.Fatalf("expected error to contain [%s], got [%v]", expected, err)
+		}
 	}
 	testutils.AssertDirExists(t, trackedFilePath)
 	testutils.AssertFileExists(t, untrackedPath)
@@ -315,4 +328,58 @@ func TestApplySnapshot_EmptyDirectoryAtTargetPathIsReplaced(t *testing.T) {
 	assertIndexEntries(t, loadedIndex, map[string]testIdxEntry{
 		targetPath: {hash: targetBlob.Hash(), mode: index.ModeRegularFile},
 	})
+}
+
+// TestApplySnapshot_IndexSaveFailureRollsBackStructuralTransitions verifies
+// that rollback reverses file-to-directory and directory-to-file transitions
+// after the target is materialized but index persistence fails.
+func TestApplySnapshot_IndexSaveFailureRollsBackStructuralTransitions(t *testing.T) {
+	// Arrange
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+	idx := index.NewIndex()
+
+	fileToDirectoryPath := testutils.RandomString(10)
+	fileToDirectoryContent := testutils.RandomBytes(20)
+	fileToDirectoryHash := addRollbackIndexEntry(t, store, idx, fileToDirectoryPath, fileToDirectoryContent, objects.ModeRegularFile)
+	fileToDirectoryAbsPath := testutils.CreateTestFile(t, repoPath, fileToDirectoryPath, fileToDirectoryContent)
+	targetChildPath := path.Join(fileToDirectoryPath, testutils.RandomString(11))
+	targetChildBlob := objectstest.CreateAndStoreBlob(t, store, testutils.RandomBytes(21))
+
+	directoryToFilePath := testutils.RandomString(12)
+	directoryToFileChildPath := path.Join(directoryToFilePath, testutils.RandomString(13))
+	directoryToFileContent := testutils.RandomBytes(22)
+	directoryToFileHash := addRollbackIndexEntry(t, store, idx, directoryToFileChildPath, directoryToFileContent, objects.ModeRegularFile)
+	directoryToFileChildAbsPath := testutils.CreateTestFileWithDirs(t, repoPath, filepath.FromSlash(directoryToFileChildPath), directoryToFileContent)
+	targetFileBlob := objectstest.CreateAndStoreBlob(t, store, testutils.RandomBytes(23))
+
+	saveIndex(t, repoPath, idx)
+	persistedIndexBefore := readPersistedIndex(t, repoPath)
+	original := objects.TreeSnapshot{
+		fileToDirectoryPath:      {Hash: fileToDirectoryHash, Mode: objects.ModeRegularFile},
+		directoryToFileChildPath: {Hash: directoryToFileHash, Mode: objects.ModeRegularFile},
+	}
+	target := objects.TreeSnapshot{
+		targetChildPath:    {Hash: targetChildBlob.Hash(), Mode: objects.ModeRegularFile},
+		directoryToFilePath: {Hash: targetFileBlob.Hash(), Mode: objects.ModeRegularFile},
+	}
+	saveErr := errors.New("injected index save failure")
+
+	// Act
+	err := applySnapshot(repoPath, store, idx, original, target, failingIndexSave(saveErr))
+
+	// Assert
+	if !errors.Is(err, saveErr) {
+		t.Fatalf("expected injected index save error, got [%v]", err)
+	}
+	if errors.Is(err, ErrRollback) {
+		t.Fatalf("expected structural rollback to succeed, got [%v]", err)
+	}
+	testutils.AssertFileContent(t, fileToDirectoryAbsPath, fileToDirectoryContent)
+	testutils.AssertFileNotExists(t, filepath.Join(repoPath, filepath.FromSlash(targetChildPath)))
+	testutils.AssertDirExists(t, filepath.Join(repoPath, directoryToFilePath))
+	testutils.AssertFileContent(t, directoryToFileChildAbsPath, directoryToFileContent)
+	if !bytes.Equal(persistedIndexBefore, readPersistedIndex(t, repoPath)) {
+		t.Fatal("expected structural rollback to preserve persisted index bytes")
+	}
 }
