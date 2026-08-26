@@ -8,23 +8,23 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 )
 
-// InspectCollisions reports untracked paths that would prevent target from
-// being applied safely.
-func (service *Service) InspectCollisions(targetSnapshot objects.TreeSnapshot) ([]Collision, error) {
+// InspectCollisions uses the service's operation-scoped index snapshot to
+// report untracked paths that would prevent targetSnapshot from being applied
+// over originalSnapshot safely.
+func (service *Service) InspectCollisions(originalSnapshot, targetSnapshot objects.TreeSnapshot) ([]Collision, error) {
+	if err := validateWorktreeSnapshot(originalSnapshot); err != nil {
+		return nil, fmt.Errorf("invalid original snapshot: %w", err)
+	}
 	if err := validateWorktreeSnapshot(targetSnapshot); err != nil {
 		return nil, fmt.Errorf("invalid target snapshot: %w", err)
 	}
-
-	idx, err := service.indexManager.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load index: %w", err)
-	}
-	trackedPaths := buildTrackedPathSet(idx)
+	trackedPaths := buildTrackedPathSet(service.index)
 
 	collisionSet := make(map[Collision]struct{}, 0)
 	// inspect collisions per target path
@@ -43,8 +43,15 @@ func (service *Service) InspectCollisions(targetSnapshot objects.TreeSnapshot) (
 		}
 	}
 
-	// inspect collisions derived from files removed by target
-	removedPathCollissions, err := inspectRemovedTrackedPathCollisions(service.repoPath, targetSnapshot, trackedPaths)
+	// Inspect every path that snapshot application may remove. Paths present in
+	// originalSnapshot but absent from the index are staged deletions, so any
+	// object recreated at such a path is untracked and must be preserved.
+	removedPathCollissions, err := inspectRemovedPathCollisions(
+		service.repoPath,
+		originalSnapshot,
+		targetSnapshot,
+		trackedPaths,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +133,7 @@ func inspectUntrackedParent(repoPath, targetPath string, trackedPaths map[string
 
 		fileInfo, err := os.Lstat(filepath.Join(repoPath, osParentPath))
 		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
+			if isMissingPathError(err) {
 				continue
 			}
 			return Collision{}, fmt.Errorf("failed to inspect path [%s]: %w", osParentPath, err)
@@ -165,7 +172,7 @@ func inspectTrackedPathDirectory(repoPath, targetPath string, trackedPaths map[s
 	osPath := filepath.Join(repoPath, osTargetPath)
 	fileInfo, err := os.Lstat(osPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if isMissingPathError(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to stat target path [%s]: %w", osTargetPath, err)
@@ -236,7 +243,7 @@ func inspectTargetPathCollision(repoPath, targetPath string) (Collision, error) 
 
 	fileInfo, err := os.Lstat(filepath.Join(repoPath, osTargetPath))
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if isMissingPathError(err) {
 			return Collision{}, nil
 		}
 		return Collision{}, fmt.Errorf("failed to inspect target path [%s]: %w", targetPath, err)
@@ -248,23 +255,52 @@ func inspectTargetPathCollision(repoPath, targetPath string) (Collision, error) 
 	return Collision{Path: targetPath, Kind: CollisionUntrackedFile}, nil
 }
 
-// inspectRemovedTrackedPathCollisions reports untracked descendants below
-// tracked paths that are absent from the target snapshot.
-func inspectRemovedTrackedPathCollisions(repoPath string, targetSnapshot objects.TreeSnapshot, trackedPaths map[string]struct{}) ([]Collision, error) {
+// inspectRemovedPathCollisions reports untracked objects at paths that
+// snapshot application will remove because they are owned by originalSnapshot
+// or the current index but absent from targetSnapshot.
+func inspectRemovedPathCollisions(repoPath string, originalSnapshot, targetSnapshot objects.TreeSnapshot, trackedPaths map[string]struct{}) ([]Collision, error) {
 	collisions := make([]Collision, 0)
+	removedPaths := make(map[string]struct{}, len(originalSnapshot)+len(trackedPaths))
 
 	for trackedPath := range trackedPaths {
 		if _, exists := targetSnapshot[trackedPath]; exists {
 			continue
 		}
+		removedPaths[trackedPath] = struct{}{}
+	}
+	for originalPath := range originalSnapshot {
+		if _, exists := targetSnapshot[originalPath]; exists {
+			continue
+		}
+		removedPaths[originalPath] = struct{}{}
+	}
 
-		pathCollisions, err := inspectTrackedPathDirectory(repoPath, trackedPath, trackedPaths)
+	for removedPath := range removedPaths {
+		_, isTracked := trackedPaths[removedPath]
+		if !isTracked && !hasTrackedDescendant(removedPath, trackedPaths) {
+			collision, err := inspectTargetPathCollision(repoPath, removedPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to inspect removed path %q: %w", removedPath, err)
+			}
+			if collision.Path != "" {
+				collisions = append(collisions, collision)
+			}
+			continue
+		}
+
+		pathCollisions, err := inspectTrackedPathDirectory(repoPath, removedPath, trackedPaths)
 		if err != nil {
-			return nil, fmt.Errorf("failed to inspect removed tracked path %q: %w", trackedPath, err)
+			return nil, fmt.Errorf("failed to inspect removed tracked path %q: %w", removedPath, err)
 		}
 
 		collisions = append(collisions, pathCollisions...)
 	}
 
 	return collisions, nil
+}
+
+// isMissingPathError reports whether an inspected path is absent, including
+// the Unix case where an ancestor exists but is not a directory.
+func isMissingPathError(err error) bool {
+	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)
 }

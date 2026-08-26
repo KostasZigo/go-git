@@ -19,8 +19,8 @@ import (
 
 // TestApplySnapshot_MixedFilesUpdatesWorktreeAndIndex verifies that applying a
 // target snapshot retains unchanged files, rewrites changed files, removes
-// deleted files, creates nested files, and persists an index matching the
-// complete target snapshot.
+// deleted files, creates nested files, persists exact index, and
+// leaves HEAD and branch refs unchanged.
 func TestApplySnapshot_MixedFilesUpdatesWorktreeAndIndex(t *testing.T) {
 	// Arrange
 	repoPath := testutils.SetupTestRepoWithInit(t)
@@ -58,6 +58,10 @@ func TestApplySnapshot_MixedFilesUpdatesWorktreeAndIndex(t *testing.T) {
 	deletedFilePath := indextest.CreateTrackedFileContent(t, repoPath, repoPath, deletedFileLogicalPath, deletedFileContent, idx)
 
 	saveIndex(t, repoPath, idx)
+	secondaryBranch := testutils.RandomString(15)
+	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, testutils.RandomHash())
+	testutils.WriteRefFile(t, repoPath, secondaryBranch, testutils.RandomHash())
+	referencesBefore := captureRepositoryReferences(t, repoPath, constants.DefaultBranch, secondaryBranch)
 
 	original := objects.TreeSnapshot{
 		retainedFileLogicalPath: {Hash: retainedFileHash, Mode: fileMode},
@@ -89,7 +93,7 @@ func TestApplySnapshot_MixedFilesUpdatesWorktreeAndIndex(t *testing.T) {
 	}
 
 	// Act
-	if err := ApplySnapshot(repoPath, store, idx, original, target); err != nil {
+	if err := newWorktreeService(t, repoPath).ApplySnapshot(store, original, target); err != nil {
 		t.Fatalf("unexpected error during snapshot application: %v", err)
 	}
 
@@ -125,6 +129,8 @@ func TestApplySnapshot_MixedFilesUpdatesWorktreeAndIndex(t *testing.T) {
 		existingFileLogicalPath: {hash: changedFileHash, mode: indexMode},
 	}
 	assertIndexEntries(t, loadedIndex, expectedIndexEntries)
+	assertIndexMetadataMatchesDisk(t, repoPath, loadedIndex)
+	assertRepositoryReferencesUnchanged(t, repoPath, referencesBefore)
 }
 
 // TestApplySnapshot_PlanningFailureLeavesWorktreeAndIndexUnchanged verifies
@@ -150,7 +156,7 @@ func TestApplySnapshot_PlanningFailureLeavesWorktreeAndIndexUnchanged(t *testing
 	}
 
 	// Act
-	err := ApplySnapshot(repoPath, store, idx, original, target)
+	err := newWorktreeService(t, repoPath).ApplySnapshot(store, original, target)
 
 	// Assert
 	if err == nil {
@@ -208,7 +214,7 @@ func TestApplySnapshot_RemovalFailurePreservesUntrackedContentAndIndex(t *testin
 	}
 
 	// Act
-	err := ApplySnapshot(repoPath, store, idx, original, objects.TreeSnapshot{})
+	err := newWorktreeService(t, repoPath).ApplySnapshot(store, original, objects.TreeSnapshot{})
 
 	// Assert
 	if err == nil {
@@ -266,7 +272,7 @@ func TestApplySnapshot_EmptyTargetRemovesTrackedFilesAndPersistsEmptyIndex(t *te
 	}
 
 	// Act
-	if err := ApplySnapshot(repoPath, store, idx, original, objects.TreeSnapshot{}); err != nil {
+	if err := newWorktreeService(t, repoPath).ApplySnapshot(store, original, objects.TreeSnapshot{}); err != nil {
 		t.Fatalf("failed to apply empty target snapshot: %v", err)
 	}
 
@@ -280,6 +286,36 @@ func TestApplySnapshot_EmptyTargetRemovesTrackedFilesAndPersistsEmptyIndex(t *te
 	loadedIndex, err := index.NewManager(repoPath).Load()
 	if err != nil {
 		t.Fatalf("failed to load index after applying empty target: %v", err)
+	}
+	assertIndexEntries(t, loadedIndex, map[string]testIdxEntry{})
+}
+
+// TestApplySnapshot_IndexOnlyPathAbsentFromTargetIsRemoved verifies that a
+// staged addition is removed and omitted from the replacement index while
+// unrelated untracked content remains untouched.
+func TestApplySnapshot_IndexOnlyPathAbsentFromTargetIsRemoved(t *testing.T) {
+	// Arrange
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	idx := index.NewIndex()
+	store := objects.NewObjectStore(repoPath)
+
+	indexedPath := testutils.RandomString(10)
+	indexedFilePath := indextest.CreateTrackedFileContent(t, repoPath, repoPath, indexedPath, testutils.RandomBytes(20), idx)
+	untrackedContent := testutils.RandomBytes(21)
+	untrackedFilePath := testutils.CreateTestFile(t, repoPath, testutils.RandomString(11), untrackedContent)
+	saveIndex(t, repoPath, idx)
+
+	// Act
+	if err := newWorktreeService(t, repoPath).ApplySnapshot(store, objects.TreeSnapshot{}, objects.TreeSnapshot{}); err != nil {
+		t.Fatalf("failed to apply empty target over index-only path: %v", err)
+	}
+
+	// Assert
+	testutils.AssertFileNotExists(t, indexedFilePath)
+	testutils.AssertFileContent(t, untrackedFilePath, untrackedContent)
+	loadedIndex, err := index.NewManager(repoPath).Load()
+	if err != nil {
+		t.Fatalf("failed to load replacement index: %v", err)
 	}
 	assertIndexEntries(t, loadedIndex, map[string]testIdxEntry{})
 }
@@ -307,7 +343,7 @@ func TestApplySnapshot_EmptyDirectoryAtTargetPathIsReplaced(t *testing.T) {
 	saveIndex(t, repoPath, idx)
 
 	// Act
-	if err := ApplySnapshot(repoPath, store, idx, objects.TreeSnapshot{}, target); err != nil {
+	if err := newWorktreeService(t, repoPath).ApplySnapshot(store, objects.TreeSnapshot{}, target); err != nil {
 		t.Fatalf("failed to replace empty directory with target file: %v", err)
 	}
 
@@ -328,6 +364,69 @@ func TestApplySnapshot_EmptyDirectoryAtTargetPathIsReplaced(t *testing.T) {
 	assertIndexEntries(t, loadedIndex, map[string]testIdxEntry{
 		targetPath: {hash: targetBlob.Hash(), mode: index.ModeRegularFile},
 	})
+}
+
+// TestApplySnapshot_StructuralTransitionsUpdateWorktreeAndIndex verifies that
+// one application can replace a tracked file with a directory and a tracked
+// directory with a file while persisting an index matching the target exactly.
+func TestApplySnapshot_StructuralTransitionsUpdateWorktreeAndIndex(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+	idx := index.NewIndex()
+
+	fileToDirectoryPath := testutils.RandomString(10)
+	fileToDirectoryContent := testutils.RandomBytes(20)
+	fileToDirectoryBlob := objectstest.CreateAndStoreBlob(t, store, fileToDirectoryContent)
+	fileToDirectoryAbsPath := indextest.CreateTrackedFileContent(t, repoPath, repoPath, fileToDirectoryPath, fileToDirectoryContent, idx)
+	targetChildPath := path.Join(fileToDirectoryPath, testutils.RandomString(11))
+	targetChildContent := testutils.RandomBytes(21)
+	targetChildBlob := objectstest.CreateAndStoreBlob(t, store, targetChildContent)
+
+	directoryToFilePath := testutils.RandomString(12)
+	directoryToFileChildName := testutils.RandomString(13)
+	directoryToFileChildPath := path.Join(directoryToFilePath, directoryToFileChildName)
+	directoryToFileChildContent := testutils.RandomBytes(22)
+	directoryToFileChildBlob := objectstest.CreateAndStoreBlob(t, store, directoryToFileChildContent)
+	directoryToFileChildAbsPath := indextest.CreateTrackedFileContent(t, repoPath, filepath.Join(repoPath, directoryToFilePath), directoryToFileChildName, directoryToFileChildContent, idx)
+	targetFileContent := testutils.RandomBytes(23)
+	targetFileBlob := objectstest.CreateAndStoreBlob(t, store, targetFileContent)
+
+	saveIndex(t, repoPath, idx)
+	original := objects.TreeSnapshot{
+		fileToDirectoryPath:      {Hash: fileToDirectoryBlob.Hash(), Mode: objects.ModeRegularFile},
+		directoryToFileChildPath: {Hash: directoryToFileChildBlob.Hash(), Mode: objects.ModeRegularFile},
+	}
+	target := objects.TreeSnapshot{
+		targetChildPath:     {Hash: targetChildBlob.Hash(), Mode: objects.ModeRegularFile},
+		directoryToFilePath: {Hash: targetFileBlob.Hash(), Mode: objects.ModeRegularFile},
+	}
+	service := newWorktreeService(t, repoPath)
+
+	state, err := service.ResolveRepositoryState(original, target)
+	if err != nil {
+		t.Fatalf("failed to inspect structural transitions: %v", err)
+	}
+	if state.HasChanges() || state.HasCollisions() {
+		t.Fatalf("expected safe structural transitions, got state [%#v]", state)
+	}
+	if err := service.ApplySnapshot(store, original, target); err != nil {
+		t.Fatalf("failed to apply structural transitions: %v", err)
+	}
+
+	testutils.AssertDirExists(t, fileToDirectoryAbsPath)
+	testutils.AssertFileContent(t, filepath.Join(repoPath, filepath.FromSlash(targetChildPath)), targetChildContent)
+	testutils.AssertFileNotExists(t, directoryToFileChildAbsPath)
+	testutils.AssertFileContent(t, filepath.Join(repoPath, directoryToFilePath), targetFileContent)
+
+	loadedIndex, err := index.NewManager(repoPath).Load()
+	if err != nil {
+		t.Fatalf("failed to load structural-transition index: %v", err)
+	}
+	assertIndexEntries(t, loadedIndex, map[string]testIdxEntry{
+		targetChildPath:     {hash: targetChildBlob.Hash(), mode: index.ModeRegularFile},
+		directoryToFilePath: {hash: targetFileBlob.Hash(), mode: index.ModeRegularFile},
+	})
+	assertIndexMetadataMatchesDisk(t, repoPath, loadedIndex)
 }
 
 // TestApplySnapshot_IndexSaveFailureRollsBackStructuralTransitions verifies
@@ -360,13 +459,13 @@ func TestApplySnapshot_IndexSaveFailureRollsBackStructuralTransitions(t *testing
 		directoryToFileChildPath: {Hash: directoryToFileHash, Mode: objects.ModeRegularFile},
 	}
 	target := objects.TreeSnapshot{
-		targetChildPath:    {Hash: targetChildBlob.Hash(), Mode: objects.ModeRegularFile},
+		targetChildPath:     {Hash: targetChildBlob.Hash(), Mode: objects.ModeRegularFile},
 		directoryToFilePath: {Hash: targetFileBlob.Hash(), Mode: objects.ModeRegularFile},
 	}
 	saveErr := errors.New("injected index save failure")
 
 	// Act
-	err := applySnapshot(repoPath, store, idx, original, target, failingIndexSave(saveErr))
+	err := newWorktreeService(t, repoPath).applySnapshot(store, original, target, failingIndexSave(saveErr))
 
 	// Assert
 	if !errors.Is(err, saveErr) {

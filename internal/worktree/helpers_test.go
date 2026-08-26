@@ -47,6 +47,17 @@ func saveIndex(t *testing.T, repoPath string, idx *index.Index) {
 	}
 }
 
+// newWorktreeService loads the persisted index into an operation-scoped service.
+func newWorktreeService(t *testing.T, repoPath string) *Service {
+	t.Helper()
+
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	return service
+}
+
 // addRollbackIndexEntry stores content as a blob and adds its recovery metadata
 // to idx without creating the corresponding worktree file.
 func addRollbackIndexEntry(t *testing.T, store *objects.ObjectStore, idx *index.Index, logicalPath string, content []byte, mode objects.FileMode) string {
@@ -152,6 +163,12 @@ type testIdxEntry struct {
 	mode index.FileMode
 }
 
+// repositoryReferencesSnapshot captures HEAD and selected branch refs exactly.
+type repositoryReferencesSnapshot struct {
+	head []byte
+	refs map[string][]byte
+}
+
 // assertIndexEntries verifies that idx contains exactly the expected paths,
 // hashes, and platform-independent index modes.
 func assertIndexEntries(t *testing.T, idx *index.Index, expected map[string]testIdxEntry) {
@@ -171,6 +188,73 @@ func assertIndexEntries(t *testing.T, idx *index.Index, expected map[string]test
 		}
 		if expectedEntry.hash != idxEntry.Hash() {
 			t.Fatalf("expected entry hash to be [%s], got [%s]", expectedEntry.hash, idxEntry.Hash())
+		}
+	}
+}
+
+// assertIndexMetadataMatchesDisk verifies that every index entry records the
+// exact size and second-precision modification time of its worktree file.
+func assertIndexMetadataMatchesDisk(t *testing.T, repoPath string, idx *index.Index) {
+	t.Helper()
+
+	for _, idxEntry := range idx.GetEntryList() {
+		localPath, err := filepath.Localize(idxEntry.Path())
+		if err != nil {
+			t.Fatalf("failed to localize indexed path [%s]: %v", idxEntry.Path(), err)
+		}
+		fileInfo, err := os.Stat(filepath.Join(repoPath, localPath))
+		if err != nil {
+			t.Fatalf("failed to stat indexed path [%s]: %v", idxEntry.Path(), err)
+		}
+		if idxEntry.FileSize() != fileInfo.Size() {
+			t.Fatalf("expected index size [%d] for path [%s], got [%d]", fileInfo.Size(), idxEntry.Path(), idxEntry.FileSize())
+		}
+		expectedModTime := fileInfo.ModTime().Truncate(time.Second)
+		if !idxEntry.LastModified().Equal(expectedModTime) {
+			t.Fatalf("expected index timestamp [%s] for path [%s], got [%s]", expectedModTime, idxEntry.Path(), idxEntry.LastModified())
+		}
+	}
+}
+
+// captureRepositoryReferences reads HEAD and selected branch refs exactly.
+func captureRepositoryReferences(t *testing.T, repoPath string, branches ...string) repositoryReferencesSnapshot {
+	t.Helper()
+
+	headPath := filepath.Join(repoPath, constants.Gogit, constants.Head)
+	head, err := os.ReadFile(headPath)
+	if err != nil {
+		t.Fatalf("failed to read HEAD: %v", err)
+	}
+	refs := make(map[string][]byte, len(branches))
+	for _, branch := range branches {
+		refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, filepath.FromSlash(branch))
+		refs[branch], err = os.ReadFile(refPath)
+		if err != nil {
+			t.Fatalf("failed to read branch ref [%s]: %v", branch, err)
+		}
+	}
+	return repositoryReferencesSnapshot{head: head, refs: refs}
+}
+
+// assertRepositoryReferencesUnchanged verifies exact HEAD and branch-ref bytes.
+func assertRepositoryReferencesUnchanged(t *testing.T, repoPath string, expected repositoryReferencesSnapshot) {
+	t.Helper()
+
+	head, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
+	if err != nil {
+		t.Fatalf("failed to read HEAD: %v", err)
+	}
+	if !bytes.Equal(head, expected.head) {
+		t.Fatal("expected worktree operation to preserve HEAD")
+	}
+	for branch, expectedContent := range expected.refs {
+		refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, filepath.FromSlash(branch))
+		actualContent, err := os.ReadFile(refPath)
+		if err != nil {
+			t.Fatalf("failed to read branch ref [%s]: %v", branch, err)
+		}
+		if !bytes.Equal(actualContent, expectedContent) {
+			t.Fatalf("expected worktree operation to preserve branch ref [%s]", branch)
 		}
 	}
 }

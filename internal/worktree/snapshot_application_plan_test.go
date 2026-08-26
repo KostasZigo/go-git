@@ -313,6 +313,28 @@ func TestBuildApplicationPlan_DeletedOriginalPathIsScheduled(t *testing.T) {
 	}
 }
 
+// TestBuildApplicationPlan_IndexOnlyPathAbsentFromTargetIsScheduled verifies
+// that a staged addition is removed when it is absent from the authoritative
+// target snapshot.
+func TestBuildApplicationPlan_IndexOnlyPathAbsentFromTargetIsScheduled(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	idx := index.NewIndex()
+	indexedPath := testutils.RandomString(10)
+	indexedContent := testutils.RandomBytes(20)
+	indexedEntry := createMaterializationIndexEntry(t, repoPath, indexedPath, indexedContent, testutils.RandomHash(), index.ModeRegularFile, constants.FilePerms)
+	if err := idx.AddEntry(indexedEntry); err != nil {
+		t.Fatalf("failed to add index-only entry: %v", err)
+	}
+
+	applicationPlan, err := buildApplicationPlan(repoPath, objects.NewObjectStore(repoPath), idx, objects.TreeSnapshot{}, objects.TreeSnapshot{})
+	if err != nil {
+		t.Fatalf("failed to build application plan: %v", err)
+	}
+	if !slices.Equal(applicationPlan.pathsToRemove, []string{indexedPath}) {
+		t.Fatalf("expected removal path [%s], got [%#v]", indexedPath, applicationPlan.pathsToRemove)
+	}
+}
+
 // TestBuildApplicationPlan_TrackedFileBecomesDirectory verifies that a tracked
 // file blocking a target descendant is removed and the descendant is planned
 // for writing.

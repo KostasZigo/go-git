@@ -12,16 +12,11 @@ import (
 	"github.com/KostasZigo/gogit/internal/index"
 )
 
-// InspectWorktreeChanges compares each tracked index entry with its
-// corresponding filesystem path and returns every working-tree change.
+// InspectWorktreeChanges compares each entry in the service's operation-scoped
+// index snapshot with its filesystem path and returns every worktree change.
 func (service *Service) InspectWorktreeChanges() ([]Change, error) {
-	idx, err := service.indexManager.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load index: %w", err)
-	}
-
-	changes := make([]Change, 0, len(idx.GetEntryList()))
-	for _, idxEntry := range idx.GetEntryList() {
+	changes := make([]Change, 0, len(service.index.GetEntryList()))
+	for _, idxEntry := range service.index.GetEntryList() {
 		entryChanges, err := inspectIndexEntry(service.repoPath, idxEntry)
 		if err != nil {
 			return nil, err

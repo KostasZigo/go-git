@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"syscall"
 	"testing"
 	"time"
 
@@ -34,7 +35,11 @@ func TestServiceInspectCollisions_UntrackedFile(t *testing.T) {
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -62,7 +67,11 @@ func TestServiceInspectCollisions_UntrackedDirectory(t *testing.T) {
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -90,7 +99,11 @@ func TestServiceInspectCollisions_UntrackedParentFile(t *testing.T) {
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -130,7 +143,11 @@ func TestServiceInspectCollisions_UntrackedDescendant(t *testing.T) {
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect target snapshot for collisions: %v", err)
 	}
@@ -160,12 +177,30 @@ func TestServiceInspectCollisions_TrackedFileBecomesDirectory(t *testing.T) {
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect target snapshot for collisions: %v", err)
 	}
 	if len(collisions) != 0 {
 		t.Fatalf("expected no collisions, got [%d]: [%#v]", len(collisions), collisions)
+	}
+}
+
+// TestIsMissingPathError_ENOTDIR verifies that Unix reports for descendants
+// below a regular file are treated as absent paths during collision inspection.
+func TestIsMissingPathError_ENOTDIR(t *testing.T) {
+	err := &os.PathError{
+		Op:   "lstat",
+		Path: filepath.Join("tracked-file", "target-child"),
+		Err:  syscall.ENOTDIR,
+	}
+
+	if !isMissingPathError(err) {
+		t.Fatalf("expected ENOTDIR path error to be classified as missing, got [%v]", err)
 	}
 }
 
@@ -195,7 +230,11 @@ func TestServiceInspectCollisions_TrackedDirectoryBecomesFile(t *testing.T) {
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -234,7 +273,11 @@ func TestServiceInspectCollisions_AllowsUnrelatedUntrackedContent(t *testing.T) 
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -271,7 +314,11 @@ func TestServiceInspectCollisions_RepositoryMetadataTargetIsRejected(t *testing.
 		},
 	}
 
-	_, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	_, err = service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if !errors.Is(err, ErrRepositoryMetadataTarget) {
 		t.Fatalf("expected repository metadata target error, got %v", err)
 	}
@@ -302,7 +349,11 @@ func TestServiceInspectCollisions_DeduplicatesAndSorts(t *testing.T) {
 
 	_ = testutils.CreateTestFile(t, repoPath, "z.txt", testutils.RandomBytes(20))
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -350,7 +401,11 @@ func TestServiceInspectCollisions_RejectedPreflightDoesNotMutateState(t *testing
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -415,7 +470,11 @@ func TestServiceInspectCollisions_TrackedFileReplacedByDirectoryWithUntrackedChi
 		},
 	}
 
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -450,7 +509,12 @@ func TestServiceInspectCollisions_RemovedTrackedPathWithUntrackedDescendant(t *t
 	_ = testutils.CreateTestFile(t, repoPath, untrackedChildPath, testutils.RandomBytes(20))
 
 	targetSnapshot := objects.TreeSnapshot{}
-	collisions, err := NewService(repoPath).InspectCollisions(targetSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+
+	collisions, err := service.InspectCollisions(objects.TreeSnapshot{}, targetSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect collisions: %v", err)
 	}
@@ -478,7 +542,12 @@ func TestServiceInspectCollisions_RemovedTrackedRegularFile(t *testing.T) {
 	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), trackedPath, time.Now().UTC())
 	saveIndex(t, repoPath, idx)
 
-	collisions, err := NewService(repoPath).InspectCollisions(
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	collisions, err := service.InspectCollisions(
+		objects.TreeSnapshot{},
 		objects.TreeSnapshot{},
 	)
 	if err != nil {

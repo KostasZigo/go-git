@@ -83,10 +83,10 @@ func TestBuildTreeSnapshot(t *testing.T) {
 	}
 }
 
-// TestOrchestrateCommitExecution_SnapshotTreeRestoresThroughCheckout verifies
-// that commit orchestration creates snapshot-backed trees that checkout can
-// restore into the working tree and index.
-func TestOrchestrateCommitExecution_SnapshotTreeRestoresThroughCheckout(t *testing.T) {
+// TestOrchestrateCommitExecution_SnapshotTreeAppliesThroughWorktree verifies
+// that commit orchestration creates snapshot-backed trees that the reusable
+// worktree API can apply to the filesystem and index.
+func TestOrchestrateCommitExecution_SnapshotTreeAppliesThroughWorktree(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	store := objects.NewObjectStore(repoPath)
 
@@ -154,9 +154,7 @@ func TestOrchestrateCommitExecution_SnapshotTreeRestoresThroughCheckout(t *testi
 		t.Fatalf("failed to read commit: %v", err)
 	}
 
-	if err := RestoreTreeAndRebuildIndex(repoPath, commit.TreeHash()); err != nil {
-		t.Fatalf("failed to restore committed tree: %v", err)
-	}
+	applyStoredTreeSnapshot(t, repoPath, store, commit.TreeHash())
 
 	testutils.AssertFileContent(t, filepath.Join(repoPath, rootFileName), rootFileContent)
 	testutils.AssertFileContent(

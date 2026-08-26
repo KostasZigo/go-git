@@ -6,19 +6,14 @@ import (
 	"github.com/KostasZigo/gogit/internal/objects"
 )
 
-// InspectStagedChanges compares headSnapshot with the current staging index
-// and returns every staged difference in deterministic order.
+// InspectStagedChanges compares headSnapshot with the service's operation-scoped
+// index snapshot and returns every staged difference in deterministic order.
 func (service *Service) InspectStagedChanges(headSnapshot objects.TreeSnapshot) ([]Change, error) {
 	if err := headSnapshot.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid HEAD snapshot: %w", err)
 	}
 
-	idx, err := service.indexManager.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load index: %w", err)
-	}
-
-	indexSnapshot, err := idx.ToTreeSnapshot()
+	indexSnapshot, err := service.index.ToTreeSnapshot()
 	if err != nil {
 		return nil, err
 	}
