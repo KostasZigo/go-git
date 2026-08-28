@@ -153,7 +153,11 @@ func TestServiceInspectWorktreeChanges(t *testing.T) {
 				}
 			}
 
-			changes, err := NewService(repoPath).InspectWorktreeChanges()
+			service, err := NewService(repoPath)
+			if err != nil {
+				t.Fatalf("failed to create worktree service: %v", err)
+			}
+			changes, err := service.InspectWorktreeChanges()
 
 			if test.expectedError != "" {
 				if err == nil {
@@ -231,7 +235,11 @@ func TestServiceInspectWorktreeChanges_ChangesAreSorted(t *testing.T) {
 		t.Fatalf("failed to delete tracked file: %v", err)
 	}
 
-	changes, err := NewService(repoPath).InspectWorktreeChanges()
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	changes, err := service.InspectWorktreeChanges()
 	if err != nil {
 		t.Fatalf("failed to inspect working-tree changes: %v", err)
 	}

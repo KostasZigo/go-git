@@ -9,13 +9,13 @@ import (
 
 var checkoutCmd = &cobra.Command{
 	Use:   "checkout <target>",
-	Short: "Checkout to a given target",
+	Short: "Switch to a branch or commit",
 	Long: `Switch the working directory to the state of a given branch or commit.
 
 Resolves the target as a branch name first (under refs/heads/), then as a
-direct commit hash. Aborts if the working tree has uncommitted modifications
-unless --force is set. On success: cleans tracked files, restores the target
-commit's tree to disk, rebuilds the index, and updates HEAD.
+direct commit hash. Staged or tracked worktree changes block checkout unless
+--force is set; collisions with untracked content always block it. On success,
+applies the target snapshot to the worktree and index, then updates HEAD.
 
 Examples:
   # Checkout a branch
@@ -33,15 +33,15 @@ Examples:
 	RunE:         runCheckout,
 }
 
-// forceFlag skips the dirty working tree check when set via -f/--force.
+// forceFlag permits staged and tracked worktree changes to be discarded.
 var forceFlag bool
 
 func init() {
-	checkoutCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "disregard working tree state and rebuild working tree based on target")
+	checkoutCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "discard staged and tracked worktree changes")
 	rootCmd.AddCommand(checkoutCmd)
 }
 
-// runCheckout resolves the target and delegates to the checkout orchestrator,
+// runCheckout resolves the repository and delegates to the checkout orchestrator.
 func runCheckout(cmd *cobra.Command, args []string) error {
 	// Find repository root path
 	repoPath, err := repository.FindRoot()

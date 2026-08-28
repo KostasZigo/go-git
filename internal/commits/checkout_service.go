@@ -4,21 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
-	"maps"
 	"os"
-	"path"
 	"path/filepath"
-	"slices"
-	"strings"
-	"time"
 
 	"github.com/KostasZigo/gogit/internal/branches"
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/hasher"
-	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
+	"github.com/KostasZigo/gogit/internal/worktree"
 )
 
 // ResolvedTarget holds the result of resolving a checkout target string.
@@ -98,267 +91,6 @@ func searchForTargetInCommitObjects(repoPath, target string) (*ResolvedTarget, e
 	}, nil
 }
 
-// CleanWorkingTree removes all files referenced by the provided index entries
-// from the working directory. Operates in two passes: first deletes all tracked
-// files, then collects unique parent directories and prunes empty ones deepest-first
-// up to (but not including) repoPath. Files already missing on disk are silently skipped.
-func CleanWorkingTree(repoPath string, indexEntries []*index.Entry) error {
-	uniqueDirs := map[string]struct{}{}
-	for _, entry := range indexEntries {
-		relPath, err := filepath.Localize(entry.Path())
-		if err != nil {
-			return fmt.Errorf("failed to convert file path to local os specific format for file [%s]: %w", entry.Path(), err)
-		}
-		absPath := filepath.Join(repoPath, relPath)
-		if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to remove file [%s]: %w", relPath, err)
-		}
-
-		dir := filepath.Dir(absPath)
-		if dir == repoPath {
-			continue
-		}
-		uniqueDirs[dir] = struct{}{}
-	}
-
-	dirs := slices.Collect(maps.Keys(uniqueDirs))
-	slices.SortFunc(dirs, func(a, b string) int {
-		aCount := strings.Count(a, string(os.PathSeparator))
-		bCount := strings.Count(b, string(os.PathSeparator))
-		if aCount > bCount {
-			return -1
-		}
-		if aCount == bCount {
-			return 0
-		}
-		return 1
-	})
-
-	for _, dir := range dirs {
-		if err := pruneEmptyDirectories(repoPath, dir); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// pruneEmptyDirectories walks upward from dirPath toward repoPath, removing each
-// directory that is empty after file deletion. Stops at repoPath or the first
-// non-empty directory.
-func pruneEmptyDirectories(repoPath, dirPath string) error {
-	for {
-		if repoPath == dirPath {
-			return nil
-		}
-
-		parentDir := filepath.Dir(dirPath)
-		isEmpty, err := isDirEmpty(dirPath)
-		if err != nil {
-			return fmt.Errorf("failed to check if directory [%s] is empty: %w", dirPath, err)
-		}
-
-		if isEmpty {
-			if err := os.Remove(dirPath); err != nil {
-				return fmt.Errorf("failed to remove empty directory [%s]: %w", dirPath, err)
-			}
-			dirPath = parentDir
-		} else {
-			return nil
-		}
-	}
-}
-
-// isDirEmpty reports whether the directory at path contains no entries.
-// Uses a single Readdirnames call to avoid reading the entire directory listing.
-func isDirEmpty(path string) (bool, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = f.Close() }()
-
-	_, err = f.Readdirnames(1)
-	if errors.Is(err, io.EOF) {
-		return true, nil
-	}
-	return false, err
-}
-
-// RestoreTreeAndRebuildIndex reads a stored tree object, reconstructs its contents on the
-// filesystem under repoPath, and rebuilds the index from the restored files.
-// The index is saved to disk after the tree walk completes.
-func RestoreTreeAndRebuildIndex(repoPath, treeHash string) error {
-	store := objects.NewObjectStore(repoPath)
-	idx := index.NewIndex()
-
-	if err := restoreTreeRecursive(repoPath, "", treeHash, store, idx); err != nil {
-		return err
-	}
-
-	idxManager := index.NewManager(repoPath)
-	if err := idxManager.Save(idx); err != nil {
-		return fmt.Errorf("failed to save rebuilt index: %w", err)
-	}
-
-	return nil
-}
-
-// restoreTreeRecursive walks a tree object and writes its entries to dirPath.
-// relDir accumulates the forward-slash relative path prefix from the repository root,
-// used to construct index entry paths. Subtree entries are created as directories
-// and descended into recursively. Blob entries are written as files and added to the index.
-func restoreTreeRecursive(dirPath, relDir, treeHash string, store *objects.ObjectStore, idx *index.Index) error {
-	tree, err := store.ReadTree(treeHash)
-	if err != nil {
-		return fmt.Errorf("failed to read tree [%s]: %w", treeHash, err)
-	}
-
-	for _, treeEntry := range tree.Entries() {
-		entryPath := filepath.Join(dirPath, treeEntry.Name())
-		entryRelPath := path.Join(relDir, treeEntry.Name())
-
-		if !treeEntry.IsDirectory() {
-			if err := createFileFromBlob(
-				store,
-				treeEntry.Hash(),
-				entryPath,
-				treeEntry.Mode(),
-			); err != nil {
-				return err
-			}
-
-			if err := addFileToRebuiltIndex(
-				entryPath,
-				entryRelPath,
-				treeEntry.Hash(),
-				treeEntry.Mode(),
-				idx,
-			); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if err := os.MkdirAll(entryPath, constants.DirPerms); err != nil {
-			return fmt.Errorf("failed to create directory [%s]: %w", entryPath, err)
-		}
-		if err := restoreTreeRecursive(entryPath, entryRelPath, treeEntry.Hash(), store, idx); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// createFileFromBlob reads a blob from the object store and writes its content
-// to the specified file path.
-func createFileFromBlob(store *objects.ObjectStore, blobHash, filePath string, fileMode objects.FileMode) error {
-	blob, err := store.ReadBlob(blobHash)
-	if err != nil {
-		return fmt.Errorf("failed to create file [%s] from blob [%s]: %w", filePath, blobHash, err)
-	}
-
-	filePermissions, err := filePermissionsForFileMode(fileMode)
-	if err != nil {
-		return fmt.Errorf("failed to determine permissions for file [%s]: %w", filePath, err)
-	}
-
-	if err := os.WriteFile(filePath, blob.Content(), filePermissions); err != nil {
-		return fmt.Errorf("failed to write [%s] file: %w", filePath, err)
-	}
-
-	if err := os.Chmod(filePath, filePermissions); err != nil {
-		return fmt.Errorf("failed to apply permissions to file [%s]: %w", filePath, err)
-	}
-
-	return nil
-}
-
-// filePermissionsForFileMode returns the working-tree permissions for a
-// supported file mode.
-func filePermissionsForFileMode(fileMode objects.FileMode) (os.FileMode, error) {
-	switch fileMode {
-	case objects.ModeRegularFile:
-		return constants.FilePerms, nil
-	case objects.ModeExecutable:
-		return constants.ExecutableFilePerms, nil
-	default:
-		return 0, fmt.Errorf("unsupported tree leaf mode: %s", fileMode)
-	}
-}
-
-// addFileToRebuiltIndex stats the file at absPath to obtain size, mode, and
-// modification time, then creates an index entry using the provided relative
-// path and blob hash, and adds it to the index.
-func addFileToRebuiltIndex(absPath, relPath, hash string, objectFileMode objects.FileMode, idx *index.Index) error {
-	fileInfo, err := os.Stat(absPath)
-	if err != nil {
-		return fmt.Errorf("failed to stat file %s: %w", absPath, err)
-	}
-
-	fileMode, err := index.FromObjectFileMode(objectFileMode)
-	if err != nil {
-		return fmt.Errorf("failed to convert tree mode for index entry %s: %w", relPath, err)
-	}
-
-	entry, err := index.NewEntry(
-		fileMode,
-		hash,
-		relPath,
-		fileInfo.Size(),
-		fileInfo.ModTime().Truncate(time.Second),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create index entry for %s: %w", relPath, err)
-	}
-
-	if err := idx.AddEntry(entry); err != nil {
-		return fmt.Errorf("failed to add [%s] entry to index: %w", relPath, err)
-	}
-
-	return nil
-}
-
-// checkIfDirty compares each index entry against its on-disk counterpart.
-// Uses a file-size + modified-time fast path to skip unchanged files, falling back to a
-// full content hash comparison when metadata differs. Collects all dirty
-// entries into a single error rather than failing on the first mismatch.
-func checkIfDirty(repoPath string, idxEntries []*index.Entry) error {
-	var errorBuilder strings.Builder
-	for _, idxEntry := range idxEntries {
-		absPath := filepath.Join(repoPath, filepath.FromSlash(idxEntry.Path()))
-		info, err := os.Stat(absPath)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				fmt.Fprintf(&errorBuilder, "dirty: [%s] file got deleted\n\n", idxEntry.Path())
-			} else {
-				fmt.Fprintf(&errorBuilder, "dirty: [%s] failed to stat file: %s\n\n", idxEntry.Path(), err.Error())
-			}
-			continue
-		}
-
-		if info.Size() == idxEntry.FileSize() && info.ModTime().Truncate(time.Second).Equal(idxEntry.LastModified().Truncate(time.Second)) {
-			continue
-		}
-
-		content, err := os.ReadFile(absPath)
-		if err != nil {
-			fmt.Fprintf(&errorBuilder, "dirty: [%s] failed to read file: %s\n\n", idxEntry.Path(), err.Error())
-			continue
-		}
-		hash := hasher.MustComputeHash(content, hasher.Blob)
-		if hash != idxEntry.Hash() {
-			fmt.Fprintf(&errorBuilder, "dirty: [%s] file was modified \n\n", idxEntry.Path())
-		}
-	}
-
-	if errorBuilder.Len() != 0 {
-		return fmt.Errorf("working directory contains dirty files:\n\n%s", errorBuilder.String())
-	}
-	return nil
-}
-
 // updateHEAD atomically replaces the HEAD file with the given content using
 // a temp-file-then-rename strategy identical to IndexManager.Save.
 // For branch targets, content should be "ref: refs/heads/<branch>\n".
@@ -424,15 +156,10 @@ func handleHeadUpdate(repoPath, target string, resolvedTarget ResolvedTarget) er
 
 // handleIdempotency compares the resolved target's commit hash against the
 // current HEAD commit. If they match, updates HEAD (to handle branch switches
-// at the same commit) and returns true to signal the caller to skip the
-// destructive checkout steps. Returns false when the hashes differ.
-func handleIdempotency(repoPath, target string, resolvedTarget ResolvedTarget) (bool, error) {
-	headTarget, err := resolveHEADCommit(repoPath)
-	if err != nil {
-		return false, err
-	}
-
-	if headTarget.Hash != resolvedTarget.Hash {
+// at the same commit) and returns true so the caller can skip repository-state
+// inspection and snapshot application. Returns false when the hashes differ.
+func handleIdempotency(repoPath, headCommitHash, target string, resolvedTarget ResolvedTarget) (bool, error) {
+	if headCommitHash != resolvedTarget.Hash {
 		return false, nil
 	}
 
@@ -442,61 +169,64 @@ func handleIdempotency(repoPath, target string, resolvedTarget ResolvedTarget) (
 	return true, nil
 }
 
-// resolveHEADCommit reads the HEAD file and resolves it to a ResolvedTarget.
-// If HEAD contains a symbolic ref, follows it to the branch ref file and reads
-// the commit hash. If HEAD contains a raw hash (detached state), returns it
-// directly.
-func resolveHEADCommit(repoPath string) (*ResolvedTarget, error) {
+// resolveHEADCommit resolves symbolic or detached HEAD to its commit object.
+// Symbolic HEAD is resolved through the current branch; detached HEAD contains
+// the commit hash directly.
+func resolveHEADCommit(repoPath string, store *objects.ObjectStore) (*objects.Commit, error) {
 	headContent, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read HEAD file: %w", err)
 	}
 
+	commitHash := ""
 	trimmed := bytes.TrimSpace(headContent)
 	if !bytes.HasPrefix(trimmed, []byte(constants.DefaultRefPrefix)) {
-		return &ResolvedTarget{
-			Hash:     string(trimmed),
-			IsBranch: false,
-		}, nil
+		commitHash = string(trimmed)
+	} else {
+		currentBranch, err := branches.ResolveCurrent(repoPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve current branch: %w", err)
+		}
+		commitHash = currentBranch.Hash
 	}
 
-	currentBranch, err := branches.ResolveCurrent(repoPath)
+	headCommit, err := store.ReadCommit(commitHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve current branch: %w", err)
+		return nil, fmt.Errorf("failed to read HEAD commit [%s]: %w", commitHash, err)
 	}
 
-	return &ResolvedTarget{
-		Hash:     currentBranch.Hash,
-		IsBranch: true,
-	}, nil
+	return headCommit, nil
 }
 
 // OrchestrateCheckoutExecution orchestrates the full checkout workflow:
-// resolves the target to a commit hash, reads the commit to obtain its tree,
-// loads the current index, cleans the working tree, restores the target
-// commit's tree (rebuilding the index), and updates HEAD.
+// resolves the target and current HEAD commits, inspects staged and worktree
+// changes plus target collisions, applies the target snapshot through the
+// worktree API, and updates HEAD only after successful application.
 //
-// When force is true the dirty-check is skipped, allowing recovery from a
-// previously interrupted checkout. Steps 4-6 are destructive and
-// non-transactional: if restore fails after clean, the working tree is left
-// in a partial state. Re-running with force=true is the recovery path.
+// When force is true staged and tracked worktree changes do not block the
+// checkout, but target collisions always do. Snapshot application performs
+// best-effort rollback if mutation or index persistence fails.
 func OrchestrateCheckoutExecution(repoPath, target string, force bool) error {
-	// 1. Resolve target to commit hash
+	// 1. Resolve the target reference and load its commit.
 	resolvedTarget, err := ResolveTarget(repoPath, target)
 	if err != nil {
 		return fmt.Errorf("failure while resolving target: %w", err)
 	}
 
-	// 2. Read the commit object to obtain its tree hash
 	store := objects.NewObjectStore(repoPath)
-	commit, err := store.ReadCommit(resolvedTarget.Hash)
+	targetCommit, err := store.ReadCommit(resolvedTarget.Hash)
 	if err != nil {
 		return fmt.Errorf("failed to read commit [%s]: %w", resolvedTarget.Hash, err)
 	}
 
-	// 2.5 Idempotency check
-	// If target points to the same commit as HEAD, update HEAD and fast return.
-	isMatching, err := handleIdempotency(repoPath, target, *resolvedTarget)
+	// 2. Resolve and load the commit currently referenced by HEAD.
+	headCommit, err := resolveHEADCommit(repoPath, store)
+	if err != nil {
+		return fmt.Errorf("failure while resolving HEAD: %w", err)
+	}
+
+	// 3. Handle a branch or detached-HEAD switch to the current commit.
+	isMatching, err := handleIdempotency(repoPath, headCommit.Hash(), target, *resolvedTarget)
 	if err != nil {
 		return fmt.Errorf("failed during idempotency checks: %w", err)
 	}
@@ -504,30 +234,37 @@ func OrchestrateCheckoutExecution(repoPath, target string, force bool) error {
 		return nil
 	}
 
-	// 3. Check if working directory is dirty
-	idxManager := index.NewManager(repoPath)
-	idx, err := idxManager.Load()
+	// 4. Load the current and target commit snapshots.
+	originalSnapshot, err := store.ReadTreeSnapshot(headCommit.TreeHash())
 	if err != nil {
-		return fmt.Errorf("failed to load index before checking if working tree is dirty: %w", err)
+		return fmt.Errorf("failed to convert HEAD commit's tree hash to tree snapshot: %w", err)
+	}
+	targetSnapshot, err := store.ReadTreeSnapshot(targetCommit.TreeHash())
+	if err != nil {
+		return fmt.Errorf("failed to convert [%s] target commit's tree hash to tree snapshot: %w", target, err)
 	}
 
-	idxEntries := idx.GetEntryList()
-	if !force {
-		if err := checkIfDirty(repoPath, idxEntries); err != nil {
-			return err
-		}
+	// 5. Inspect staged changes, tracked worktree changes, and target collisions.
+	wtService, err := worktree.NewService(repoPath)
+	if err != nil {
+		return err
 	}
 
-	// 4. Clean working directory
-	if err := CleanWorkingTree(repoPath, idxEntries); err != nil {
-		return fmt.Errorf("failed to clean working directory: %w", err)
+	repositoryState, err := wtService.ResolveRepositoryState(originalSnapshot, targetSnapshot)
+	if err != nil {
+		return err
 	}
 
-	// 5. Restore file structure for repository snapshot and rebuild index
-	if err := RestoreTreeAndRebuildIndex(repoPath, commit.TreeHash()); err != nil {
-		return fmt.Errorf("failed to restore file structure from tree [%s] of commit [%s]: %w", commit.TreeHash(), resolvedTarget.Hash, err)
+	// 6. Enforce policy: collisions always block; force permits tracked changes.
+	if repositoryState.HasCollisions() || (!force && repositoryState.HasChanges()) {
+		return &worktree.PreflightError{State: *repositoryState}
 	}
 
-	// 6. Update HEAD file reference
+	// 7. Apply with the same index snapshot inspected by the worktree service.
+	if err := wtService.ApplySnapshot(store, originalSnapshot, targetSnapshot); err != nil {
+		return fmt.Errorf("failure during snapshot application: %w", err)
+	}
+
+	// 8. Update HEAD only after the worktree and index transition succeeds.
 	return handleHeadUpdate(repoPath, target, *resolvedTarget)
 }

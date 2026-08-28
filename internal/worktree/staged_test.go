@@ -32,7 +32,10 @@ func TestServiceInspectStagedChanges_IndexMatchesHead_NoChanges(t *testing.T) {
 	addIndexEntry(t, idx, fileMode, fileHash, fileName, modifTime)
 	saveIndex(t, repoPath, idx)
 
-	workTreeService := NewService(repoPath)
+	workTreeService, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
 	changes, err := workTreeService.InspectStagedChanges(headSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect staged chagnes versus the head snapshot: %v", err)
@@ -103,7 +106,11 @@ func TestServiceInspectStagedChanges_ChangesFound_DeterministicOrder(t *testing.
 	saveIndex(t, repoPath, idx)
 
 	// Inspect stage changes
-	changes, err := NewService(repoPath).InspectStagedChanges(headSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	changes, err := service.InspectStagedChanges(headSnapshot)
 	if err != nil {
 		t.Fatalf("failed to inspect staged changes against HEAD snapshot: %v", err)
 	}
@@ -141,8 +148,11 @@ func TestServiceInspectStagedChanges_InvalidHeadSnapshot(t *testing.T) {
 		},
 	}
 
-	service := NewService(repoPath)
-	_, err := service.InspectStagedChanges(headSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	_, err = service.InspectStagedChanges(headSnapshot)
 	if err == nil {
 		t.Fatal("expected an error to occur when head snapshot is invalid")
 	}
@@ -154,28 +164,28 @@ func TestServiceInspectStagedChanges_InvalidHeadSnapshot(t *testing.T) {
 }
 
 // TestServiceInspectStagedChanges_InvalidIndexSnapshot verifies that inspection
-// rejects index entries that cannot be represented as a valid tree snapshot.
+// rejects individually valid index entries that form a file/directory collision.
 func TestServiceInspectStagedChanges_InvalidIndexSnapshot(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
-	headSnapshot := objects.TreeSnapshot{
-		testutils.RandomString(10): {
-			Hash: testutils.RandomHash(),
-			Mode: objects.ModeRegularFile,
-		},
-	}
 
 	idx := index.NewIndex()
-	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), `invalid\path.txt`, time.Now())
+	parentPath := testutils.RandomString(10)
+	childPath := parentPath + "/" + testutils.RandomString(10)
+	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), parentPath, time.Now())
+	addIndexEntry(t, idx, objects.ModeRegularFile, testutils.RandomHash(), childPath, time.Now())
 	saveIndex(t, repoPath, idx)
 
-	service := NewService(repoPath)
-	_, err := service.InspectStagedChanges(headSnapshot)
+	service, err := NewService(repoPath)
+	if err != nil {
+		t.Fatalf("failed to create worktree service: %v", err)
+	}
+	_, err = service.InspectStagedChanges(objects.TreeSnapshot{})
 	if err == nil {
 		t.Fatal("expected an error to occur when index snapshot is invalid")
 	}
 
-	expectedErrorMessage := "invalid snapshot created from index:"
+	expectedErrorMessage := "invalid snapshot created from index: snapshot path collision"
 	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("expectrer error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
 	}
 }

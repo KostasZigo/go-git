@@ -9,6 +9,7 @@ import (
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
+	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
 )
 
@@ -199,6 +200,37 @@ func TestOrchestrateAddExecution_AddAll_EmptyRepository(t *testing.T) {
 	idx := loadIndex(t, repoPath)
 	if idx.CountEntries() != 0 {
 		t.Errorf("expected 0 index entries for empty repo, got %d", idx.CountEntries())
+	}
+}
+
+// TestAddFile_RejectsRepositoryMetadataPath verifies that explicitly adding a
+// file below .gogit fails before the index or object store is mutated.
+func TestAddFile_RejectsRepositoryMetadataPath(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	idx := index.NewIndex()
+	store := objects.NewObjectStore(repoPath)
+	metadataPath := filepath.ToSlash(filepath.Join(constants.Gogit, constants.Head))
+	metadataContent, err := os.ReadFile(filepath.Join(repoPath, constants.Gogit, constants.Head))
+	if err != nil {
+		t.Fatalf("failed to read repository HEAD: %v", err)
+	}
+	metadataBlob := objects.NewBlob(metadataContent)
+
+	addedPath, err := addFile(repoPath, metadataPath, idx, store)
+
+	if err == nil {
+		t.Fatal("expected explicit repository metadata path to be rejected")
+	}
+	if addedPath != "" {
+		t.Fatalf("expected no staged path, got [%s]", addedPath)
+	}
+	if idx.CountEntries() != 0 {
+		t.Fatalf("expected index to remain empty, got [%d] entries", idx.CountEntries())
+	}
+	if _, readErr := store.ReadBlob(metadataBlob.Hash()); readErr == nil {
+		t.Fatal("expected rejected metadata blob not to be stored")
 	}
 }
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path"
 	"slices"
-	"strings"
 
+	"github.com/KostasZigo/gogit/internal/gogitpath"
 	"github.com/KostasZigo/gogit/internal/hasher"
 )
 
@@ -30,7 +30,7 @@ func (ts TreeSnapshot) Validate() error {
 	slices.Sort(relativePaths)
 
 	for _, relativePath := range relativePaths {
-		if err := validateSnapshotPath(relativePath); err != nil {
+		if err := gogitpath.Validate(relativePath); err != nil {
 			return fmt.Errorf("invalid snapshot path %s: %w", relativePath, err)
 		}
 		if err := validateSnapshotEntry(ts[relativePath]); err != nil {
@@ -66,46 +66,4 @@ func validateSnapshotEntry(entry SnapshotEntry) error {
 		return fmt.Errorf("invalid SHA-1 hash %q", entry.Hash)
 	}
 	return nil
-}
-
-// validateSnapshotPath verifies that a logical Git path is relative,
-// forward-slash separated, and contains only valid path segments.
-func validateSnapshotPath(entryPath string) error {
-	if entryPath == "" {
-		return fmt.Errorf("path cannot be empty")
-	}
-	if path.IsAbs(entryPath) || isWindowsAbsolutePath(entryPath) {
-		return fmt.Errorf("path cannot be absolute")
-	}
-	if strings.Contains(entryPath, `\`) {
-		return fmt.Errorf("path cannot contain backslashes")
-	}
-	if strings.HasSuffix(entryPath, "/") {
-		return fmt.Errorf("path cannot have a trailing slash")
-	}
-
-	for _, segment := range strings.Split(entryPath, "/") {
-		switch segment {
-		case "":
-			return fmt.Errorf("path cannot contain empty segments")
-		case ".", "..":
-			return fmt.Errorf("path cannot contain %q segments", segment)
-		}
-	}
-
-	return nil
-}
-
-// isWindowsAbsolutePath reports whether entryPath uses a drive-qualified
-// Windows absolute path written with forward slashes.
-func isWindowsAbsolutePath(entryPath string) bool {
-	if len(entryPath) < 3 {
-		return false
-	}
-
-	driveLetter := entryPath[0]
-	isLetter := driveLetter >= 'A' && driveLetter <= 'Z' ||
-		driveLetter >= 'a' && driveLetter <= 'z'
-
-	return isLetter && entryPath[1] == ':' && entryPath[2] == '/'
 }

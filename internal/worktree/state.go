@@ -68,9 +68,9 @@ type State struct {
 	Collisions      []Collision
 }
 
-// HasTrackedChanges reports whether the index or working tree contains changes
+// HasChanges reports whether the index or working tree contains changes
 // to tracked paths.
-func (state State) HasTrackedChanges() bool {
+func (state State) HasChanges() bool {
 	return len(state.StagedChanges) > 0 || len(state.WorktreeChanges) > 0
 }
 
@@ -84,6 +84,17 @@ func (state State) HasCollisions() bool {
 // the by the kind of change.
 func sortChanges(changes []Change) {
 	slices.SortFunc(changes, func(a, b Change) int {
+		if comparison := strings.Compare(a.Path, b.Path); comparison != 0 {
+			return comparison
+		}
+		return strings.Compare(string(a.Kind), string(b.Kind))
+	})
+}
+
+// sortCollisions sorts a slice of Collision elements first by their path and
+// the by the kind of change.
+func sortCollisions(collisions []Collision) {
+	slices.SortFunc(collisions, func(a, b Collision) int {
 		if comparison := strings.Compare(a.Path, b.Path); comparison != 0 {
 			return comparison
 		}

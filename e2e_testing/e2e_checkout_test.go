@@ -62,8 +62,8 @@ func TestE2E_CheckoutCommand_IdempotentBranchSwitch(t *testing.T) {
 
 // TestE2E_CheckoutCommand_DirtyWorkingTreeRejection commits a file, modifies
 // it on disk without staging, then attempts checkout to the same branch.
-// Verifies: command fails with non-zero exit code, error output contains
-// "dirty", HEAD remains unchanged, modified file content is preserved.
+// Verifies: command fails with non-zero exit code, error output identifies the
+// worktree change, HEAD remains unchanged, modified file content is preserved.
 func TestE2E_CheckoutCommand_DirtyWorkingTreeRejection(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
@@ -100,8 +100,9 @@ func TestE2E_CheckoutCommand_DirtyWorkingTreeRejection(t *testing.T) {
 	}
 
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "dirty") {
-		t.Fatalf("expected error output to contain 'dirty', got: [%s]", outputStr)
+	expectedErrorMessage := "worktree preflight failed: Worktree change [content-modified] found for path [" + fileName + "]"
+	if !strings.Contains(outputStr, expectedErrorMessage) {
+		t.Fatalf("expected error output to contain [%s], got: [%s]", expectedErrorMessage, outputStr)
 	}
 
 	// HEAD must remain on main
