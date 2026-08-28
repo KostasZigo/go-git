@@ -28,11 +28,9 @@ type plannedFile struct {
 	writeRequired bool
 }
 
-// applicationPlan contains the file paths from the existing snapshot
-// that need to be removed
-// as well as the list of planned files to be materialized in the disk.
-// It's a utlity struct that allows comparisons for the resolution
-// of what file system elements require to be updated.
+// applicationPlan describes the complete filesystem transition: paths absent
+// from the authoritative target are removed, and target files are retained or
+// materialized before the replacement index is persisted.
 type applicationPlan struct {
 	pathsToRemove      []string
 	targetPlannedFiles []plannedFile
@@ -47,7 +45,7 @@ type saveIndexFunc func(*index.Index) error
 // It compares each target entry with the index and disk to retain matching files, mark
 // missing or changed files for writing, and schedule obsolete or structurally
 // conflicting tracked paths for removal. Target files are planned in logical
-// path order so later materialization and index rebuilding are deterministic.
+// path order so materialization and replacement-index construction are deterministic.
 //
 // Callers must inspect worktree collisions before calling ApplySnapshot and
 // must not proceed when collisions are present.
@@ -59,12 +57,23 @@ func buildApplicationPlan(repoPath string, store *objects.ObjectStore, idx *inde
 		return nil, fmt.Errorf("invalid target snapshot: %w", err)
 	}
 
-	removalSet := make(map[string]struct{}, len(original))
+	indexSnapshot, err := idx.ToTreeSnapshot()
+	if err != nil {
+		return nil, fmt.Errorf("invalid current index snapshot: %w", err)
+	}
 
-	// if an origin path is not present in target mark it for removal
+	removalSet := make(map[string]struct{}, len(original)+len(indexSnapshot))
+
+	// Paths owned by either the source snapshot or current index must not remain
+	// on disk when they are absent from the authoritative target snapshot.
 	for originalPath := range original {
 		if _, exists := target[originalPath]; !exists {
 			removalSet[originalPath] = struct{}{}
+		}
+	}
+	for indexedPath := range indexSnapshot {
+		if _, exists := target[indexedPath]; !exists {
+			removalSet[indexedPath] = struct{}{}
 		}
 	}
 
@@ -72,7 +81,7 @@ func buildApplicationPlan(repoPath string, store *objects.ObjectStore, idx *inde
 	for targetPath := range target {
 		targetSnapshotPaths = append(targetSnapshotPaths, targetPath)
 	}
-	// Sorting ensured deterministic result
+	// Sort target paths for deterministic planning and materialization.
 	slices.Sort(targetSnapshotPaths)
 
 	targetPlannedFiles := make([]plannedFile, 0, len(target))
@@ -146,7 +155,7 @@ func inspectTargetMaterialization(repoPath, targetPath string, targetEntry objec
 	osPath := filepath.Join(repoPath, osTargetPath)
 	fileInfo, err := os.Lstat(osPath)
 	if err != nil {
-		// if we are on unix os system, in stat_unix.go if a parent file of the path exists as file the whole path is not reported as ErrNotExist but as ENOTDIR, element not a directory
+		// Unix reports ENOTDIR when an ancestor path component is a file.
 		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
 			return true, false, nil
 		}
@@ -291,37 +300,41 @@ func applySnapshotPlan(repoPath string, plan *applicationPlan, saveIndex saveInd
 	return nil
 }
 
-// applySnapshot is the testable version of the exported ApplySnapshot function - allows to setup the function for
-// saving the replacement index (and therefore mock its behavior).
-func applySnapshot(repoPath string, store *objects.ObjectStore, currentIndex *index.Index, original, target objects.TreeSnapshot, saveIndex saveIndexFunc) error {
-	plan, err := buildApplicationPlan(repoPath, store, currentIndex, original, target)
+// applySnapshot orchestrates planning, mutation, and rollback using the
+// service's operation-scoped index. saveIndex is injected so tests can trigger
+// index-persistence failures deterministically.
+func (service *Service) applySnapshot(store *objects.ObjectStore, original, target objects.TreeSnapshot, saveIndex saveIndexFunc) error {
+	plan, err := buildApplicationPlan(service.repoPath, store, service.index, original, target)
 	if err != nil {
 		return fmt.Errorf("%w, failed to build application plan: %w", ErrPreflight, err)
 	}
 
-	applicationErr := applySnapshotPlan(repoPath, plan, saveIndex)
+	applicationErr := applySnapshotPlan(service.repoPath, plan, saveIndex)
 	if applicationErr == nil {
 		return nil
 	}
 
-	if rollbackErr := rollbackSnapshotApplication(repoPath, store, currentIndex, target); rollbackErr != nil {
+	if rollbackErr := rollbackSnapshotApplication(service.repoPath, store, service.index, target); rollbackErr != nil {
 		return errors.Join(applicationErr, rollbackErr)
 	}
 	return applicationErr
 }
 
-// ApplySnapshot updates the worktree and index from original to target.
-// currentIndex must represent the persisted index before application starts;
-// it is used both to plan the transition and to restore the worktree if the
-// mutating phase fails. Callers must complete collision inspection before
-// invoking ApplySnapshot.
+// ApplySnapshot updates the worktree and index from original to target using
+// the operation-scoped index loaded by NewService. That same index is used to
+// plan the transition and restore the worktree if the mutating phase fails.
+// Callers must complete collision inspection before invoking ApplySnapshot.
+//
+// target is the authoritative final tracked snapshot. Successful application
+// removes paths represented by original or the service index that are absent
+// from target and persists a replacement index matching target exactly.
 //
 // Planning failures wrap ErrPreflight and leave the worktree and persisted
 // index unchanged. After planning succeeds, any removal, materialization, or
 // index-save failure triggers a best-effort rollback to the files and modes in
-// currentIndex. If rollback also fails, the returned error joins the original
-// application error with an error wrapping ErrRollback. Rollback never rewrites
-// the persisted index.
-func ApplySnapshot(repoPath string, store *objects.ObjectStore, currentIndex *index.Index, original, target objects.TreeSnapshot) error {
-	return applySnapshot(repoPath, store, currentIndex, original, target, index.NewManager(repoPath).Save)
+// the service index. If rollback also fails, the returned error joins the
+// original application error with an error wrapping ErrRollback. Rollback never
+// rewrites the persisted index.
+func (service *Service) ApplySnapshot(store *objects.ObjectStore, original, target objects.TreeSnapshot) error {
+	return service.applySnapshot(store, original, target, index.NewManager(service.repoPath).Save)
 }

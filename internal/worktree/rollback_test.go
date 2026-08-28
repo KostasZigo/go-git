@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/objects/objectstest"
@@ -231,7 +232,7 @@ func TestRollbackSnapshotApplication_JoinsCleanupAndRestorationFailures(t *testi
 
 // TestApplySnapshot_IndexSaveFailureRollsBackWorktree verifies that a failure
 // after materialization restores the complete pre-application worktree while
-// preserving untracked content and the persisted index.
+// preserving untracked content, the persisted index, HEAD, and branch refs.
 func TestApplySnapshot_IndexSaveFailureRollsBackWorktree(t *testing.T) {
 	// Arrange
 	repoPath := testutils.SetupTestRepoWithInit(t)
@@ -270,10 +271,14 @@ func TestApplySnapshot_IndexSaveFailureRollsBackWorktree(t *testing.T) {
 		changedPath:      {Hash: targetChangedBlob.Hash(), Mode: objects.ModeRegularFile},
 		targetNestedPath: {Hash: targetNestedBlob.Hash(), Mode: objects.ModeRegularFile},
 	}
+	secondaryBranch := testutils.RandomString(15)
+	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, testutils.RandomHash())
+	testutils.WriteRefFile(t, repoPath, secondaryBranch, testutils.RandomHash())
+	referencesBefore := captureRepositoryReferences(t, repoPath, constants.DefaultBranch, secondaryBranch)
 
 	// Act
 	saveErr := errors.New("injected index save failure")
-	err := applySnapshot(repoPath, store, idx, original, target, failingIndexSave(saveErr))
+	err := newWorktreeService(t, repoPath).applySnapshot(store, original, target, failingIndexSave(saveErr))
 
 	// Assert
 	if !errors.Is(err, saveErr) {
@@ -290,6 +295,7 @@ func TestApplySnapshot_IndexSaveFailureRollsBackWorktree(t *testing.T) {
 	if !bytes.Equal(persistedIndexBefore, readPersistedIndex(t, repoPath)) {
 		t.Fatal("expected failed application and rollback to preserve persisted index bytes")
 	}
+	assertRepositoryReferencesUnchanged(t, repoPath, referencesBefore)
 }
 
 // TestApplySnapshot_IndexSaveAndRollbackFailuresAreJoined verifies that the
@@ -314,7 +320,7 @@ func TestApplySnapshot_IndexSaveAndRollbackFailuresAreJoined(t *testing.T) {
 
 	// Act
 	saveErr := errors.New("injected index save failure")
-	err := applySnapshot(repoPath, store, idx, original, target, failingIndexSave(saveErr))
+	err := newWorktreeService(t, repoPath).applySnapshot(store, original, target, failingIndexSave(saveErr))
 
 	// Assert
 	if !errors.Is(err, saveErr) {

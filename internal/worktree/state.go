@@ -68,9 +68,9 @@ type State struct {
 	Collisions      []Collision
 }
 
-// HasTrackedChanges reports whether the index or working tree contains changes
+// HasChanges reports whether the index or working tree contains changes
 // to tracked paths.
-func (state State) HasTrackedChanges() bool {
+func (state State) HasChanges() bool {
 	return len(state.StagedChanges) > 0 || len(state.WorktreeChanges) > 0
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/objects/objectstest"
 	"github.com/KostasZigo/gogit/internal/testutils"
+	"github.com/KostasZigo/gogit/internal/worktree"
 )
 
 // TestCheckout_ResolveTarget_Branch verifies resolution of a valid branch name
@@ -167,223 +168,6 @@ func TestCheckout_ResolveTarget_BranchTakesPriorityOverCommitHash(t *testing.T) 
 	}
 }
 
-// TestCheckout_RestoreTree_SingleRootFile verifies that a tree with a single blob entry
-// restores the file to disk with correct content and no extra files.
-func TestCheckout_RestoreTree_SingleRootFile(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	store := objects.NewObjectStore(repoPath)
-
-	fileName := testutils.RandomString(10)
-	tree, blobs := objectstest.StoreBlobTree(t, store, fileName)
-
-	err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash())
-	if err != nil {
-		t.Fatalf("failed to restore tree: %v", err)
-	}
-
-	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), blobs[fileName].Content())
-
-	// Verify no extra files were created in repo root (only .gogit dir and restored file)
-	dirEntries, err := os.ReadDir(repoPath)
-	if err != nil {
-		t.Fatalf("failed to read repo directory: %v", err)
-	}
-
-	for _, entry := range dirEntries {
-		if entry.Name() == constants.Gogit || entry.Name() == fileName {
-			continue
-		}
-		t.Fatalf("unexpected restored file [%s]", entry.Name())
-	}
-}
-
-// TestCheckout_RestoreTree_NestedDirectory verifies that a tree referencing a subtree
-// creates the directory and restores files inside with correct content.
-func TestCheckout_RestoreTree_NestedDirectory(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	store := objects.NewObjectStore(repoPath)
-
-	dirName := testutils.RandomString(10)
-	fileName := testutils.RandomString(10)
-	subtree, blobs := objectstest.StoreBlobTree(t, store, fileName)
-
-	// Root Tree
-	rootTreeEntry := objectstest.CreateTreeEntry(t, objects.ModeDirectory, dirName, subtree.Hash())
-	entries := []objects.TreeEntry{
-		rootTreeEntry,
-	}
-	rootTree := objectstest.CreateAndStoreTree(t, store, entries)
-
-	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
-	if err != nil {
-		t.Fatalf("failed to restore tree: %v", err)
-	}
-
-	testutils.AssertDirExists(t, filepath.Join(repoPath, dirName))
-	testutils.AssertFileContent(t, filepath.Join(repoPath, dirName, fileName), blobs[fileName].Content())
-}
-
-// TestCheckout_RestoreTree_ManyFiles_DifferentLevels verifies that a tree with
-// multiple files at root level and inside a subdirectory restores all files correctly.
-func TestCheckout_RestoreTree_ManyFiles_DifferentLevels(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	store := objects.NewObjectStore(repoPath)
-
-	// Create subdirectory as a flat tree with two files
-	dirName := testutils.RandomString(10)
-	subFile1 := testutils.RandomString(10)
-	subFile2 := testutils.RandomString(10)
-	subTree, subBlobs := objectstest.StoreBlobTree(t, store, subFile1, subFile2)
-
-	// Create a root-level file
-	rootFileName := testutils.RandomString(10)
-	rootBlob := objectstest.CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
-
-	// Build root tree combining the subdirectory and root-level file
-	dirEntry := objectstest.CreateTreeEntry(t, objects.ModeDirectory, dirName, subTree.Hash())
-	fileEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
-	rootTree := objectstest.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
-
-	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
-	if err != nil {
-		t.Fatalf("failed to restore tree: %v", err)
-	}
-
-	// Verify root-level file
-	testutils.AssertFileContent(t, filepath.Join(repoPath, rootFileName), rootBlob.Content())
-
-	// Verify subdirectory and its files
-	testutils.AssertDirExists(t, filepath.Join(repoPath, dirName))
-	testutils.AssertFileContent(t, filepath.Join(repoPath, dirName, subFile1), subBlobs[subFile1].Content())
-	testutils.AssertFileContent(t, filepath.Join(repoPath, dirName, subFile2), subBlobs[subFile2].Content())
-}
-
-// TestCheckout_RestoreTree_UnknowTreeHash verifies error when the provided
-// tree hash does not exist in the object store.
-func TestCheckout_RestoreTree_UnknowTreeHash(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-
-	err := RestoreTreeAndRebuildIndex(repoPath, testutils.RandomHash())
-	if err == nil {
-		t.Fatal("expected error when tree hash to restore doesn't exist")
-	}
-
-	expectedErrorMessage := "TBD"
-	if strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
-	}
-}
-
-// TestCheckout_RestoreTree_UnknowBlobHash_ReferencedByTree verifies error when a tree
-// entry references a blob hash that does not exist in the object store.
-func TestCheckout_RestoreTree_UnknowBlobHash_ReferencedByTree(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	store := objects.NewObjectStore(repoPath)
-
-	treeEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, testutils.RandomString(10), testutils.RandomHash())
-	rootTree := objectstest.CreateAndStoreTree(t, store, []objects.TreeEntry{treeEntry})
-
-	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
-	if err == nil {
-		t.Fatal("expected error when tree a references non existent blob")
-	}
-
-	expectedErrorMessage := "TBD"
-	if strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
-	}
-}
-
-func TestCheckout_RebuildIndex_SingleFile(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-
-	store := objects.NewObjectStore(repoPath)
-
-	fileName := testutils.RandomString(10)
-	tree, blobs := objectstest.StoreBlobTree(t, store, fileName)
-
-	err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash())
-	if err != nil {
-		t.Fatalf("failed to restore tree: %v", err)
-	}
-
-	idxManager := index.NewManager(repoPath)
-	idx, err := idxManager.Load()
-	if err != nil {
-		t.Fatalf("failed to load index: %v", err)
-	}
-
-	if len(idx.GetEntryList()) != len(blobs) {
-		t.Fatalf("expected index entries length to be [%d], got [%d]", len(blobs), len(idx.GetEntryList()))
-	}
-
-	blob := blobs[fileName]
-	indexEntry := idx.GetEntryList()[0]
-	if indexEntry.Hash() != blob.Hash() {
-		t.Fatalf("expected index entry's hash to be [%s], got [%s]", blob.Hash(), indexEntry.Hash())
-	}
-	if indexEntry.Path() != fileName {
-		t.Fatalf("expected index entry's rel path to be [%s], got [%s]", fileName, indexEntry.Path())
-	}
-	if indexEntry.Mode() != index.ModeRegularFile {
-		t.Fatalf("expected file mode to be [%v], got [%v]", index.ModeRegularFile, indexEntry.Mode())
-	}
-}
-
-func TestCheckout_RebuildIndex_ManyFiles_DifferentLevels(t *testing.T) {
-	repoPath := testutils.SetupTestRepoWithInit(t)
-	store := objects.NewObjectStore(repoPath)
-
-	// Create subdirectory as a flat tree with two files
-	dirName := testutils.RandomString(10)
-	subFile1 := testutils.RandomString(10)
-	subFile2 := testutils.RandomString(10)
-	subTree, subBlobs := objectstest.StoreBlobTree(t, store, subFile1, subFile2)
-
-	// Create a root-level file
-	rootFileName := testutils.RandomString(10)
-	rootBlob := objectstest.CreateAndStoreBlob(t, store, []byte(testutils.RandomString(100)))
-
-	// Build root tree combining the subdirectory and root-level file
-	dirEntry := objectstest.CreateTreeEntry(t, objects.ModeDirectory, dirName, subTree.Hash())
-	fileEntry := objectstest.CreateTreeEntry(t, objects.ModeRegularFile, rootFileName, rootBlob.Hash())
-	rootTree := objectstest.CreateAndStoreTree(t, store, []objects.TreeEntry{dirEntry, fileEntry})
-
-	err := RestoreTreeAndRebuildIndex(repoPath, rootTree.Hash())
-	if err != nil {
-		t.Fatalf("failed to restore tree: %v", err)
-	}
-
-	idxManager := index.NewManager(repoPath)
-	idx, err := idxManager.Load()
-	if err != nil {
-		t.Fatalf("failed to load index: %v", err)
-	}
-
-	// collect all blobs
-	blobMap := make(map[string]*objects.Blob, len(subBlobs)+1)
-	for k, v := range subBlobs {
-		relPath := filepath.ToSlash(filepath.Join(dirName, k))
-		blobMap[relPath] = v
-	}
-	blobMap[rootFileName] = rootBlob
-
-	// Assertions
-	if len(idx.GetEntryList()) != len(blobMap) {
-		t.Fatalf("expected index entries length to be [%d], got [%d]", len(blobMap), len(idx.GetEntryList()))
-	}
-
-	for _, entry := range idx.GetEntryList() {
-		blob, exist := blobMap[entry.Path()]
-		if !exist {
-			t.Fatalf("expected index entry with relative path [%s] to exist in the list of created blobs [%v]", entry.Path(), blobMap)
-		}
-		if entry.Hash() != blob.Hash() {
-			t.Fatalf("expected index entry's hash to be [%s], got [%s]", blob.Hash(), entry.Hash())
-		}
-	}
-}
-
 // TestCheckout_Orchestrate_BranchCheckout verifies the full checkout workflow
 // for checking out a  branch. Constructs a two-commit history, populates the working tree
 // with creates a branch pointing at the first commit
@@ -406,9 +190,7 @@ func TestCheckout_Orchestrate_BranchCheckout(t *testing.T) {
 
 	// Point main at secondCommit and populate working tree + index to match
 	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, secondCommit.Hash())
-	if err := RestoreTreeAndRebuildIndex(repoPath, secondTree.Hash()); err != nil {
-		t.Fatalf("failed to set up working tree: %v", err)
-	}
+	applyStoredTreeSnapshot(t, repoPath, store, secondTree.Hash())
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), updatedContent)
 
 	featureBranch := testutils.RandomString(10)
@@ -459,9 +241,7 @@ func TestCheckout_Orchestrate_CommitCheckout(t *testing.T) {
 
 	// Point main at secondCommit and populate working tree + index to match
 	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, secondCommit.Hash())
-	if err := RestoreTreeAndRebuildIndex(repoPath, secondTree.Hash()); err != nil {
-		t.Fatalf("failed to set up working tree: %v", err)
-	}
+	applyStoredTreeSnapshot(t, repoPath, store, secondTree.Hash())
 	testutils.AssertFileContent(t, filepath.Join(repoPath, fileName), updatedContent)
 
 	firstCommitHash := firstCommit.Hash()
@@ -493,40 +273,93 @@ func TestCheckout_Orchestrate_CommitCheckout(t *testing.T) {
 	}
 }
 
-func TestCheckout_Orchestrate_DirtyDir(t *testing.T) {
+// TestCheckout_Orchestrate_ForceRemovesIndexOnlyPath verifies that forced
+// checkout discards a staged addition absent from the target snapshot rather
+// than leaving it behind as an untracked file.
+func TestCheckout_Orchestrate_ForceRemovesIndexOnlyPath(t *testing.T) {
+	// Arrange
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	store := objects.NewObjectStore(repoPath)
 
-	fileName := testutils.RandomString(10)
-	tree, blob := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{fileName: []byte(testutils.RandomString(10))})
-	commit := objectstest.CreateAndStoreCommit(t, store, tree.Hash(), "", testutils.RandomString(20))
+	trackedPath := testutils.RandomString(10)
+	trackedContent := testutils.RandomBytes(20)
+	headTree, _ := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{trackedPath: trackedContent})
+	headCommit := objectstest.CreateAndStoreCommit(t, store, headTree.Hash(), "", testutils.RandomString(11))
+	targetCommit := objectstest.CreateAndStoreCommit(t, store, headTree.Hash(), headCommit.Hash(), testutils.RandomString(12))
+	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, headCommit.Hash())
 
 	idx := index.NewIndex()
-	filePath := indextest.CreateTrackedFileContent(t, repoPath, repoPath, fileName, blob[fileName].Content(), idx)
-
-	idxManager := index.NewManager(repoPath)
-	if err := idxManager.Save(idx); err != nil {
-		t.Fatalf("failed to save index: %v", err)
+	trackedFilePath := indextest.CreateTrackedFileContent(t, repoPath, repoPath, trackedPath, trackedContent, idx)
+	indexOnlyPath := testutils.RandomString(13)
+	indexOnlyFilePath := indextest.CreateTrackedFileContent(t, repoPath, repoPath, indexOnlyPath, testutils.RandomBytes(21), idx)
+	if err := index.NewManager(repoPath).Save(idx); err != nil {
+		t.Fatalf("failed to save pre-checkout index: %v", err)
 	}
 
-	originalContent, err := os.ReadFile(filePath)
+	// Act
+	if err := OrchestrateCheckoutExecution(repoPath, targetCommit.Hash(), true); err != nil {
+		t.Fatalf("failed forced checkout with staged addition: %v", err)
+	}
+
+	// Assert
+	testutils.AssertFileContent(t, trackedFilePath, trackedContent)
+	testutils.AssertFileNotExists(t, indexOnlyFilePath)
+	testutils.AssertHEADContent(t, repoPath, targetCommit.Hash()+"\n")
+	loadedIndex, err := index.NewManager(repoPath).Load()
 	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
+		t.Fatalf("failed to load index after forced checkout: %v", err)
 	}
-	updatedContent := slices.Concat(originalContent, []byte(" new content "))
-	if err := os.WriteFile(filePath, updatedContent, constants.FilePerms); err != nil {
-		t.Fatalf("failed to write updated file: %v", err)
+	entries := loadedIndex.GetEntryList()
+	if len(entries) != 1 || entries[0].Path() != trackedPath {
+		t.Fatalf("expected replacement index to contain only [%s], got [%#v]", trackedPath, extractPathsFromIndexEntries(t, entries))
+	}
+}
+
+// TestCheckout_Orchestrate_ForceRejectsRecreatedStagedDeletion verifies that
+// force cannot remove untracked content recreated at a path staged for deletion
+// and preserves HEAD, branch refs, the index, and disk on rejection.
+func TestCheckout_Orchestrate_ForceRejectsRecreatedStagedDeletion(t *testing.T) {
+	// Arrange
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	deletedPath := testutils.RandomString(10)
+	headContent := testutils.RandomBytes(20)
+	headTree, _ := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{deletedPath: headContent})
+	headCommit := objectstest.CreateAndStoreCommit(t, store, headTree.Hash(), "", testutils.RandomString(11))
+
+	targetPath := testutils.RandomString(12)
+	targetContent := testutils.RandomBytes(21)
+	targetTree, _ := objectstest.StoreBlobTreeWithContent(t, store, map[string][]byte{targetPath: targetContent})
+	targetCommit := objectstest.CreateAndStoreCommit(t, store, targetTree.Hash(), headCommit.Hash(), testutils.RandomString(13))
+
+	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, headCommit.Hash())
+	applyStoredTreeSnapshot(t, repoPath, store, headTree.Hash())
+
+	deletedFilePath := filepath.Join(repoPath, deletedPath)
+	if err := os.Remove(deletedFilePath); err != nil {
+		t.Fatalf("failed to remove tracked file before staging its deletion: %v", err)
+	}
+	if err := index.NewManager(repoPath).Save(index.NewIndex()); err != nil {
+		t.Fatalf("failed to stage file deletion: %v", err)
 	}
 
-	err = OrchestrateCheckoutExecution(repoPath, commit.Hash(), false)
-	if err == nil {
-		t.Fatal("expected error when directory is dirty")
-	}
+	recreatedContent := testutils.RandomBytes(22)
+	testutils.CreateTestFile(t, repoPath, deletedPath, recreatedContent)
+	metadataBefore := captureCheckoutMetadata(t, repoPath, constants.DefaultBranch)
 
-	expectedErrorMessage := fmt.Sprintf("working directory contains dirty files:\n\ndirty: [%s] file was modified", fileName)
-	if !strings.Contains(err.Error(), expectedErrorMessage) {
-		t.Fatalf("expected error message to contain [%s], got [%s]", expectedErrorMessage, err.Error())
+	// Act
+	err := OrchestrateCheckoutExecution(repoPath, targetCommit.Hash(), true)
+
+	// Assert
+	state := requirePreflightError(t, err)
+	expectedCollisions := []worktree.Collision{{Path: deletedPath, Kind: worktree.CollisionUntrackedFile}}
+	if !slices.Equal(state.Collisions, expectedCollisions) {
+		t.Fatalf("expected collisions [%#v], got [%#v]", expectedCollisions, state.Collisions)
 	}
+	testutils.AssertFileContent(t, deletedFilePath, recreatedContent)
+	testutils.AssertFileNotExists(t, filepath.Join(repoPath, targetPath))
+	assertCheckoutMetadataUnchanged(t, repoPath, metadataBefore)
 }
 
 func TestCheckout_Orchestrate_NonExistingTarget(t *testing.T) {
@@ -557,9 +390,7 @@ func TestCheckout_Orchestrate_CurrentBranchNoop(t *testing.T) {
 
 	// Point main at commit and populate working tree + index to match
 	testutils.WriteRefFile(t, repoPath, constants.DefaultBranch, commit.Hash())
-	if err := RestoreTreeAndRebuildIndex(repoPath, tree.Hash()); err != nil {
-		t.Fatalf("failed to set up working tree: %v", err)
-	}
+	applyStoredTreeSnapshot(t, repoPath, store, tree.Hash())
 
 	idxManager := index.NewManager(repoPath)
 	idxBefore, err := idxManager.Load()
