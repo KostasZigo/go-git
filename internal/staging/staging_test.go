@@ -187,6 +187,57 @@ func TestOrchestrateAddExecution_AddAll(t *testing.T) {
 	}
 }
 
+// TestOrchestrateAddExecution_AddAllStagesAdditionAndDeletion verifies that one
+// repository-wide operation can add a new path, remove an unrelated tracked
+// path, and preserve an unchanged tracked path in the final index.
+func TestOrchestrateAddExecution_AddAllStagesAdditionAndDeletion(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	deletedPath := "a-" + testutils.RandomString(10)
+	retainedPath := "m-" + testutils.RandomString(10)
+	addedPath := "z-" + testutils.RandomString(10)
+	deletedFilePath := testutils.CreateTestFile(t, repoPath, deletedPath, testutils.RandomBytes(20))
+	retainedContent := testutils.RandomBytes(21)
+	testutils.CreateTestFile(t, repoPath, retainedPath, retainedContent)
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{"."}); err != nil {
+		t.Fatalf("failed to stage initial repository: %v", err)
+	}
+
+	if err := os.Remove(deletedFilePath); err != nil {
+		t.Fatalf("failed to remove tracked file: %v", err)
+	}
+	addedContent := testutils.RandomBytes(22)
+	testutils.CreateTestFile(t, repoPath, addedPath, addedContent)
+
+	addedFiles, deletedFiles, err := OrchestrateAddExecution(repoPath, []string{"."})
+	if err != nil {
+		t.Fatalf("failed to reconcile mixed repository changes: %v", err)
+	}
+	if !slices.Equal(addedFiles, []string{addedPath}) {
+		t.Fatalf("expected added path [%s], got [%v]", addedPath, addedFiles)
+	}
+	if !slices.Equal(deletedFiles, []string{deletedPath}) {
+		t.Fatalf("expected deleted path [%s], got [%v]", deletedPath, deletedFiles)
+	}
+
+	idx := loadIndex(t, repoPath)
+	if idx.CountEntries() != 2 {
+		t.Fatalf("expected two final index entries, got [%d]", idx.CountEntries())
+	}
+	if idx.GetEntry(deletedPath) != nil {
+		t.Fatalf("expected deleted path [%s] to be absent from the index", deletedPath)
+	}
+	retainedEntry := idx.GetEntry(retainedPath)
+	if retainedEntry == nil || retainedEntry.Hash() != objects.NewBlob(retainedContent).Hash() {
+		t.Fatalf("expected unchanged path [%s] to remain in the index", retainedPath)
+	}
+	addedEntry := idx.GetEntry(addedPath)
+	if addedEntry == nil || addedEntry.Hash() != objects.NewBlob(addedContent).Hash() {
+		t.Fatalf("expected new path [%s] in the index", addedPath)
+	}
+}
+
 // TestOrchestrateAddExecution_ExplicitFilePreservesUnselectedDeletion verifies
 // that staging one explicit file does not remove another missing tracked path
 // from the index.
