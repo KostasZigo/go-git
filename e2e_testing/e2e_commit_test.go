@@ -193,6 +193,78 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 	}
 }
 
+// TestE2E_CommitCommand_DeleteAllFilesCommitsEmptyTree verifies the complete
+// add/commit/delete/add/commit workflow. Repository-wide staging must report
+// every deletion in path order, persist an empty index, and create a commit
+// whose canonical empty tree replaces the non-empty parent tree.
+func TestE2E_CommitCommand_DeleteAllFilesCommitsEmptyTree(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	rootPath := "a-" + testutils.RandomString(10)
+	nestedDirectory := "z-" + testutils.RandomString(10)
+	nestedPath := filepath.Join(nestedDirectory, testutils.RandomString(11))
+	testutils.CreateTestFile(t, repoPath, rootPath, testutils.RandomBytes(20))
+	testutils.CreateTestFileWithDirs(t, repoPath, nestedPath, testutils.RandomBytes(21))
+
+	addCommand := newGogitCmd(t, constants.AddCmdName, ".")
+	addCommand.Dir = repoPath
+	if output, err := addCommand.CombinedOutput(); err != nil {
+		t.Fatalf("failed to stage initial repository: %v\nOutput: %s", err, output)
+	}
+	commitCommand := newGogitCmd(t, constants.CommitCmdName, "-m", "non-empty parent")
+	commitCommand.Dir = repoPath
+	if output, err := commitCommand.CombinedOutput(); err != nil {
+		t.Fatalf("failed to create non-empty parent commit: %v\nOutput: %s", err, output)
+	}
+	parentHash := readBranchRefHash(t, repoPath, constants.DefaultBranch)
+	parentCommit := readCommitByHash(t, repoPath, parentHash)
+	if parentCommit.TreeHash() == testutils.CanonicalEmptyTreeHash {
+		t.Fatal("expected initial commit to contain a non-empty tree")
+	}
+
+	if err := os.Remove(filepath.Join(repoPath, rootPath)); err != nil {
+		t.Fatalf("failed to remove root tracked file: %v", err)
+	}
+	if err := os.RemoveAll(filepath.Join(repoPath, nestedDirectory)); err != nil {
+		t.Fatalf("failed to remove nested tracked file: %v", err)
+	}
+
+	addCommand = newGogitCmd(t, constants.AddCmdName, ".")
+	addCommand.Dir = repoPath
+	deletionOutput, err := addCommand.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to stage all deletions: %v\nOutput: %s", err, deletionOutput)
+	}
+	expectedDeletionOutput := "deleted '" + filepath.ToSlash(rootPath) + "'\n" +
+		"deleted '" + filepath.ToSlash(nestedPath) + "'\n"
+	if string(deletionOutput) != expectedDeletionOutput {
+		t.Fatalf("expected sorted deletion output [%q], got [%q]", expectedDeletionOutput, deletionOutput)
+	}
+	assertIndexCreationAndContent(t, repoPath, map[string][]byte{})
+
+	commitCommand = newGogitCmd(t, constants.CommitCmdName, "-m", "delete all files")
+	commitCommand.Dir = repoPath
+	if output, err := commitCommand.CombinedOutput(); err != nil {
+		t.Fatalf("failed to commit empty tree: %v\nOutput: %s", err, output)
+	}
+	commitHash := readBranchRefHash(t, repoPath, constants.DefaultBranch)
+	commit := readCommitByHash(t, repoPath, commitHash)
+	if commit.ParentHash() != parentHash {
+		t.Fatalf("expected parent hash [%s], got [%s]", parentHash, commit.ParentHash())
+	}
+	if commit.TreeHash() != testutils.CanonicalEmptyTreeHash {
+		t.Fatalf("expected empty tree hash [%s], got [%s]", testutils.CanonicalEmptyTreeHash, commit.TreeHash())
+	}
+	if _, err := objects.NewObjectStore(repoPath).ReadTree(commit.TreeHash()); err != nil {
+		t.Fatalf("failed to read committed empty tree: %v", err)
+	}
+}
+
 // TestE2E_CommitCommand_NoStagedFiles verifies commit fails with non-zero exit code
 // and appropriate error message when no files have been staged.
 func TestE2E_CommitCommand_NoStagedFiles(t *testing.T) {

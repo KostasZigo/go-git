@@ -10,17 +10,16 @@ import (
 )
 
 var commitCmd = &cobra.Command{
-	Use:   "commit",
-	Short: "Commit all staged files",
-	Long: `Commit all staged files.
-	Directories are hashed and stored as tree objects, files and sub-directories are added as tree entries.
-	A commit object is also hashed and stored as stored as commit object. The current refs/heads/<branch-name> file mentioned in 
-	HEAD file is updated with the commit's hash.
+	Use:   "commit -m <message>",
+	Short: "Record the staged snapshot",
+	Long: `Record the current index as a commit on the active branch.
+
+The staged snapshot is stored as recursive tree objects and linked to the
+current commit as its parent. The commit is rejected when its tree is unchanged
+from the parent or when an initial commit has an empty index. An empty index can
+be committed after a non-empty parent to record deletion of all tracked files.
 
 Examples:
-  # Commit with no message
-  gogit commit
-
   # Commit with message
   gogit commit -m "<message>"`,
 
@@ -34,8 +33,7 @@ var messageFlag string
 func init() {
 	rootCmd.AddCommand(commitCmd)
 
-	// Add flag using Cobra's flag system
-	commitCmd.Flags().StringVarP(&messageFlag, "message", "m", "", "Add message to commit")
+	commitCmd.Flags().StringVarP(&messageFlag, "message", "m", "", "commit message")
 }
 
 func runCommit(cmd *cobra.Command, _ []string) error {
@@ -49,8 +47,8 @@ func runCommit(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// author should be resolved from git config
-	// use *default* author for now. Git config author resolution to be implemented later
+	// Author configuration is not implemented yet, so commits use the default
+	// identity until repository or user configuration is introduced.
 	author := objects.DefaultAuthor()
 	commitHash, err := commits.OrchestrateCommitExecution(repoPath, messageFlag, author)
 	if err != nil {

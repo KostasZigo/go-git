@@ -1,16 +1,21 @@
 package staging
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/KostasZigo/gogit/internal/constants"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 	"github.com/KostasZigo/gogit/internal/testutils"
+	"github.com/agiledragon/gomonkey/v2"
 )
 
 // TestOrchestrateAddExecution_SingleFile verifies that staging a single file
@@ -22,7 +27,7 @@ func TestOrchestrateAddExecution_SingleFile(t *testing.T) {
 	testFileName := testutils.RandomString(10)
 	testutils.CreateTestFile(t, repoPath, testFileName, []byte(testutils.RandomString(500)))
 
-	addedFiles, err := OrchestrateAddExecution(repoPath, []string{testFileName})
+	addedFiles, _, err := OrchestrateAddExecution(repoPath, []string{testFileName})
 	if err != nil {
 		t.Fatalf("OrchestrateAddExecution failed: %v", err)
 	}
@@ -59,7 +64,7 @@ func TestOrchestrateAddExecution_MultipleFiles(t *testing.T) {
 		testutils.CreateTestFile(t, repoPath, name, []byte(testutils.RandomString(100)))
 	}
 
-	addedFiles, err := OrchestrateAddExecution(repoPath, testFileNames)
+	addedFiles, _, err := OrchestrateAddExecution(repoPath, testFileNames)
 	if err != nil {
 		t.Fatalf("OrchestrateAddExecution failed: %v", err)
 	}
@@ -96,7 +101,7 @@ func TestOrchestrateAddExecution_FileNotFound(t *testing.T) {
 
 	nonExistentFile := testutils.RandomString(10)
 
-	_, err := OrchestrateAddExecution(repoPath, []string{nonExistentFile})
+	_, _, err := OrchestrateAddExecution(repoPath, []string{nonExistentFile})
 	if err == nil {
 		t.Fatal("expected error for non-existent file, got nil")
 	}
@@ -112,7 +117,7 @@ func TestOrchestrateAddExecution_UpdateExistingFile(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, testFileName, []byte(testutils.RandomString(500)))
 
 	// Stage original
-	if _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
 		t.Fatalf("first add failed: %v", err)
 	}
 
@@ -124,7 +129,7 @@ func TestOrchestrateAddExecution_UpdateExistingFile(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, testFileName, []byte(testutils.RandomString(1000)))
 
 	// Stage modified
-	addedFiles, err := OrchestrateAddExecution(repoPath, []string{testFileName})
+	addedFiles, _, err := OrchestrateAddExecution(repoPath, []string{testFileName})
 	if err != nil {
 		t.Fatalf("second add failed: %v", err)
 	}
@@ -166,7 +171,7 @@ func TestOrchestrateAddExecution_AddAll(t *testing.T) {
 		testutils.CreateTestFile(t, repoPath, name, content)
 	}
 
-	addedFiles, err := OrchestrateAddExecution(repoPath, []string{"."})
+	addedFiles, _, err := OrchestrateAddExecution(repoPath, []string{"."})
 	if err != nil {
 		t.Fatalf("OrchestrateAddExecution with '.' failed: %v", err)
 	}
@@ -182,13 +187,382 @@ func TestOrchestrateAddExecution_AddAll(t *testing.T) {
 	}
 }
 
+// TestOrchestrateAddExecution_ExplicitFilePreservesUnselectedDeletion verifies
+// that staging one explicit file does not remove another missing tracked path
+// from the index.
+func TestOrchestrateAddExecution_ExplicitFilePreservesUnselectedDeletion(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	selectedPath := testutils.RandomString(10)
+	deletedPath := testutils.RandomString(11)
+	testutils.CreateTestFile(t, repoPath, selectedPath, testutils.RandomBytes(20))
+	deletedFilePath := testutils.CreateTestFile(t, repoPath, deletedPath, testutils.RandomBytes(21))
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{selectedPath, deletedPath}); err != nil {
+		t.Fatalf("failed to stage initial files: %v", err)
+	}
+	if err := os.Remove(deletedFilePath); err != nil {
+		t.Fatalf("failed to remove unselected tracked file: %v", err)
+	}
+	selectedContent := testutils.RandomBytes(22)
+	testutils.CreateTestFile(t, repoPath, selectedPath, selectedContent)
+
+	addedFiles, deletedFiles, err := OrchestrateAddExecution(repoPath, []string{selectedPath})
+	if err != nil {
+		t.Fatalf("failed to stage selected file: %v", err)
+	}
+	if !slices.Equal(addedFiles, []string{selectedPath}) {
+		t.Fatalf("expected added files [%s], got [%v]", selectedPath, addedFiles)
+	}
+	if len(deletedFiles) != 0 {
+		t.Fatalf("expected no unselected deletions, got [%v]", deletedFiles)
+	}
+
+	idx := loadIndex(t, repoPath)
+	if idx.GetEntry(deletedPath) == nil {
+		t.Fatalf("expected unselected deleted path [%s] to remain in the index", deletedPath)
+	}
+	selectedEntry := idx.GetEntry(selectedPath)
+	if selectedEntry == nil {
+		t.Fatalf("expected selected path [%s] in the index", selectedPath)
+	}
+	if selectedEntry.FileSize() != int64(len(selectedContent)) {
+		t.Fatalf("expected selected file size [%d], got [%d]", len(selectedContent), selectedEntry.FileSize())
+	}
+}
+
+// TestOrchestrateAddExecution_ExplicitDeletion verifies that selecting a
+// missing tracked file removes only that file from the index and reports it as
+// deleted.
+func TestOrchestrateAddExecution_ExplicitDeletion(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	deletedPath := testutils.RandomString(10)
+	retainedPath := testutils.RandomString(11)
+	deletedFilePath := testutils.CreateTestFile(t, repoPath, deletedPath, testutils.RandomBytes(20))
+	testutils.CreateTestFile(t, repoPath, retainedPath, testutils.RandomBytes(21))
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{deletedPath, retainedPath}); err != nil {
+		t.Fatalf("failed to stage initial files: %v", err)
+	}
+	if err := os.Remove(deletedFilePath); err != nil {
+		t.Fatalf("failed to remove tracked file: %v", err)
+	}
+
+	addedFiles, deletedFiles, err := OrchestrateAddExecution(repoPath, []string{deletedPath, deletedPath})
+	if err != nil {
+		t.Fatalf("failed to stage explicit deletion: %v", err)
+	}
+	if len(addedFiles) != 0 {
+		t.Fatalf("expected no added files, got [%v]", addedFiles)
+	}
+	if !slices.Equal(deletedFiles, []string{deletedPath}) {
+		t.Fatalf("expected deleted files [%s], got [%v]", deletedPath, deletedFiles)
+	}
+
+	idx := loadIndex(t, repoPath)
+	if idx.GetEntry(deletedPath) != nil {
+		t.Fatalf("expected deleted path [%s] to be removed from the index", deletedPath)
+	}
+	if idx.GetEntry(retainedPath) == nil {
+		t.Fatalf("expected unrelated path [%s] to remain in the index", retainedPath)
+	}
+}
+
+// TestOrchestrateAddExecution_ENOTDIRStagesTrackedDeletion verifies that an
+// indexed descendant blocked by a regular-file ancestor is treated as absent
+// when the filesystem reports ENOTDIR.
+func TestOrchestrateAddExecution_ENOTDIRStagesTrackedDeletion(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	parentPath := testutils.RandomString(10)
+	childPath := filepath.ToSlash(filepath.Join(parentPath, testutils.RandomString(11)))
+	testutils.CreateTestFileWithDirs(t, repoPath, filepath.FromSlash(childPath), testutils.RandomBytes(20))
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{childPath}); err != nil {
+		t.Fatalf("failed to stage initial descendant: %v", err)
+	}
+
+	patches := gomonkey.ApplyFunc(os.Lstat, func(filePath string) (os.FileInfo, error) {
+		return nil, &os.PathError{Op: "lstat", Path: filePath, Err: syscall.ENOTDIR}
+	})
+	defer patches.Reset()
+
+	addedFiles, deletedFiles, err := OrchestrateAddExecution(repoPath, []string{childPath})
+	if err != nil {
+		t.Fatalf("failed to stage ENOTDIR descendant as deleted: %v", err)
+	}
+	if len(addedFiles) != 0 {
+		t.Fatalf("expected no added files, got [%v]", addedFiles)
+	}
+	if !slices.Equal(deletedFiles, []string{childPath}) {
+		t.Fatalf("expected deleted path [%s], got [%v]", childPath, deletedFiles)
+	}
+	if idx := loadIndex(t, repoPath); idx.GetEntry(childPath) != nil {
+		t.Fatalf("expected ENOTDIR path [%s] to be removed from the index", childPath)
+	}
+}
+
+// TestOrchestrateAddExecution_InspectionErrorPreservesPersistedIndex verifies
+// that an inspection failure after an in-memory deletion does not persist any
+// partial index mutation.
+func TestOrchestrateAddExecution_InspectionErrorPreservesPersistedIndex(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	deletedPath := "a-" + testutils.RandomString(10)
+	deniedPath := "z-" + testutils.RandomString(10)
+	deletedFilePath := testutils.CreateTestFile(t, repoPath, deletedPath, testutils.RandomBytes(20))
+	testutils.CreateTestFile(t, repoPath, deniedPath, testutils.RandomBytes(21))
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{deletedPath, deniedPath}); err != nil {
+		t.Fatalf("failed to stage initial files: %v", err)
+	}
+	if err := os.Remove(deletedFilePath); err != nil {
+		t.Fatalf("failed to remove tracked file: %v", err)
+	}
+
+	indexPath := filepath.Join(repoPath, constants.Gogit, constants.Index)
+	indexBefore, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("failed to read index before staging failure: %v", err)
+	}
+	deniedAbsolutePath := filepath.Join(repoPath, deniedPath)
+	patches := gomonkey.ApplyFunc(os.Lstat, func(filePath string) (os.FileInfo, error) {
+		if filePath == deniedAbsolutePath {
+			return nil, &os.PathError{Op: "lstat", Path: filePath, Err: syscall.EACCES}
+		}
+		return nil, &os.PathError{Op: "lstat", Path: filePath, Err: fs.ErrNotExist}
+	})
+	defer patches.Reset()
+
+	_, _, err = OrchestrateAddExecution(repoPath, []string{deletedPath, deniedPath})
+	if err == nil {
+		t.Fatal("expected inspection error")
+	}
+	if !errors.Is(err, syscall.EACCES) {
+		t.Fatalf("expected permission error, got [%v]", err)
+	}
+
+	indexAfter, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("failed to read index after staging failure: %v", err)
+	}
+	if !slices.Equal(indexAfter, indexBefore) {
+		t.Fatal("expected inspection failure to preserve persisted index bytes")
+	}
+}
+
+// TestOrchestrateAddExecution_TrackedFileBecomesDirectory verifies that a
+// tracked file entry is removed before staging a descendant created beneath
+// the replacement directory.
+func TestOrchestrateAddExecution_TrackedFileBecomesDirectory(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	parentPath := testutils.RandomString(10)
+	parentFilePath := testutils.CreateTestFile(t, repoPath, parentPath, testutils.RandomBytes(20))
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{parentPath}); err != nil {
+		t.Fatalf("failed to stage parent file: %v", err)
+	}
+	if err := os.Remove(parentFilePath); err != nil {
+		t.Fatalf("failed to remove parent file: %v", err)
+	}
+	childName := testutils.RandomString(11)
+	childPath := filepath.ToSlash(filepath.Join(parentPath, childName))
+	testutils.CreateTestFileWithDirs(t, repoPath, filepath.FromSlash(childPath), testutils.RandomBytes(21))
+
+	addedFiles, deletedFiles, err := OrchestrateAddExecution(repoPath, []string{childPath})
+	if err != nil {
+		t.Fatalf("failed to stage file-to-directory transition: %v", err)
+	}
+	if !slices.Equal(addedFiles, []string{childPath}) {
+		t.Fatalf("expected added child [%s], got [%v]", childPath, addedFiles)
+	}
+	if !slices.Equal(deletedFiles, []string{parentPath}) {
+		t.Fatalf("expected deleted parent [%s], got [%v]", parentPath, deletedFiles)
+	}
+
+	idx := loadIndex(t, repoPath)
+	if idx.CountEntries() != 1 || idx.GetEntry(parentPath) != nil || idx.GetEntry(childPath) == nil {
+		t.Fatalf("expected index to contain only descendant [%s]", childPath)
+	}
+}
+
+// TestOrchestrateAddExecution_TrackedDirectoryBecomesFile verifies that all
+// tracked descendants are removed before staging a file at their parent path.
+func TestOrchestrateAddExecution_TrackedDirectoryBecomesFile(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	parentPath := testutils.RandomString(10)
+	childPaths := []string{
+		filepath.ToSlash(filepath.Join(parentPath, testutils.RandomString(11))),
+		filepath.ToSlash(filepath.Join(parentPath, testutils.RandomString(12), testutils.RandomString(13))),
+	}
+	for _, childPath := range childPaths {
+		testutils.CreateTestFileWithDirs(t, repoPath, filepath.FromSlash(childPath), testutils.RandomBytes(20))
+	}
+	if _, _, err := OrchestrateAddExecution(repoPath, childPaths); err != nil {
+		t.Fatalf("failed to stage child files: %v", err)
+	}
+	if err := os.RemoveAll(filepath.Join(repoPath, parentPath)); err != nil {
+		t.Fatalf("failed to remove parent directory: %v", err)
+	}
+	testutils.CreateTestFile(t, repoPath, parentPath, testutils.RandomBytes(21))
+
+	addedFiles, deletedFiles, err := OrchestrateAddExecution(repoPath, []string{"."})
+	if err != nil {
+		t.Fatalf("failed to stage directory-to-file transition: %v", err)
+	}
+	if !slices.Equal(addedFiles, []string{parentPath}) {
+		t.Fatalf("expected added parent [%s], got [%v]", parentPath, addedFiles)
+	}
+	slices.Sort(childPaths)
+	if !slices.Equal(deletedFiles, childPaths) {
+		t.Fatalf("expected deleted children [%v], got [%v]", childPaths, deletedFiles)
+	}
+
+	idx := loadIndex(t, repoPath)
+	if idx.CountEntries() != 1 || idx.GetEntry(parentPath) == nil {
+		t.Fatalf("expected index to contain only parent file [%s]", parentPath)
+	}
+	for _, childPath := range childPaths {
+		if idx.GetEntry(childPath) != nil {
+			t.Fatalf("expected descendant [%s] to be removed from the index", childPath)
+		}
+	}
+}
+
+// TestOrchestrateAddExecution_RejectsUnsupportedSymlink verifies that staging
+// rejects symbolic links rather than following them and recording the target
+// as a regular file.
+func TestOrchestrateAddExecution_RejectsUnsupportedSymlink(t *testing.T) {
+	testCases := []struct {
+		name   string
+		addAll bool
+	}{
+		{name: "explicit path"},
+		{name: "repository-wide", addAll: true},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			repoPath := testutils.SetupTestRepoWithInit(t)
+			testutils.ChangeToDir(t, repoPath)
+
+			targetName := testutils.RandomString(10)
+			testutils.CreateTestFile(t, repoPath, targetName, testutils.RandomBytes(20))
+			linkName := testutils.RandomString(11)
+			if err := os.Symlink(targetName, filepath.Join(repoPath, linkName)); err != nil {
+				t.Skipf("symbolic links are unavailable: %v", err)
+			}
+
+			args := []string{linkName}
+			if testCase.addAll {
+				args = []string{"."}
+			}
+			_, _, err := OrchestrateAddExecution(repoPath, args)
+			if err == nil {
+				t.Fatal("expected unsupported symbolic link to be rejected")
+			}
+			if !strings.Contains(err.Error(), "unsupported filesystem object") {
+				t.Fatalf("expected unsupported object error, got [%v]", err)
+			}
+			if idx := loadIndex(t, repoPath); idx.CountEntries() != 0 {
+				t.Fatalf("expected rejected staging operation to preserve an empty index, got [%d] entries", idx.CountEntries())
+			}
+		})
+	}
+}
+
+// TestOrchestrateAddExecution_ExplicitNestedFileUsesRepositoryPath verifies
+// that an explicit path resolved from a nested working directory is stored as
+// one canonical path relative to the repository root.
+func TestOrchestrateAddExecution_ExplicitNestedFileUsesRepositoryPath(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	nestedDirectory := testutils.RandomString(10)
+	nestedDirectoryPath := filepath.Join(repoPath, nestedDirectory)
+	if err := os.MkdirAll(nestedDirectoryPath, constants.DirPerms); err != nil {
+		t.Fatalf("failed to create nested directory: %v", err)
+	}
+	fileName := testutils.RandomString(11)
+	testutils.CreateTestFile(t, nestedDirectoryPath, fileName, testutils.RandomBytes(20))
+	testutils.ChangeToDir(t, nestedDirectoryPath)
+	expectedPath := filepath.ToSlash(filepath.Join(nestedDirectory, fileName))
+
+	addedFiles, deletedFiles, err := OrchestrateAddExecution(repoPath, []string{fileName})
+	if err != nil {
+		t.Fatalf("failed to stage nested explicit file: %v", err)
+	}
+	if !slices.Equal(addedFiles, []string{expectedPath}) {
+		t.Fatalf("expected added files [%s], got [%v]", expectedPath, addedFiles)
+	}
+	if len(deletedFiles) != 0 {
+		t.Fatalf("expected no deleted files, got [%v]", deletedFiles)
+	}
+	if idxEntry := loadIndex(t, repoPath).GetEntry(expectedPath); idxEntry == nil {
+		t.Fatalf("expected canonical nested index path [%s]", expectedPath)
+	}
+}
+
+// TestOrchestrateAddExecution_AddAllFromNestedDirectoryReconcilesRepository
+// verifies that add . retains repository-wide staging semantics when invoked
+// from a nested working directory.
+func TestOrchestrateAddExecution_AddAllFromNestedDirectoryReconcilesRepository(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	rootPath := testutils.RandomString(10)
+	rootFilePath := testutils.CreateTestFile(t, repoPath, rootPath, testutils.RandomBytes(20))
+	nestedDirectory := testutils.RandomString(11)
+	nestedDirectoryPath := filepath.Join(repoPath, nestedDirectory)
+	if err := os.MkdirAll(nestedDirectoryPath, constants.DirPerms); err != nil {
+		t.Fatalf("failed to create nested directory: %v", err)
+	}
+	nestedRetainedName := testutils.RandomString(12)
+	nestedDeletedName := testutils.RandomString(13)
+	testutils.CreateTestFile(t, nestedDirectoryPath, nestedRetainedName, testutils.RandomBytes(21))
+	nestedDeletedFilePath := testutils.CreateTestFile(t, nestedDirectoryPath, nestedDeletedName, testutils.RandomBytes(22))
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{"."}); err != nil {
+		t.Fatalf("failed to stage initial repository: %v", err)
+	}
+	if err := os.Remove(rootFilePath); err != nil {
+		t.Fatalf("failed to remove root tracked file: %v", err)
+	}
+	if err := os.Remove(nestedDeletedFilePath); err != nil {
+		t.Fatalf("failed to remove nested tracked file: %v", err)
+	}
+	testutils.ChangeToDir(t, nestedDirectoryPath)
+	nestedDeletedPath := filepath.ToSlash(filepath.Join(nestedDirectory, nestedDeletedName))
+
+	addedFiles, deletedFiles, err := OrchestrateAddExecution(repoPath, []string{"."})
+	if err != nil {
+		t.Fatalf("failed to stage repository from nested directory: %v", err)
+	}
+	if len(addedFiles) != 0 {
+		t.Fatalf("expected no changed files in nested subtree, got [%v]", addedFiles)
+	}
+	expectedDeletedFiles := []string{rootPath, nestedDeletedPath}
+	slices.Sort(expectedDeletedFiles)
+	if !slices.Equal(deletedFiles, expectedDeletedFiles) {
+		t.Fatalf("expected deleted files [%v], got [%v]", expectedDeletedFiles, deletedFiles)
+	}
+
+	idx := loadIndex(t, repoPath)
+	for _, deletedPath := range expectedDeletedFiles {
+		if idx.GetEntry(deletedPath) != nil {
+			t.Fatalf("expected deleted path [%s] to be removed from the index", deletedPath)
+		}
+	}
+}
+
 // TestOrchestrateAddExecution_AddAll_EmptyRepository verifies that "." on an
 // empty repository succeeds with zero staged files.
 func TestOrchestrateAddExecution_AddAll_EmptyRepository(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
 	testutils.ChangeToDir(t, repoPath)
 
-	addedFiles, err := OrchestrateAddExecution(repoPath, []string{"."})
+	addedFiles, _, err := OrchestrateAddExecution(repoPath, []string{"."})
 	if err != nil {
 		t.Fatalf("OrchestrateAddExecution should succeed on empty repo: %v", err)
 	}
@@ -244,12 +618,12 @@ func TestOrchestrateAddExecution_SkipUnchangedFile(t *testing.T) {
 	testutils.CreateTestFile(t, repoPath, testFileName, []byte(testutils.RandomString(100)))
 
 	// Stage once
-	if _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
 		t.Fatalf("first add failed: %v", err)
 	}
 
 	// Stage again without modification
-	addedFiles, err := OrchestrateAddExecution(repoPath, []string{testFileName})
+	addedFiles, _, err := OrchestrateAddExecution(repoPath, []string{testFileName})
 	if err != nil {
 		t.Fatalf("second add failed: %v", err)
 	}
@@ -272,7 +646,7 @@ func TestOrchestrateAddExecution_RestagesModeOnlyChange(t *testing.T) {
 	testFileName := testutils.RandomString(10)
 	testutils.CreateTestFile(t, repoPath, testFileName, []byte(testutils.RandomString(100)))
 
-	if _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
+	if _, _, err := OrchestrateAddExecution(repoPath, []string{testFileName}); err != nil {
 		t.Fatalf("first add failed: %v", err)
 	}
 
@@ -287,7 +661,7 @@ func TestOrchestrateAddExecution_RestagesModeOnlyChange(t *testing.T) {
 		t.Fatalf("failed to make file executable: %v", err)
 	}
 
-	addedFiles, err := OrchestrateAddExecution(repoPath, []string{testFileName})
+	addedFiles, _, err := OrchestrateAddExecution(repoPath, []string{testFileName})
 	if err != nil {
 		t.Fatalf("second add failed: %v", err)
 	}

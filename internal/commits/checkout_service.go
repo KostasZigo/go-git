@@ -92,7 +92,7 @@ func searchForTargetInCommitObjects(repoPath, target string) (*ResolvedTarget, e
 }
 
 // updateHEAD atomically replaces the HEAD file with the given content using
-// a temp-file-then-rename strategy identical to IndexManager.Save.
+// a temp-file-then-rename strategy identical to index.Manager.Save.
 // For branch targets, content should be "ref: refs/heads/<branch>\n".
 // For detached commits, content should be "<commit-hash>\n".
 func updateHEAD(repoPath string, content string) error {

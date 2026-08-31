@@ -1,7 +1,5 @@
-// Package commits orchestrates the high-level version control operations that
-// act on or produce commit objects. It bridges the cmd layer and the lower-level
-// internal packages (objects, index, utils) to implement commit creation,
-// history traversal and working-tree checkout.
+// Package commits orchestrates commit creation, history traversal, and
+// checkout across branch references, the index, object storage, and worktree.
 package commits
 
 import (
@@ -12,18 +10,19 @@ import (
 	"github.com/KostasZigo/gogit/internal/objects"
 )
 
-// LoadIndexEntries returns all entries of staged files for repository's index
-func loadIndexEntries(repoPath string) ([]*index.Entry, *index.Index, error) {
+// loadCommitIndex loads the repository's current staging index.
+func loadCommitIndex(repoPath string) (*index.Index, error) {
 	indexManager := index.NewManager(repoPath)
 	idx, err := indexManager.Load()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load index from path [%s]: %w", repoPath, err)
+		return nil, fmt.Errorf("failed to load index from path [%s]: %w", repoPath, err)
 	}
 
-	return idx.GetEntryList(), idx, nil
+	return idx, nil
 }
 
-// createAndStoreCommit creates and stores commit in the file system and returns the commit hash
+// createAndStoreCommit creates an initial commit when parentHash is empty or a
+// normal single-parent commit otherwise, stores it, and returns its hash.
 func createAndStoreCommit(treeHash, parentHash, message string, author objects.Author, store *objects.ObjectStore) (string, error) {
 	var commit *objects.Commit
 	var err error
@@ -43,42 +42,48 @@ func createAndStoreCommit(treeHash, parentHash, message string, author objects.A
 	return commit.Hash(), nil
 }
 
-// OrchestrateCommitExecution loads staged index entries, converts them to a
-// tree snapshot, resolves the parent commit, creates and stores the commit,
-// and advances the current branch ref.
+// OrchestrateCommitExecution records the current index as a commit and advances
+// the active branch with a compare-and-swap update.
+//
+// Commit eligibility is based on tree identity rather than index entry count.
+// The index is converted to a snapshot and stored first, including the
+// canonical empty tree. An unborn branch rejects that empty tree, while an
+// established branch rejects only a tree equal to its parent's tree. This
+// allows an empty index to commit deletion of every path from a non-empty
+// parent without permitting empty initial or duplicate commits.
 func OrchestrateCommitExecution(repoPath string, message string, author objects.Author) (string, error) {
-	// 1. load staged files entries from index
-	entries, idx, err := loadIndexEntries(repoPath)
+	idx, err := loadCommitIndex(repoPath)
 	if err != nil {
 		return "", err
 	}
 
-	if len(entries) == 0 {
-		return "", fmt.Errorf("nothing to commit")
-	}
-
-	// 2. resolve the current branch and commit parent before creating objects
+	// Resolve the branch before creating the commit so its current hash defines
+	// both the parent and the expected value for the final atomic ref update.
 	currentBranch, err := branches.ResolveCurrent(repoPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve current branch: %w", err)
 	}
 	parentHash := currentBranch.Hash
 
-	// 3. convert staged index entries into the shared tree snapshot representation
 	snapshot, err := idx.ToTreeSnapshot()
 	if err != nil {
 		return "", err
 	}
 
-	// 4. Create and store recursively and bottom up all trees from snapshot
-	//  and return root tree hash
+	// Store child trees before their parents and return the root tree hash. This
+	// deliberately happens before eligibility checks so empty and non-empty
+	// indexes follow the same tree-building path.
 	store := objects.NewObjectStore(repoPath)
 	rootTreeHash, err := store.StoreTreeSnapshot(snapshot)
 	if err != nil {
 		return "", fmt.Errorf("failed to create commit tree directory: %w", err)
 	}
 
-	// 5. reject commit if tree is unchanged from parent
+	// An empty initial snapshot has no meaningful repository state to record.
+	// Once a parent exists, equality with its tree is the only no-op condition.
+	if parentHash == "" && len(snapshot) == 0 {
+		return "", fmt.Errorf("nothing to commit")
+	}
 	if parentHash != "" {
 		parentCommit, err := store.ReadCommit(parentHash)
 		if err != nil {
@@ -89,13 +94,13 @@ func OrchestrateCommitExecution(repoPath string, message string, author objects.
 		}
 	}
 
-	// 6. create and store commit in the filesystem
 	commitHash, err := createAndStoreCommit(rootTreeHash, parentHash, message, author, store)
 	if err != nil {
 		return "", err
 	}
 
-	// 7. advance the current branch only if it still points to the parent commit
+	// Advance only if the branch still points to the resolved parent; a
+	// concurrent ref change must not be overwritten by this commit.
 	if err := branches.CompareAndSwap(
 		repoPath,
 		currentBranch.Name,

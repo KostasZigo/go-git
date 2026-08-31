@@ -81,26 +81,29 @@ func TestIndex_UpdateEntry(t *testing.T) {
 	}
 }
 
-// TestIndex_RemoveEntry verifies entry deletion.
-func TestIndex_RemoveEntry(t *testing.T) {
+// TestIndex_RemoveEntries verifies that one call removes multiple entries and
+// ignores paths that are not present.
+func TestIndex_RemoveEntries(t *testing.T) {
 	index := NewIndex()
 
-	entry, err := NewEntry(ModeRegularFile, testutils.RandomHash(), testutils.RandomString(10), testutils.RandomInt(100), time.Now())
-	if err != nil {
-		t.Fatalf("failed to create entry: %v", err)
+	entryPaths := []string{testutils.RandomString(10), testutils.RandomString(11)}
+	for _, entryPath := range entryPaths {
+		entry, err := NewEntry(ModeRegularFile, testutils.RandomHash(), entryPath, testutils.RandomInt(100), time.Now())
+		if err != nil {
+			t.Fatalf("failed to create entry: %v", err)
+		}
+		if err := index.AddEntry(entry); err != nil {
+			t.Fatalf("failed to add entry: %v", err)
+		}
 	}
 
-	if err := index.AddEntry(entry); err != nil {
-		t.Fatalf("failed to add entry: %v", err)
+	if index.CountEntries() != len(entryPaths) {
+		t.Fatalf("expected [%d] entries, got [%d]", len(entryPaths), index.CountEntries())
 	}
 
-	if index.CountEntries() != 1 {
-		t.Errorf("expected 1 entry, got %d", index.CountEntries())
-	}
-
-	index.RemoveEntry(entry.Path())
+	index.RemoveEntries(entryPaths[0], entryPaths[1], testutils.RandomString(12))
 	if index.CountEntries() != 0 {
-		t.Fatalf("expected 0 entries in the index after deletetion but got [%v]", index.CountEntries())
+		t.Fatalf("expected no entries after removal, got [%d]", index.CountEntries())
 	}
 }
 

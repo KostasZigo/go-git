@@ -1,15 +1,14 @@
 package worktree
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 
+	"github.com/KostasZigo/gogit/internal/filesystem"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
 )
@@ -133,7 +132,7 @@ func inspectUntrackedParent(repoPath, targetPath string, trackedPaths map[string
 
 		fileInfo, err := os.Lstat(filepath.Join(repoPath, osParentPath))
 		if err != nil {
-			if isMissingPathError(err) {
+			if filesystem.IsPathMissing(err) {
 				continue
 			}
 			return Collision{}, fmt.Errorf("failed to inspect path [%s]: %w", osParentPath, err)
@@ -172,7 +171,7 @@ func inspectTrackedPathDirectory(repoPath, targetPath string, trackedPaths map[s
 	osPath := filepath.Join(repoPath, osTargetPath)
 	fileInfo, err := os.Lstat(osPath)
 	if err != nil {
-		if isMissingPathError(err) {
+		if filesystem.IsPathMissing(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to stat target path [%s]: %w", osTargetPath, err)
@@ -243,7 +242,7 @@ func inspectTargetPathCollision(repoPath, targetPath string) (Collision, error) 
 
 	fileInfo, err := os.Lstat(filepath.Join(repoPath, osTargetPath))
 	if err != nil {
-		if isMissingPathError(err) {
+		if filesystem.IsPathMissing(err) {
 			return Collision{}, nil
 		}
 		return Collision{}, fmt.Errorf("failed to inspect target path [%s]: %w", targetPath, err)
@@ -297,10 +296,4 @@ func inspectRemovedPathCollisions(repoPath string, originalSnapshot, targetSnaps
 	}
 
 	return collisions, nil
-}
-
-// isMissingPathError reports whether an inspected path is absent, including
-// the Unix case where an ancestor exists but is not a directory.
-func isMissingPathError(err error) bool {
-	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)
 }

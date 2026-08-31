@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
-	"syscall"
 	"time"
 
 	"github.com/KostasZigo/gogit/internal/constants"
+	"github.com/KostasZigo/gogit/internal/filesystem"
 	"github.com/KostasZigo/gogit/internal/hasher"
 	"github.com/KostasZigo/gogit/internal/index"
 	"github.com/KostasZigo/gogit/internal/objects"
@@ -155,8 +154,7 @@ func inspectTargetMaterialization(repoPath, targetPath string, targetEntry objec
 	osPath := filepath.Join(repoPath, osTargetPath)
 	fileInfo, err := os.Lstat(osPath)
 	if err != nil {
-		// Unix reports ENOTDIR when an ancestor path component is a file.
-		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+		if filesystem.IsPathMissing(err) {
 			return true, false, nil
 		}
 		return false, false, fmt.Errorf("failed to inspect target path [%s]: %w", targetPath, err)
