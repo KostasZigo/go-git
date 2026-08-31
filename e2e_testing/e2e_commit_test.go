@@ -193,6 +193,94 @@ func TestE2E_CommitCommand_FullWorkflow(t *testing.T) {
 	}
 }
 
+// TestE2E_CommitCommand_AddAndDeleteInSameSnapshot verifies that one `add .`
+// invocation stages an unrelated addition and deletion together, preserves an
+// unchanged tracked file, and commits the exact resulting tree.
+func TestE2E_CommitCommand_AddAndDeleteInSameSnapshot(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	repoPath := setupTestRepo(t)
+	initializeRepository(t, repoPath)
+
+	deletedPath := "a-" + testutils.RandomString(10)
+	retainedPath := "m-" + testutils.RandomString(10)
+	addedPath := "z-" + testutils.RandomString(10)
+	deletedFilePath := testutils.CreateTestFile(t, repoPath, deletedPath, testutils.RandomBytes(20))
+	retainedContent := testutils.RandomBytes(21)
+	testutils.CreateTestFile(t, repoPath, retainedPath, retainedContent)
+
+	addCommand := newGogitCmd(t, constants.AddCmdName, ".")
+	addCommand.Dir = repoPath
+	if output, err := addCommand.CombinedOutput(); err != nil {
+		t.Fatalf("failed to stage initial repository: %v\nOutput: %s", err, output)
+	}
+	commitCommand := newGogitCmd(t, constants.CommitCmdName, "-m", "initial snapshot")
+	commitCommand.Dir = repoPath
+	if output, err := commitCommand.CombinedOutput(); err != nil {
+		t.Fatalf("failed to commit initial repository: %v\nOutput: %s", err, output)
+	}
+	parentHash := readBranchRefHash(t, repoPath, constants.DefaultBranch)
+
+	if err := os.Remove(deletedFilePath); err != nil {
+		t.Fatalf("failed to remove tracked file: %v", err)
+	}
+	addedContent := testutils.RandomBytes(22)
+	testutils.CreateTestFile(t, repoPath, addedPath, addedContent)
+
+	addCommand = newGogitCmd(t, constants.AddCmdName, ".")
+	addCommand.Dir = repoPath
+	output, err := addCommand.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to stage mixed repository changes: %v\nOutput: %s", err, output)
+	}
+	expectedOutput := "deleted '" + filepath.ToSlash(deletedPath) + "'\n" +
+		"add '" + filepath.ToSlash(addedPath) + "'\n"
+	if string(output) != expectedOutput {
+		t.Fatalf("expected mixed staging output [%q], got [%q]", expectedOutput, output)
+	}
+	assertIndexCreationAndContent(t, repoPath, map[string][]byte{
+		retainedPath: retainedContent,
+		addedPath:    addedContent,
+	})
+
+	commitCommand = newGogitCmd(t, constants.CommitCmdName, "-m", "mixed snapshot")
+	commitCommand.Dir = repoPath
+	if output, err := commitCommand.CombinedOutput(); err != nil {
+		t.Fatalf("failed to commit mixed repository changes: %v\nOutput: %s", err, output)
+	}
+	commitHash := readBranchRefHash(t, repoPath, constants.DefaultBranch)
+	commit := readCommitByHash(t, repoPath, commitHash)
+	if commit.ParentHash() != parentHash {
+		t.Fatalf("expected parent hash [%s], got [%s]", parentHash, commit.ParentHash())
+	}
+
+	snapshot, err := objects.NewObjectStore(repoPath).ReadTreeSnapshot(commit.TreeHash())
+	if err != nil {
+		t.Fatalf("failed to read mixed commit tree: %v", err)
+	}
+	if len(snapshot) != 2 {
+		t.Fatalf("expected two paths in mixed commit tree, got [%d]", len(snapshot))
+	}
+	if _, exists := snapshot[deletedPath]; exists {
+		t.Fatalf("expected deleted path [%s] to be absent from commit tree", deletedPath)
+	}
+	expectedEntries := map[string]string{
+		retainedPath: objects.NewBlob(retainedContent).Hash(),
+		addedPath:    objects.NewBlob(addedContent).Hash(),
+	}
+	for filePath, expectedHash := range expectedEntries {
+		entry, exists := snapshot[filePath]
+		if !exists {
+			t.Fatalf("expected path [%s] in mixed commit tree", filePath)
+		}
+		if entry.Hash != expectedHash {
+			t.Fatalf("expected hash [%s] for [%s], got [%s]", expectedHash, filePath, entry.Hash)
+		}
+	}
+}
+
 // TestE2E_CommitCommand_DeleteAllFilesCommitsEmptyTree verifies the complete
 // add/commit/delete/add/commit workflow. Repository-wide staging must report
 // every deletion in path order, persist an empty index, and create a commit
