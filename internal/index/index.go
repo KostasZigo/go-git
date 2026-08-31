@@ -12,13 +12,14 @@ import (
 	"github.com/KostasZigo/gogit/internal/objects"
 )
 
-// Index represents the staging area containing file entries
+// Index represents the staging area as canonical repository paths mapped to
+// their blob identity and filesystem metadata.
 type Index struct {
 	entries map[string]*Entry // Map [filepath : entry] for fast lookup
 	version uint32
 }
 
-// NewIndex creates an empty index with default version
+// NewIndex creates an empty index with the default format version.
 func NewIndex() *Index {
 	return &Index{
 		entries: make(map[string]*Entry),
@@ -26,7 +27,7 @@ func NewIndex() *Index {
 	}
 }
 
-// AddEntry inserts or updates an entry in index
+// AddEntry inserts or replaces an entry using its canonical path as identity.
 func (idx *Index) AddEntry(entry *Entry) error {
 	if entry == nil {
 		return fmt.Errorf("cannot add empty entry to idx")
@@ -36,18 +37,21 @@ func (idx *Index) AddEntry(entry *Entry) error {
 	return nil
 }
 
+// RemoveEntries removes the entries at paths from the index. Paths that are
+// not present are ignored.
+func (idx *Index) RemoveEntries(paths ...string) {
+	for _, entryPath := range paths {
+		delete(idx.entries, entryPath)
+	}
+}
+
 // GetEntry returns the index entry for the given path, or nil if no entry
 // exists.
 func (idx *Index) GetEntry(path string) *Entry {
 	return idx.entries[path]
 }
 
-// RemoveEntry deletes an entry from the index based on its path
-func (idx *Index) RemoveEntry(path string) {
-	delete(idx.entries, path)
-}
-
-// GetEntryList returns sorted slice of all entries
+// GetEntryList returns all entries in deterministic canonical-path order.
 func (idx *Index) GetEntryList() []*Entry {
 	entries := make([]*Entry, 0, len(idx.entries))
 	for _, entry := range idx.entries {

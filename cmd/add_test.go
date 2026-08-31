@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -53,6 +54,37 @@ func TestAddCommand_OutputFormat(t *testing.T) {
 	}
 }
 
+// TestAddCommand_DeletionOutputFormat verifies that explicitly staging a
+// tracked deletion prints the canonical deleted-path result.
+func TestAddCommand_DeletionOutputFormat(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	testutils.ChangeToDir(t, repoPath)
+
+	fileName := testutils.RandomString(10)
+	filePath := testutils.CreateTestFile(t, repoPath, fileName, testutils.RandomBytes(20))
+	stageCommand := createTestRootCmd(addCmd)
+	captureStdout(stageCommand)
+	stageCommand.SetArgs([]string{constants.AddCmdName, fileName})
+	if err := stageCommand.Execute(); err != nil {
+		t.Fatalf("failed to stage initial file: %v", err)
+	}
+	if err := os.Remove(filePath); err != nil {
+		t.Fatalf("failed to remove tracked file: %v", err)
+	}
+
+	deleteCommand := createTestRootCmd(addCmd)
+	stdout := captureStdout(deleteCommand)
+	deleteCommand.SetArgs([]string{constants.AddCmdName, fileName})
+	if err := deleteCommand.Execute(); err != nil {
+		t.Fatalf("failed to stage deletion: %v", err)
+	}
+
+	expectedOutput := "deleted '" + fileName + "'\n"
+	if stdout.String() != expectedOutput {
+		t.Fatalf("expected output [%q], got [%q]", expectedOutput, stdout.String())
+	}
+}
+
 // TestAddCommand_OutputFormat_MulitpleFiles verifies the CLI prints staged file paths correctly.
 func TestAddCommand_OutputFormat_MulitpleFiles(t *testing.T) {
 	repoPath := testutils.SetupTestRepoWithInit(t)
@@ -76,7 +108,9 @@ func TestAddCommand_OutputFormat_MulitpleFiles(t *testing.T) {
 
 	var expectedOutput strings.Builder
 	for _, fileName := range fileNames {
-		expectedOutput.WriteString("add '" + fileName + "'\n")
+		expectedOutput.WriteString("add '")
+		expectedOutput.WriteString(fileName)
+		expectedOutput.WriteString("'\n")
 	}
 	if !strings.Contains(stdout.String(), expectedOutput.String()) {
 		t.Errorf("expected output to contain %q, got: %q", expectedOutput.String(), stdout.String())

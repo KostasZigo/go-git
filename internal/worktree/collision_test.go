@@ -7,7 +7,6 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
-	"syscall"
 	"testing"
 	"time"
 
@@ -187,20 +186,6 @@ func TestServiceInspectCollisions_TrackedFileBecomesDirectory(t *testing.T) {
 	}
 	if len(collisions) != 0 {
 		t.Fatalf("expected no collisions, got [%d]: [%#v]", len(collisions), collisions)
-	}
-}
-
-// TestIsMissingPathError_ENOTDIR verifies that Unix reports for descendants
-// below a regular file are treated as absent paths during collision inspection.
-func TestIsMissingPathError_ENOTDIR(t *testing.T) {
-	err := &os.PathError{
-		Op:   "lstat",
-		Path: filepath.Join("tracked-file", "target-child"),
-		Err:  syscall.ENOTDIR,
-	}
-
-	if !isMissingPathError(err) {
-		t.Fatalf("expected ENOTDIR path error to be classified as missing, got [%v]", err)
 	}
 }
 

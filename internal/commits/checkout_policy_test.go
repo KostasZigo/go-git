@@ -148,7 +148,7 @@ func TestCheckout_Orchestrate_ForceDiscardsTrackedChanges(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to load index before staged deletion: %v", err)
 			}
-			idx.RemoveEntry(trackedPath)
+			idx.RemoveEntries(trackedPath)
 			if err := idxManager.Save(idx); err != nil {
 				t.Fatalf("failed to persist staged deletion: %v", err)
 			}

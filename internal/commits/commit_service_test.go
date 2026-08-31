@@ -314,6 +314,77 @@ func Test_OrchestrateCommitExecution_DetachedHEAD(t *testing.T) {
 	testutils.AssertHEADContent(t, repoPath, detachedHash+"\n")
 }
 
+// Test_OrchestrateCommitExecution_RejectsEmptyInitialCommit verifies that an
+// unborn branch cannot create a commit from an empty index after the canonical
+// empty tree has been built.
+func Test_OrchestrateCommitExecution_RejectsEmptyInitialCommit(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+
+	commitHash, err := OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err == nil {
+		t.Fatal("expected empty initial commit to be rejected")
+	}
+	if err.Error() != "nothing to commit" {
+		t.Fatalf("expected nothing-to-commit error, got [%v]", err)
+	}
+	if commitHash != "" {
+		t.Fatalf("expected no commit hash, got [%s]", commitHash)
+	}
+	if !store.Exists(testutils.CanonicalEmptyTreeHash) {
+		t.Fatal("expected canonical empty tree to be built before rejection")
+	}
+
+	refPath := filepath.Join(repoPath, constants.Gogit, constants.Refs, constants.Heads, constants.DefaultBranch)
+	testutils.AssertFileNotExists(t, refPath)
+}
+
+// Test_OrchestrateCommitExecution_EmptyIndexCommitsDeletion verifies that an
+// empty index creates an empty-tree commit when its parent tree is non-empty.
+func Test_OrchestrateCommitExecution_EmptyIndexCommitsDeletion(t *testing.T) {
+	repoPath := testutils.SetupTestRepoWithInit(t)
+	store := objects.NewObjectStore(repoPath)
+	stageCommitEntry(t, repoPath, testutils.RandomString(8), testutils.RandomByteSlice(50))
+
+	parentHash, err := OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create non-empty parent commit: %v", err)
+	}
+	if err := index.NewManager(repoPath).Save(index.NewIndex()); err != nil {
+		t.Fatalf("failed to persist empty index: %v", err)
+	}
+
+	commitHash, err := OrchestrateCommitExecution(
+		repoPath,
+		testutils.RandomString(20),
+		objects.DefaultAuthor(),
+	)
+	if err != nil {
+		t.Fatalf("failed to commit deletion of parent tree: %v", err)
+	}
+	commit, err := store.ReadCommit(commitHash)
+	if err != nil {
+		t.Fatalf("failed to read deletion commit: %v", err)
+	}
+	if commit.ParentHash() != parentHash {
+		t.Fatalf("expected parent hash [%s], got [%s]", parentHash, commit.ParentHash())
+	}
+	if commit.TreeHash() != testutils.CanonicalEmptyTreeHash {
+		t.Fatalf("expected empty tree hash [%s], got [%s]", testutils.CanonicalEmptyTreeHash, commit.TreeHash())
+	}
+	if currentHash := testutils.ReadDefaultRefFile(t, repoPath); currentHash != commitHash {
+		t.Fatalf("expected branch hash [%s], got [%s]", commitHash, currentHash)
+	}
+}
+
 // Test_OrchestrateCommitExecution_HierarchicalCurrentBranch verifies that
 // initial and ordinary commits advance a hierarchical current branch.
 func Test_OrchestrateCommitExecution_HierarchicalCurrentBranch(t *testing.T) {
